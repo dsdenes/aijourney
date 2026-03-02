@@ -69,7 +69,7 @@ If a guide conflicts with default behavior, follow the guide selected via `guide
 | Compute | AWS ECS on Fargate |
 | IaC | Terraform |
 | CI/CD | GitLab CI |
-| LLM | OpenAI API (primary); Bedrock models (configurable fallback) |
+| LLM | OpenAI API (primary) — **mandatory model: `gpt-5-mini`**; Bedrock models (configurable fallback) |
 
 ---
 
@@ -609,6 +609,25 @@ Client (Browser)
 ---
 
 ## 9. Coding Standards
+
+### LLM Model Standards
+
+**Mandatory OpenAI model: `gpt-5-mini`** — This is the only permitted OpenAI model in this codebase.
+
+- **Never** use `gpt-4o`, `gpt-4o-mini`, `gpt-4.1`, `gpt-4.1-mini`, or any other variant.
+- All new code that calls the OpenAI Chat Completions API **must** use `model: "gpt-5-mini"`.
+- This applies everywhere: services, workers, kb-builder, scripts, tests.
+- Do not make model name configurable via env var unless a specific override is explicitly approved.
+
+```typescript
+// ✅ Correct — always use this
+await openai.chat.completions.create({ model: "gpt-5-mini", ... });
+
+// ❌ Forbidden — any other OpenAI chat model
+await openai.chat.completions.create({ model: "gpt-4o-mini", ... });
+```
+
+> **Why `gpt-5-mini`?** It is OpenAI's current cost-efficient model ($0.25/M input, $2.00/M output), successor to o4-mini, with 400K context window and strong instruction-following — ideal for the AI Journey platform's use cases.
 
 ### TypeScript Configuration
 

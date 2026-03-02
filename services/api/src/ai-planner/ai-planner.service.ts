@@ -12,7 +12,7 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 import OpenAI from "openai";
 import { AppConfigService } from "../config/config.service";
 
-const QUESTIONS_MODEL = "gpt-5.2-mini";
+const QUESTIONS_MODEL = "gpt-5-mini";
 const STRATEGY_MODEL_ID = "anthropic.claude-sonnet-4-6-20250514-v1:0";
 const AWS_REGION = "eu-central-1";
 

@@ -2,7 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import OpenAI from "openai";
 import { PROMPTING_PRACTICES_CONTEXT } from "./prompting-practices-context";
 
-const MODEL = "gpt-4.1-mini";
+const MODEL = "gpt-5-mini";
 
 @Injectable()
 export class PromptOptimizerService {
