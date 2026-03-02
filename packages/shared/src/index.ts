@@ -36,7 +36,6 @@ export type {
 	PlannerRound,
 	PlannerStrategy,
 	PlannerStrategyStep,
-	PlannerTool,
 } from "./types/ai-planner.js";
 export type {
 	Article,

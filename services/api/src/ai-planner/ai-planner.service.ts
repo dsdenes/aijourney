@@ -56,29 +56,46 @@ export class AiPlannerService {
 		const previousContext =
 			previousAnswers.length > 0
 				? `\n\nThe user already answered these specification questions:\n${previousAnswers
-						.map((a) => `- "${a.question}" → ${a.answer ? "YES" : "NO"}`)
+						.map((a) => {
+							let line = `- "${a.question}" → ${a.answer ? "YES" : "NO"}`;
+							if (a.context) line += ` (user note: "${a.context}")`;
+							return line;
+						})
 						.join(
 							"\n",
 						)}\n\nDo NOT repeat any of the above questions. Build on what you already know from the answers to ask deeper, more specific questions.`
 				: "";
 
 		const roundLabels: Record<PlannerRound, string> = {
-			1: "broad exploration — understand the general scope, domain, team size, timeline, and main objectives",
-			2: "narrowing down — given what you know, ask about specific constraints, preferred AI capabilities, data sensitivity, existing tools, and success criteria",
-			3: "final details — ask about edge cases, output format preferences, integration needs, quality requirements, and deployment considerations",
+			1: "understanding the big picture — who is involved, what the goal is, how urgent it is, and what success looks like",
+			2: "getting more specific — based on what you know, ask about boundaries, preferences, quality expectations, and how the results will be used",
+			3: "final details — ask about special situations, what the finished result should look like, and any remaining concerns",
 		};
 
-		const systemMessage = `You are an AI project planning consultant. The user wants to use AI for a complex project. Your job is to ask exactly 6 true/false questions to better understand their needs.
+		const systemMessage = `You are a friendly AI planning consultant. The user is a NON-TECHNICAL person who CANNOT code or build software. They want to use ChatGPT to help with a project by copy-pasting prompts. Your job is to ask exactly 6 yes/no questions to understand what they need.
 
-This is specification round ${round} of 3. Focus on: ${roundLabels[round]}.${previousContext}
+This is round ${round} of 3. Focus on: ${roundLabels[round]}.${previousContext}
 
 Rules:
 - Generate EXACTLY 6 questions
-- Each question MUST be answerable with true/false (yes/no)
-- Questions should be specific and actionable, not vague
-- Each question should reveal meaningful information about the project
-- Questions should cover different aspects of the project
+- Each question MUST be a simple yes/no statement (checking it means YES)
+- Use plain, everyday language a 12-year-old would understand
+- NEVER use technical words like: API, deploy, code, script, database, server, framework, model, integration, pipeline, configure, SDK, CLI
+- Focus on what the person wants to ACHIEVE — not how to build it
+- Think about: who will see the results, how often they need it, what format they want, how important quality vs speed is, who else is involved
 - Do NOT repeat any previously asked questions
+- Keep each question under 15 words
+
+Examples of GOOD questions:
+- "More than 10 people will use this regularly."
+- "The results need to look professional and polished."
+- "Getting this done quickly matters more than perfection."
+- "Other people on your team will help with this."
+
+Examples of BAD questions:
+- "Do you need a REST API integration?" ← technical jargon
+- "Should the model support fine-tuning?" ← the user doesn't know what this means
+- "Is low-latency inference a requirement?" ← too technical
 
 Respond in this exact JSON format (no markdown, no code fences):
 [
@@ -136,49 +153,51 @@ Respond in this exact JSON format (no markdown, no code fences):
 	async generateStrategy(
 		goal: string,
 		allAnswers: PlannerAnswer[],
+		feedback?: string,
 	): Promise<PlannerStrategy> {
 		const specificationsText = allAnswers
 			.map((a) => `- "${a.question}" → ${a.answer ? "YES" : "NO"}`)
 			.join("\n");
 
-		const prompt = `You are an expert AI strategy consultant. A user wants to use AI for a project and has answered specification questions to clarify their needs.
+		const feedbackBlock = feedback
+			? `\n\nUser feedback on a previous plan (incorporate this):\n${feedback}`
+			: "";
+
+		const prompt = `You are a friendly AI advisor helping a NON-TECHNICAL person who CANNOT code, program, or build anything technical. They can ONLY copy-paste prompts into ChatGPT and read the answers. That is their only skill.
 
 Project Goal:
 ${goal}
 
-Specification Answers:
-${specificationsText}
+What we know about their project:
+${specificationsText}${feedbackBlock}
 
-Based on this information, create a comprehensive AI usage strategy. The strategy should be practical and actionable, defaulting to ChatGPT as the primary tool unless the requirements clearly call for something else.
+CRITICAL RULES:
+- The user is NOT a developer. They cannot write code, use a terminal, install software, configure servers, or do anything technical.
+- The ONLY thing they can do is open ChatGPT (chat.openai.com) and paste prompts.
+- Every single step MUST be achievable by pasting a prompt into ChatGPT and reading the answer.
+- NEVER suggest coding, scripting, building, deploying, using APIs, databases, or any technical tool.
+- NEVER use words like: API, deploy, script, code, implement, configure, server, database, repository, framework, library, terminal, CLI, SDK, pipeline.
+- Each prompt must be completely ready to paste — no blanks, no placeholders, no "replace X with Y".
+- Each prompt should ask ChatGPT to produce something useful: a document, a plan, text content, analysis, ideas, templates, or step-by-step instructions the user can follow or share with others.
+- Keep descriptions short: 1 sentence max, plain everyday language.
+- Always set "tool" to "chatgpt".
 
 Respond in this exact JSON format (no markdown, no code fences):
 {
-  "title": "<concise strategy title, 5-10 words>",
-  "summary": "<2-3 sentence executive summary of the strategy>",
+  "title": "<concise plan title, 5-8 words>",
+  "summary": "<1-2 sentence summary of what they'll accomplish by pasting these prompts>",
+  "tool": "chatgpt",
   "steps": [
     {
       "order": 1,
-      "title": "<step title>",
-      "description": "<detailed description of what to do in this step, 2-4 sentences>",
-      "aiRole": "<how AI helps in this step, 1-2 sentences>"
+      "title": "<short friendly step name>",
+      "description": "<1 sentence: what they'll get from this prompt>",
+      "prompt": "<ready-to-paste prompt, 80-200 words, specific to their project, no placeholders>"
     }
-  ],
-  "examplePrompt": "<a ready-to-use example prompt the user can copy-paste into ChatGPT to get started with the first step. Make it detailed, specific to their project, and follow prompting best practices (clear context, role, constraints, format).>",
-  "recommendedTools": [
-    {
-      "name": "<tool name>",
-      "description": "<why this tool is relevant, 1 sentence>",
-      "url": "<optional URL>"
-    }
-  ],
-  "tips": [
-    "<practical tip 1>",
-    "<practical tip 2>",
-    "<practical tip 3>"
   ]
 }
 
-Provide 4-6 steps, 2-4 recommended tools (always include ChatGPT as the first), and 3-5 tips. The example prompt should be substantial (at least 100 words) and ready to use.`;
+Provide 4-6 steps. Each step MUST have a prompt.`;
 
 		this.logger.debug(
 			`Generating strategy for goal: ${goal.substring(0, 80)}...`,
@@ -200,7 +219,12 @@ Provide 4-6 steps, 2-4 recommended tools (always include ChatGPT as the first), 
 				body: new TextEncoder().encode(body),
 			});
 
-			const response = await bedrock.send(command);
+			const abortController = new AbortController();
+			const timeout = setTimeout(() => abortController.abort(), 20_000);
+			const response = await bedrock.send(command, {
+				abortSignal: abortController.signal,
+			});
+			clearTimeout(timeout);
 			const responseBody = JSON.parse(
 				new TextDecoder().decode(response.body),
 			) as { content: { type: string; text: string }[] };
@@ -215,9 +239,16 @@ Provide 4-6 steps, 2-4 recommended tools (always include ChatGPT as the first), 
 				.replace(/\s*```$/, "");
 			const strategy = JSON.parse(cleaned) as PlannerStrategy;
 
-			// Validate structure
-			if (!strategy.title || !strategy.steps || !strategy.examplePrompt) {
-				throw new Error("Invalid strategy structure from LLM");
+			// Validate new format — must have tool + per-step prompts
+			if (
+				!strategy.title ||
+				!strategy.steps ||
+				!strategy.tool ||
+				!strategy.steps[0]?.prompt
+			) {
+				throw new Error(
+					"Bedrock returned old/invalid strategy format, falling back",
+				);
 			}
 
 			return strategy;
@@ -226,7 +257,7 @@ Provide 4-6 steps, 2-4 recommended tools (always include ChatGPT as the first), 
 				`Bedrock strategy generation failed: ${(err as Error).message}`,
 			);
 			// Fall back to OpenAI if Bedrock fails
-			return this.generateStrategyFallback(goal, allAnswers);
+			return this.generateStrategyFallback(goal, allAnswers, feedback);
 		}
 	}
 
@@ -236,6 +267,7 @@ Provide 4-6 steps, 2-4 recommended tools (always include ChatGPT as the first), 
 	private async generateStrategyFallback(
 		goal: string,
 		allAnswers: PlannerAnswer[],
+		feedback?: string,
 	): Promise<PlannerStrategy> {
 		this.logger.warn("Falling back to OpenAI for strategy generation");
 
@@ -243,19 +275,23 @@ Provide 4-6 steps, 2-4 recommended tools (always include ChatGPT as the first), 
 			.map((a) => `- "${a.question}" → ${a.answer ? "YES" : "NO"}`)
 			.join("\n");
 
-		const systemMessage = `You are an expert AI strategy consultant. Create a practical AI usage strategy based on the user's project goal and specification answers. Default to ChatGPT as the primary tool.
+		const feedbackBlock = feedback
+			? `\n\nUser feedback on a previous plan (incorporate this):\n${feedback}`
+			: "";
+
+		const systemMessage = `You are a friendly AI advisor helping a NON-TECHNICAL person who CANNOT code, program, or build anything technical. They can ONLY copy-paste prompts into ChatGPT.
+
+CRITICAL: Every step must be achievable by pasting a prompt into ChatGPT. NEVER suggest coding, scripting, deploying, using APIs, databases, terminals, or any technical tool. NEVER use technical jargon. The user reads ChatGPT's answer and that's it. Always set "tool" to "chatgpt". Prompts must be fully ready to paste — no blanks or placeholders.
 
 Respond in this exact JSON format (no markdown, no code fences):
 {
-  "title": "<concise strategy title>",
-  "summary": "<2-3 sentence summary>",
-  "steps": [{ "order": 1, "title": "<title>", "description": "<2-4 sentences>", "aiRole": "<how AI helps>" }],
-  "examplePrompt": "<detailed ready-to-use prompt, 100+ words>",
-  "recommendedTools": [{ "name": "<name>", "description": "<why>", "url": "<url>" }],
-  "tips": ["<tip1>", "<tip2>", "<tip3>"]
+  "title": "<plan title, 5-8 words>",
+  "summary": "<1-2 sentence summary of what they'll accomplish>",
+  "tool": "chatgpt",
+  "steps": [{ "order": 1, "title": "<friendly step name>", "description": "<1 sentence: what they get>", "prompt": "<80-200 word ready-to-paste prompt, no placeholders>" }]
 }
 
-4-6 steps, 2-4 tools (ChatGPT first), 3-5 tips.`;
+4-6 steps. Each step MUST have a prompt.`;
 
 		const response = await this.getOpenAI().chat.completions.create({
 			model: "gpt-5-mini",
@@ -263,7 +299,7 @@ Respond in this exact JSON format (no markdown, no code fences):
 				{ role: "system", content: systemMessage },
 				{
 					role: "user",
-					content: `Project Goal:\n${goal}\n\nSpecification Answers:\n${specificationsText}`,
+					content: `Project Goal:\n${goal}\n\nSpecification Answers:\n${specificationsText}${feedbackBlock}`,
 				},
 			],
 			max_completion_tokens: 16000,

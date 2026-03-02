@@ -9,6 +9,7 @@ export interface PlannerAnswer {
 	id: number;
 	question: string;
 	answer: boolean;
+	context?: string;
 }
 
 /** The final AI usage strategy produced by the planner */
@@ -16,22 +17,14 @@ export interface PlannerStrategy {
 	title: string;
 	summary: string;
 	steps: PlannerStrategyStep[];
-	examplePrompt: string;
-	recommendedTools: PlannerTool[];
-	tips: string[];
+	tool: "chatgpt";
 }
 
 export interface PlannerStrategyStep {
 	order: number;
 	title: string;
 	description: string;
-	aiRole: string;
-}
-
-export interface PlannerTool {
-	name: string;
-	description: string;
-	url?: string;
+	prompt: string;
 }
 
 /** Round number: 1, 2, or 3 */

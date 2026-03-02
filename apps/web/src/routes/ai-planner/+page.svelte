@@ -17,22 +17,14 @@
     order: number;
     title: string;
     description: string;
-    aiRole: string;
-  }
-
-  interface StrategyTool {
-    name: string;
-    description: string;
-    url?: string;
+    prompt: string;
   }
 
   interface Strategy {
     title: string;
     summary: string;
     steps: StrategyStep[];
-    examplePrompt: string;
-    recommendedTools: StrategyTool[];
-    tips: string[];
+    tool: 'chatgpt';
   }
 
   type Step = 'input' | 'loading-q' | 'round1' | 'round2' | 'round3' | 'loading-strategy' | 'strategy';
@@ -51,21 +43,100 @@
   let round2Selections = $state<Record<number, boolean>>({});
   let round3Selections = $state<Record<number, boolean>>({});
 
-  // Extra context per question
-  let round1Context = $state<Record<number, string>>({});
-  let round2Context = $state<Record<number, string>>({});
-  let round3Context = $state<Record<number, string>>({});
+  // Extra context per round
+  let round1Context = $state('');
+  let round2Context = $state('');
+  let round3Context = $state('');
 
   // Final strategy
   let strategy = $state<Strategy | null>(null);
-  let promptCopied = $state(false);
 
-  function getAnswers(questions: PlannerQuestion[], selections: Record<number, boolean>, contexts: Record<number, string> = {}): PlannerAnswer[] {
-    return questions.map(q => ({
+  // Highest completed step (1=goal submitted, 2=round1 done, 3=round2 done, 4=round3 done, 5=strategy done)
+  let completedStep = $state(0);
+
+  // Funny rotating progress messages
+  const funnyMessages = [
+    'Consulting the AI oracle...',
+    'Checking trendy barista websites for inspiration...',
+    'Asking ChatGPT what it thinks about itself...',
+    'Reticulating splines...',
+    'Bribing the neural network with GPU cycles...',
+    'Summoning the ghost of Alan Turing...',
+    'Teaching robots to appreciate sarcasm...',
+    'Downloading more RAM... just kidding...',
+    'Politely asking the cloud for answers...',
+    'Translating your vision into ones and zeros...',
+    'Brewing a fresh pot of algorithm...',
+    'Counting electric sheep...',
+    'Running the hamster wheel powering our servers...',
+    'Convincing the AI this is not a drill...',
+    'Performing interpretive dance for the data center...',
+    'Negotiating with the internet gremlins...',
+    'Warming up the flux capacitor...',
+    'Feeding the AI its morning coffee...',
+    'Untangling the spaghetti of possibilities...',
+    'Searching for the meaning of AI-life...',
+  ];
+  let funnyMessageIndex = $state(0);
+  let funnyInterval = $state<ReturnType<typeof setInterval> | null>(null);
+
+  $effect(() => {
+    if (step === 'loading-strategy') {
+      funnyMessageIndex = Math.floor(Math.random() * funnyMessages.length);
+      funnyInterval = setInterval(() => {
+        funnyMessageIndex = (funnyMessageIndex + 1) % funnyMessages.length;
+      }, 2500);
+    } else if (funnyInterval) {
+      clearInterval(funnyInterval);
+      funnyInterval = null;
+    }
+    return () => { if (funnyInterval) clearInterval(funnyInterval); };
+  });
+  let copiedStepIndex = $state<number | null>(null);
+  let feedback = $state('');
+  let openStepIndex = $state<number | null>(null);
+
+  async function copyStepPrompt(index: number, text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      copiedStepIndex = index;
+      setTimeout(() => { copiedStepIndex = null; }, 2000);
+    } catch { /* fallback */ }
+  }
+
+  async function regenerateStrategy() {
+    if (!feedback.trim()) return;
+    error = '';
+    step = 'loading-strategy';
+    openStepIndex = null;
+
+    try {
+      const res = await api.post<Strategy>('/ai-planner/strategy', {
+        goal: goal.trim(),
+        answers: getAllAnswers(),
+        feedback: feedback.trim(),
+      });
+
+      if (res.data) {
+        strategy = res.data;
+        feedback = '';
+        completedStep = 5;
+        step = 'strategy';
+      } else if (res.error) {
+        throw new Error(res.error.message);
+      }
+    } catch (err: unknown) {
+      error = err instanceof Error ? err.message : 'Failed to regenerate strategy';
+      step = 'strategy';
+    }
+  }
+
+  function getAnswers(questions: PlannerQuestion[], selections: Record<number, boolean>, roundContext: string = ''): PlannerAnswer[] {
+    return questions.map((q, i) => ({
       id: q.id,
       question: q.question,
       answer: !!selections[q.id],
-      ...(contexts[q.id]?.trim() ? { context: contexts[q.id].trim() } : {}),
+      ...(i === 0 && roundContext.trim() ? { context: roundContext.trim() } : {}),
     }));
   }
 
@@ -97,7 +168,8 @@
       if (res.data) {
         round1Questions = res.data.questions;
         round1Selections = {};
-        round1Context = {};
+        round1Context = '';
+        completedStep = 1;
         step = 'round1';
       } else if (res.error) {
         throw new Error(res.error.message);
@@ -123,7 +195,8 @@
       if (res.data) {
         round2Questions = res.data.questions;
         round2Selections = {};
-        round2Context = {};
+        round2Context = '';
+        completedStep = 2;
         step = 'round2';
       } else if (res.error) {
         throw new Error(res.error.message);
@@ -153,7 +226,8 @@
       if (res.data) {
         round3Questions = res.data.questions;
         round3Selections = {};
-        round3Context = {};
+        round3Context = '';
+        completedStep = 3;
         step = 'round3';
       } else if (res.error) {
         throw new Error(res.error.message);
@@ -168,6 +242,7 @@
   async function submitRound3() {
     error = '';
     step = 'loading-strategy';
+    openStepIndex = null;
 
     try {
       const res = await api.post<Strategy>('/ai-planner/strategy', {
@@ -177,6 +252,7 @@
 
       if (res.data) {
         strategy = res.data;
+        completedStep = 5;
         step = 'strategy';
       } else if (res.error) {
         throw new Error(res.error.message);
@@ -185,15 +261,6 @@
       error = err instanceof Error ? err.message : 'Failed to generate strategy';
       step = 'round3';
     }
-  }
-
-  async function copyPrompt() {
-    if (!strategy?.examplePrompt) return;
-    try {
-      await navigator.clipboard.writeText(strategy.examplePrompt);
-      promptCopied = true;
-      setTimeout(() => { promptCopied = false; }, 2000);
-    } catch { /* fallback */ }
   }
 
   function startOver() {
@@ -206,28 +273,21 @@
     round1Selections = {};
     round2Selections = {};
     round3Selections = {};
-    round1Context = {};
-    round2Context = {};
-    round3Context = {};
+    round1Context = '';
+    round2Context = '';
+    round3Context = '';
     strategy = null;
-    promptCopied = false;
-  }
-
-  function currentRoundNum(): number {
-    if (step === 'input' || step === 'loading-q') return 0;
-    if (step === 'round1') return 1;
-    if (step === 'round2') return 2;
-    if (step === 'round3') return 3;
-    if (step === 'loading-strategy' || step === 'strategy') return 4;
-    return 0;
+    feedback = '';
+    openStepIndex = null;
+    completedStep = 0;
   }
 </script>
 
 <div class="mx-auto max-w-3xl">
   <div class="mb-8">
-    <h1 class="text-3xl font-bold text-text">AI Planner</h1>
+    <h1 class="text-3xl font-bold text-text">AI Action Planner</h1>
     <p class="mt-2 text-text-muted">
-      Describe your project, answer specification questions, and get a personalized AI strategy.
+      Describe what you want to achieve, answer a few quick questions, and get ready-to-use ChatGPT prompts.
     </p>
   </div>
 
@@ -238,19 +298,14 @@
       { key: 2, label: 'Round 1' },
       { key: 3, label: 'Round 2' },
       { key: 4, label: 'Round 3' },
-      { key: 5, label: 'Strategy' },
+      { key: 5, label: 'Your Plan' },
     ] as s (s.key)}
-      {@const roundNum = currentRoundNum()}
-      {@const active = (s.key === 1 && (step === 'input' || step === 'loading-q'))
-        || (s.key === 2 && step === 'round1')
-        || (s.key === 3 && step === 'round2')
-        || (s.key === 4 && step === 'round3')
+      {@const active = (s.key === 1 && (step === 'input' || step === 'loading-q' && completedStep < 1))
+        || (s.key === 2 && (step === 'round1' || step === 'loading-q' && completedStep === 1))
+        || (s.key === 3 && (step === 'round2' || step === 'loading-q' && completedStep === 2))
+        || (s.key === 4 && (step === 'round3' || step === 'loading-q' && completedStep === 3))
         || (s.key === 5 && (step === 'loading-strategy' || step === 'strategy'))}
-      {@const done = (s.key === 1 && roundNum >= 1)
-        || (s.key === 2 && roundNum >= 2)
-        || (s.key === 3 && roundNum >= 3)
-        || (s.key === 4 && roundNum >= 4)
-        || (s.key === 5 && step === 'strategy')}
+      {@const done = !active && s.key <= completedStep}
       <div class="flex items-center gap-1.5">
         <div class="flex flex-col items-center gap-1">
           <span class="flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold
@@ -277,10 +332,10 @@
   {#if step === 'input' || step === 'loading-q' && round1Questions.length === 0}
     <div class="rounded-xl bg-surface p-6 shadow-sm ring-1 ring-border">
       <label for="goal-input" class="mb-2 block text-sm font-semibold text-text">
-        Describe your project goal
+        What do you want to achieve?
       </label>
       <p class="mb-3 text-sm text-text-muted">
-        What complex project do you want to use AI for? Be as detailed as possible.
+        Describe what you'd like AI to help you with. The more detail you give, the better your plan will be.
       </p>
       <textarea
         id="goal-input"
@@ -316,7 +371,7 @@
   {#if step === 'loading-q' && round1Questions.length > 0}
     <div class="flex flex-col items-center justify-center py-16">
       <div class="mb-4 h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-      <p class="text-sm font-medium text-text-muted">Generating specification questions...</p>
+      <p class="text-sm font-medium text-text-muted">Preparing your next questions...</p>
     </div>
   {/if}
 
@@ -326,12 +381,11 @@
     {@const questions = step === 'round1' ? round1Questions : step === 'round2' ? round2Questions : round3Questions}
     {@const selections = step === 'round1' ? round1Selections : step === 'round2' ? round2Selections : round3Selections}
     {@const submitFn = step === 'round1' ? submitRound1 : step === 'round2' ? submitRound2 : submitRound3}
-    {@const contexts = step === 'round1' ? round1Context : step === 'round2' ? round2Context : round3Context}
     {@const count = selectedCount(selections)}
     {@const roundDescriptions = {
-      1: 'Select the statements that apply to your project. These help us understand the scope.',
-      2: 'Based on your previous answers, here are more specific questions. Select what applies.',
-      3: 'Final round of specification. Select what applies to finalize your strategy.',
+      1: 'Check the ones that are true for you. Checked = yes.',
+      2: 'Great, a few more based on your answers. Check what applies.',
+      3: 'Almost done! Last round — check what applies.',
     }}
 
     <!-- Goal recap -->
@@ -342,7 +396,7 @@
 
     <div class="rounded-xl bg-surface p-6 shadow-sm ring-1 ring-border">
       <div class="mb-1 flex items-center justify-between">
-        <h2 class="text-lg font-semibold text-text">Specification Round {roundNum} of 3</h2>
+        <h2 class="text-lg font-semibold text-text">Quick Questions — Round {roundNum} of 3</h2>
         <span class="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
           {count} selected
         </span>
@@ -352,42 +406,42 @@
       <div class="grid gap-3">
         {#each questions as q (q.id)}
           {@const selected = !!selections[q.id]}
-          <div class="rounded-lg border transition-all
-            {selected
-              ? 'border-primary bg-primary/5 ring-1 ring-primary/30'
-              : 'border-border hover:border-primary/50'}">
-            <button
-              onclick={() => {
-                if (step === 'round1') round1Selections = { ...round1Selections, [q.id]: !selected };
-                else if (step === 'round2') round2Selections = { ...round2Selections, [q.id]: !selected };
-                else round3Selections = { ...round3Selections, [q.id]: !selected };
-              }}
-              class="flex w-full items-start gap-3 p-4 text-left"
-            >
-              <span class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border text-xs
-                {selected ? 'border-primary bg-primary text-white' : 'border-text-faint/30'}">
-                {selected ? '✓' : ''}
-              </span>
-              <span class="text-sm font-bold {selected ? 'text-text' : 'text-text-muted'}">{q.question}</span>
-            </button>
-            <div class="px-4 pb-3 pl-12">
-              <textarea
-                placeholder="Add context (optional)"
-                rows="1"
-                value={contexts[q.id] ?? ''}
-                oninput={(e) => {
-                  const val = (e.target as HTMLTextAreaElement).value;
-                  if (step === 'round1') round1Context = { ...round1Context, [q.id]: val };
-                  else if (step === 'round2') round2Context = { ...round2Context, [q.id]: val };
-                  else round3Context = { ...round3Context, [q.id]: val };
-                }}
-                onfocus={(e) => { (e.target as HTMLTextAreaElement).rows = 3; }}
-                onblur={(e) => { const t = e.target as HTMLTextAreaElement; if (!t.value.trim()) t.rows = 1; }}
-                class="w-full resize-none rounded border border-border bg-surface-dark px-3 py-1.5 text-xs text-text placeholder-text-faint focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20"
-              ></textarea>
-            </div>
-          </div>
+          <button
+            onclick={() => {
+              if (step === 'round1') round1Selections = { ...round1Selections, [q.id]: !selected };
+              else if (step === 'round2') round2Selections = { ...round2Selections, [q.id]: !selected };
+              else round3Selections = { ...round3Selections, [q.id]: !selected };
+            }}
+            class="flex w-full items-start gap-3 rounded-lg border p-4 text-left transition-all
+              {selected
+                ? 'border-primary bg-primary/5 ring-1 ring-primary/30'
+                : 'border-border hover:border-primary/50'}"
+          >
+            <span class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border text-xs
+              {selected ? 'border-primary bg-primary text-white' : 'border-text-faint/30'}">
+              {selected ? '✓' : ''}
+            </span>
+            <span class="text-sm font-bold {selected ? 'text-text' : 'text-text-muted'}">{q.question}</span>
+          </button>
         {/each}
+      </div>
+
+      <!-- Round-level context -->
+      <div class="mt-5">
+        <label for="round-context" class="mb-1.5 block text-xs font-semibold text-text-faint">Anything else to add for this round? (optional)</label>
+        <textarea
+          id="round-context"
+          placeholder="Extra context, clarifications, or details..."
+          rows="2"
+          value={step === 'round1' ? round1Context : step === 'round2' ? round2Context : round3Context}
+          oninput={(e) => {
+            const val = (e.target as HTMLTextAreaElement).value;
+            if (step === 'round1') round1Context = val;
+            else if (step === 'round2') round2Context = val;
+            else round3Context = val;
+          }}
+          class="w-full resize-y rounded-lg border border-border bg-surface-dark px-3 py-2 text-sm text-text placeholder-text-faint focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20"
+        ></textarea>
       </div>
 
       <div class="mt-6 flex items-center justify-between">
@@ -405,7 +459,7 @@
           onclick={submitFn}
           class="rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-dark"
         >
-          {roundNum < 3 ? 'Next Round →' : 'Generate Strategy →'}
+          {roundNum < 3 ? 'Next Round →' : 'Get My Plan →'}
         </button>
       </div>
     </div>
@@ -415,101 +469,89 @@
   {#if step === 'loading-strategy'}
     <div class="flex flex-col items-center justify-center py-16">
       <div class="mb-4 h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-      <p class="text-sm font-medium text-text-muted">Generating your AI strategy with Claude Sonnet...</p>
-      <p class="mt-1 text-xs text-text-faint">This may take 15-30 seconds</p>
+      <p class="text-sm font-medium text-text-muted transition-opacity duration-300">
+        {funnyMessages[funnyMessageIndex]}
+      </p>
+      <p class="mt-1 text-xs text-text-faint">Hang tight, this takes a moment</p>
     </div>
   {/if}
 
   <!-- STEP 5: Strategy Result -->
   {#if step === 'strategy' && strategy}
+    <!-- Regenerate bar -->
+    <div class="mb-6 flex gap-2">
+      <input
+        type="text"
+        bind:value={feedback}
+        placeholder="Want changes? Describe what to adjust and regenerate..."
+        onkeydown={(e) => { if (e.key === 'Enter') regenerateStrategy(); }}
+        class="flex-1 rounded-lg border border-border bg-surface-dark px-4 py-2.5 text-sm text-text placeholder-text-faint focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20"
+      />
+      <button
+        onclick={regenerateStrategy}
+        disabled={!feedback.trim()}
+        class="shrink-0 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        Regenerate
+      </button>
+    </div>
+
     <!-- Strategy Header -->
     <div class="mb-6 rounded-xl bg-gradient-to-r from-primary/10 to-success/10 p-6 ring-1 ring-primary/20">
       <h2 class="text-2xl font-bold text-text">{strategy.title}</h2>
       <p class="mt-2 text-sm text-text-muted">{strategy.summary}</p>
+      <div class="mt-3 inline-flex items-center gap-2 rounded-full bg-surface px-3 py-1 text-xs font-medium text-text-muted ring-1 ring-border">
+        🟢 Use ChatGPT
+        <a href="https://chat.openai.com" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline">Open ChatGPT →</a>
+      </div>
     </div>
 
-    <!-- Steps -->
+    <!-- Steps with collapsible prompts -->
     <div class="mb-6 rounded-xl bg-surface p-6 ring-1 ring-border">
-      <h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-text-faint">Action Plan</h3>
-      <div class="space-y-4">
-        {#each strategy.steps as stepItem (stepItem.order)}
-          <div class="flex gap-4">
-            <div class="flex flex-col items-center">
-              <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-white">
+      <h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-text-faint">Your Step-by-Step Plan</h3>
+      <div class="space-y-3">
+        {#each strategy.steps as stepItem, i (stepItem.order)}
+          <div class="rounded-lg border border-border transition-all {openStepIndex === i ? 'ring-1 ring-primary/30' : ''}">
+            <button
+              onclick={() => { openStepIndex = openStepIndex === i ? null : i; }}
+              class="flex w-full items-start gap-3 p-4 text-left"
+            >
+              <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
                 {stepItem.order}
               </span>
-              {#if stepItem.order < strategy.steps.length}
-                <div class="mt-1 h-full w-px bg-border"></div>
-              {/if}
-            </div>
-            <div class="pb-4">
-              <h4 class="font-semibold text-text">{stepItem.title}</h4>
-              <p class="mt-1 text-sm text-text-muted">{stepItem.description}</p>
-              <div class="mt-2 inline-flex items-center gap-1.5 rounded-full bg-primary/5 px-3 py-1 text-xs text-primary">
-                <span>🤖</span>
-                {stepItem.aiRole}
+              <div class="flex-1">
+                <h4 class="font-semibold text-text">{stepItem.title}</h4>
+                <p class="mt-0.5 text-sm text-text-muted">{stepItem.description}</p>
               </div>
-            </div>
-          </div>
-        {/each}
-      </div>
-    </div>
-
-    <!-- Example Prompt -->
-    <div class="mb-6 rounded-xl bg-primary/5 p-6 ring-1 ring-primary/20">
-      <div class="mb-3 flex items-center justify-between">
-        <h3 class="text-sm font-semibold uppercase tracking-wider text-primary">Ready-to-Use Prompt</h3>
-        <button
-          onclick={copyPrompt}
-          class="rounded bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 transition-colors"
-        >
-          {promptCopied ? '✓ Copied!' : '📋 Copy Prompt'}
-        </button>
-      </div>
-      <div class="whitespace-pre-line rounded-lg bg-surface p-4 text-sm text-text ring-1 ring-border">
-        {strategy.examplePrompt}
-      </div>
-    </div>
-
-    <!-- Recommended Tools -->
-    <div class="mb-6 rounded-xl bg-surface p-6 ring-1 ring-border">
-      <h3 class="mb-4 text-sm font-semibold uppercase tracking-wider text-text-faint">Recommended Tools</h3>
-      <div class="grid gap-3 sm:grid-cols-2">
-        {#each strategy.recommendedTools as tool (tool.name)}
-          <div class="rounded-lg border border-border p-4">
-            <div class="flex items-center gap-2">
-              <span class="text-lg">🛠️</span>
-              <h4 class="font-semibold text-text">{tool.name}</h4>
-            </div>
-            <p class="mt-1 text-sm text-text-muted">{tool.description}</p>
-            {#if tool.url}
-              <a href={tool.url} target="_blank" rel="noopener noreferrer"
-                class="mt-2 inline-block text-xs text-primary hover:underline">
-                Visit →
-              </a>
+              <span class="mt-1 shrink-0 text-xs text-text-faint transition-transform {openStepIndex === i ? 'rotate-180' : ''}">
+                ▼
+              </span>
+            </button>
+            {#if openStepIndex === i}
+              <div class="border-t border-border bg-surface-dark p-4">
+                <div class="mb-2 flex items-center justify-between">
+                  <span class="text-xs font-semibold text-text-faint">📋 Copy and paste this into ChatGPT:</span>
+                  <button
+                    onclick={() => copyStepPrompt(i, stepItem.prompt)}
+                    class="rounded bg-primary/10 px-3 py-1 text-xs font-medium text-primary hover:bg-primary/20 transition-colors"
+                  >
+                    {copiedStepIndex === i ? '✓ Copied!' : 'Copy'}
+                  </button>
+                </div>
+                <div class="whitespace-pre-line rounded-lg bg-surface p-3 text-sm text-text ring-1 ring-border">
+                  {stepItem.prompt}
+                </div>
+              </div>
             {/if}
           </div>
         {/each}
       </div>
     </div>
 
-    <!-- Tips -->
-    <div class="mb-6 rounded-xl bg-success/5 p-6 ring-1 ring-success/20">
-      <h3 class="mb-3 text-sm font-semibold uppercase tracking-wider text-success">Pro Tips</h3>
-      <ul class="space-y-2">
-        {#each strategy.tips as tip}
-          <li class="flex items-start gap-2 text-sm text-text-muted">
-            <span class="mt-0.5 text-success">💡</span>
-            {tip}
-          </li>
-        {/each}
-      </ul>
-    </div>
-
     <!-- Spec Summary -->
     <details class="mb-6 rounded-xl bg-surface p-6 ring-1 ring-border">
       <summary class="cursor-pointer text-sm font-semibold text-text-faint hover:text-text">
-        View your specification answers ({getAllAnswers().length} answers)
+        View your answers ({getAllAnswers().length} questions)
       </summary>
       <div class="mt-4 space-y-2">
         {#each getAllAnswers() as answer (answer.question)}

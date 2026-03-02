@@ -104,7 +104,7 @@ export class AiPlannerController {
 		},
 	})
 	async generateStrategy(
-		@Body() body: { goal: string; answers: PlannerAnswer[] },
+		@Body() body: { goal: string; answers: PlannerAnswer[]; feedback?: string },
 	) {
 		if (!body.goal?.trim()) {
 			return {
@@ -131,6 +131,7 @@ export class AiPlannerController {
 			const strategy = await this.service.generateStrategy(
 				body.goal.trim(),
 				body.answers,
+				body.feedback?.trim(),
 			);
 			return { data: strategy };
 		} catch (err) {
