@@ -5,6 +5,8 @@
   const navItems = [
     { label: 'Dashboard', href: '/', icon: '🏠' },
     { label: 'AI Chat', href: '/chat', icon: '💬' },
+    { label: 'Prompting Practices', href: '/prompting-practices', icon: '📖' },
+    { label: 'Optimize My Prompt', href: '/optimize-prompt', icon: '✨' },
     { label: 'Profile', href: '/profile', icon: '👤' },
   ];
 
@@ -23,7 +25,7 @@
       <a
         href={item.href}
         class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors
-          {$page.url.pathname === item.href
+          {($page.url.pathname === item.href || (item.href !== '/' && $page.url.pathname.startsWith(item.href)))
             ? 'bg-primary/10 text-primary'
             : 'text-text-muted hover:bg-surface-dark hover:text-text'}"
       >

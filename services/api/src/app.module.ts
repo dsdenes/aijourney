@@ -6,6 +6,7 @@ import { ConfigModule } from "./config/config.module";
 import { DynamoDBModule } from "./dynamodb/dynamodb.module";
 import { HealthModule } from "./health/health.module";
 import { JourneysModule } from "./journeys/journeys.module";
+import { PromptOptimizerModule } from "./prompt-optimizer/prompt-optimizer.module";
 import { RunsModule } from "./runs/runs.module";
 import { UsersModule } from "./users/users.module";
 import { WorkersModule } from "./workers/workers.module";
@@ -22,6 +23,7 @@ import { WorkersModule } from "./workers/workers.module";
 		WorkersModule,
 		AgentRunsModule,
 		ChatModule,
+		PromptOptimizerModule,
 	],
 })
 export class AppModule {}
