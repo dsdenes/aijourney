@@ -11,8 +11,8 @@ import {
 	Res,
 } from "@nestjs/common";
 import { ApiOperation, ApiQuery, ApiTags } from "@nestjs/swagger";
-import { WorkersService } from "./workers.service";
 import type { Response } from "express";
+import { WorkersService } from "./workers.service";
 
 // TODO: Re-enable auth guards once Cognito is set up
 // import { UseGuards } from "@nestjs/common";
@@ -113,7 +113,9 @@ export class WorkersController {
 	}
 
 	@Post("kb-builder/pipeline")
-	@ApiOperation({ summary: "Trigger KB Builder pipeline (quality → summarize → ingest)" })
+	@ApiOperation({
+		summary: "Trigger KB Builder pipeline (quality → summarize → ingest)",
+	})
 	async triggerKbPipeline() {
 		return await this.workersService.triggerKbBuilderPipeline();
 	}
@@ -140,6 +142,14 @@ export class WorkersController {
 	@ApiOperation({ summary: "Delete an article and its summary + vectors" })
 	async deleteKbBuilderArticle(@Param("articleId") articleId: string) {
 		return await this.workersService.deleteKbBuilderArticle(articleId);
+	}
+
+	@Post("kb-builder/summarize")
+	@ApiOperation({
+		summary: "Trigger direct summarization of quality-passed articles",
+	})
+	async triggerSummarization() {
+		return await this.workersService.triggerSummarization();
 	}
 
 	@Post("kb-builder/batch-summarize")
@@ -185,7 +195,11 @@ export class WorkersController {
 
 	@Get(":slug/jobs")
 	@ApiOperation({ summary: "List jobs for a worker queue" })
-	@ApiQuery({ name: "status", required: false, enum: ["waiting", "active", "completed", "failed", "delayed"] })
+	@ApiQuery({
+		name: "status",
+		required: false,
+		enum: ["waiting", "active", "completed", "failed", "delayed"],
+	})
 	@ApiQuery({ name: "start", required: false })
 	@ApiQuery({ name: "end", required: false })
 	async getJobs(
@@ -205,10 +219,7 @@ export class WorkersController {
 
 	@Get(":slug/jobs/:jobId/logs")
 	@ApiOperation({ summary: "Get logs for a specific job" })
-	async getJobLogs(
-		@Param("slug") slug: string,
-		@Param("jobId") jobId: string,
-	) {
+	async getJobLogs(@Param("slug") slug: string, @Param("jobId") jobId: string) {
 		const result = await this.workersService.getJobLogs(slug, jobId);
 		return { data: result };
 	}
@@ -226,7 +237,9 @@ export class WorkersController {
 
 		const result = await this.workersService.addJob(slug, body);
 		if (!result) {
-			return { error: { code: "NOT_FOUND", message: `Queue ${slug} not found` } };
+			return {
+				error: { code: "NOT_FOUND", message: `Queue ${slug} not found` },
+			};
 		}
 		return { data: result };
 	}

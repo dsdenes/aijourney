@@ -519,6 +519,21 @@ export class WorkersService implements OnModuleInit, OnModuleDestroy {
 		}
 	}
 
+	// ─── Direct Summarization ───
+
+	async triggerSummarization(): Promise<Record<string, unknown>> {
+		try {
+			const res = await fetch(`${this.kbUrl}/summarize`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({}),
+			});
+			return (await res.json()) as Record<string, unknown>;
+		} catch {
+			return { error: { code: "KB_OFFLINE", message: "KB Builder service is not running" } };
+		}
+	}
+
 	// ─── Batch Summarization ───
 
 	async submitBatchSummarization(

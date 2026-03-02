@@ -28,6 +28,8 @@
   let search = $state('');
   let selectedDifficulty = $state<string>('all');
   let expandedId = $state<string | null>(null);
+  let summarizing = $state(false);
+  let summarizeMessage = $state('');
 
   const difficulties = $derived(
     ['all', ...new Set(summaries.map((s) => s.content.difficulty).filter(Boolean))],
@@ -72,6 +74,25 @@
     expandedId = expandedId === id ? null : id;
   }
 
+  async function startSummarization() {
+    summarizing = true;
+    summarizeMessage = '';
+    try {
+      const res = await api.post<{ status: string; message: string }>('/workers/kb-builder/summarize', {});
+      if (res.data) {
+        summarizeMessage = res.data.message || 'Summarization started';
+      } else if (res.error) {
+        summarizeMessage = `Error: ${res.error.message}`;
+      }
+      // Reload summaries after a short delay to show new ones
+      setTimeout(() => loadSummaries(), 5000);
+    } catch {
+      summarizeMessage = 'Failed to start summarization — KB Builder may be offline.';
+    } finally {
+      summarizing = false;
+    }
+  }
+
   onMount(() => {
     loadSummaries();
   });
@@ -90,13 +111,36 @@
         AI-generated summaries from crawled knowledge base articles. These summaries power the KB Chat context.
       </p>
     </div>
-    <button
-      onclick={loadSummaries}
-      class="rounded-md bg-surface px-3 py-1.5 text-xs font-medium text-text-muted ring-1 ring-border hover:text-text"
-    >
-      ↻ Reload
-    </button>
+    <div class="flex items-center gap-2">
+      <button
+        onclick={startSummarization}
+        disabled={summarizing}
+        class="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {#if summarizing}
+          <span class="inline-flex items-center gap-1.5">
+            <span class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+            Running…
+          </span>
+        {:else}
+          ▶ Start Summarization
+        {/if}
+      </button>
+      <button
+        onclick={loadSummaries}
+        class="rounded-md bg-surface px-3 py-1.5 text-xs font-medium text-text-muted ring-1 ring-border hover:text-text"
+      >
+        ↻ Reload
+      </button>
+    </div>
   </div>
+
+  <!-- Summarization status message -->
+  {#if summarizeMessage}
+    <div class="mb-4 rounded-lg border px-4 py-2.5 text-sm {summarizeMessage.startsWith('Error') || summarizeMessage.startsWith('Failed') ? 'border-danger/30 bg-danger/5 text-danger' : 'border-success/30 bg-success/5 text-success'}">
+      {summarizeMessage}
+    </div>
+  {/if}
 
   <!-- Stats bar -->
   <div class="mb-5 grid grid-cols-4 gap-3">
