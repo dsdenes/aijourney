@@ -1,9 +1,8 @@
+import { getRateLimiter } from "@aijourney/shared";
 import type { Job } from "bullmq";
 import OpenAI from "openai";
-import { getRateLimiter } from "@aijourney/shared";
 
-const KB_BUILDER_URL =
-	process.env.KB_BUILDER_URL || "http://localhost:3002";
+const KB_BUILDER_URL = process.env.KB_BUILDER_URL || "http://localhost:3002";
 const CHAT_MODEL = process.env.OPENAI_CHAT_MODEL || "gpt-5-mini";
 
 /** Rate limiter for the chat model */
@@ -83,11 +82,7 @@ export async function handleKbChatJob(
 			.filter((w: string) => w.length > 2);
 
 		const scored = summaries.map((s) => {
-			const text = [
-				s.content.title,
-				...s.content.keyPoints,
-				...s.content.tags,
-			]
+			const text = [s.content.title, ...s.content.keyPoints, ...s.content.tags]
 				.join(" ")
 				.toLowerCase();
 			let score = 0;
@@ -123,7 +118,11 @@ export async function handleKbChatJob(
 		// 3. Call OpenAI (with rate limiting)
 		const openai = getOpenAI();
 		const contextMsg = `Context from knowledge base:\n\n${context}`;
-		const estimatedTokens = Math.ceil((SYSTEM_PROMPT.length + contextMsg.length + (query as string).length) / 4) + 1500;
+		const estimatedTokens =
+			Math.ceil(
+				(SYSTEM_PROMPT.length + contextMsg.length + (query as string).length) /
+					4,
+			) + 1500;
 		await rateLimiter.waitForCapacity(estimatedTokens);
 		rateLimiter.recordRequest(estimatedTokens);
 
@@ -134,8 +133,7 @@ export async function handleKbChatJob(
 				{ role: "system", content: contextMsg },
 				{ role: "user", content: query as string },
 			],
-			max_tokens: 1500,
-			temperature: 0.5,
+			max_completion_tokens: 4000,
 		});
 
 		const answer =
@@ -150,9 +148,7 @@ export async function handleKbChatJob(
 		await job.log(
 			`completed run=${runRequestId} tokens=${tokensUsed} sources=${contextSummaries.length}`,
 		);
-		console.log(
-			`[kb-chat] Done run=${runRequestId} tokens=${tokensUsed}`,
-		);
+		console.log(`[kb-chat] Done run=${runRequestId} tokens=${tokensUsed}`);
 
 		return {
 			runRequestId,

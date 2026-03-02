@@ -122,8 +122,7 @@ describe("PromptOptimizerService", () => {
 			expect(mockCreate).toHaveBeenCalledWith(
 				expect.objectContaining({
 					model: "gpt-5-mini",
-					temperature: 0.4,
-					max_tokens: 500,
+					max_completion_tokens: 8000,
 				}),
 			);
 		});
@@ -236,8 +235,7 @@ describe("PromptOptimizerService", () => {
 			expect(mockCreate).toHaveBeenCalledWith(
 				expect.objectContaining({
 					model: "gpt-5-mini",
-					temperature: 0.5,
-					max_tokens: 1500,
+					max_completion_tokens: 8000,
 				}),
 			);
 		});

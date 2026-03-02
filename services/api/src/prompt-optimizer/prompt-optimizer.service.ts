@@ -58,8 +58,7 @@ Respond in this exact JSON format (no markdown, no code fences):
 					content: `Here is the prompt to analyze:\n\n${prompt}`,
 				},
 			],
-			temperature: 0.4,
-			max_tokens: 500,
+			max_completion_tokens: 8000,
 		});
 
 		const content = response.choices[0]?.message?.content?.trim();
@@ -126,8 +125,7 @@ Respond in this exact JSON format (no markdown, no code fences):
 					content: `Original prompt:\n"${originalPrompt}"\n\nChosen goal:\n"${goal}"\n\nPlease optimize this prompt for the stated goal.`,
 				},
 			],
-			temperature: 0.5,
-			max_tokens: 1500,
+			max_completion_tokens: 8000,
 		});
 
 		const content = response.choices[0]?.message?.content?.trim();

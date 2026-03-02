@@ -629,6 +629,41 @@ await openai.chat.completions.create({ model: "gpt-4o-mini", ... });
 
 > **Why `gpt-5-mini`?** It is OpenAI's current cost-efficient model ($0.25/M input, $2.00/M output), successor to o4-mini, with 400K context window and strong instruction-following — ideal for the AI Journey platform's use cases.
 
+### gpt-5-mini API Constraints
+
+`gpt-5-mini` is a **reasoning model** with specific API requirements that differ from GPT-4 series:
+
+| Parameter | Requirement |
+|---|---|
+| `temperature` | ❌ NOT supported — omit entirely (only default `1` works) |
+| `max_tokens` | ❌ NOT supported — use `max_completion_tokens` instead |
+| `max_completion_tokens` | ✅ Required — covers BOTH reasoning tokens + visible output |
+
+**Critical: Set `max_completion_tokens` generously.** Reasoning models consume many internal tokens before producing visible output. Minimum recommended values:
+
+| Use Case | Minimum `max_completion_tokens` |
+|---|---|
+| Short JSON responses (lists, analysis) | 8000 |
+| Long JSON responses (strategies, full content) | 16000 |
+| Conversational/chat responses | 4000 |
+
+```typescript
+// ✅ Correct — reasoning model usage
+await openai.chat.completions.create({
+  model: "gpt-5-mini",
+  messages: [...],
+  max_completion_tokens: 8000,  // generous budget for reasoning + output
+});
+
+// ❌ Wrong — will produce empty content (all tokens consumed by internal reasoning)
+await openai.chat.completions.create({
+  model: "gpt-5-mini",
+  messages: [...],
+  temperature: 0.7,       // NOT supported
+  max_completion_tokens: 800,  // too low — model can't output anything
+});
+```
+
 ### TypeScript Configuration
 
 ```json

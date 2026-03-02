@@ -103,8 +103,7 @@ Respond in this exact JSON format (no markdown, no code fences):
 					content: `My project goal:\n\n${goal}`,
 				},
 			],
-			temperature: 0.7,
-			max_tokens: 800,
+			max_completion_tokens: 8000,
 		});
 
 		const content = response.choices[0]?.message?.content?.trim();
@@ -267,8 +266,7 @@ Respond in this exact JSON format (no markdown, no code fences):
 					content: `Project Goal:\n${goal}\n\nSpecification Answers:\n${specificationsText}`,
 				},
 			],
-			temperature: 0.5,
-			max_tokens: 4096,
+			max_completion_tokens: 16000,
 		});
 
 		const content = response.choices[0]?.message?.content?.trim();

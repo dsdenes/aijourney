@@ -1,9 +1,8 @@
+import { getRateLimiter } from "@aijourney/shared";
 import type { Job } from "bullmq";
 import OpenAI from "openai";
-import { getRateLimiter } from "@aijourney/shared";
 
-const KB_BUILDER_URL =
-	process.env.KB_BUILDER_URL || "http://localhost:3002";
+const KB_BUILDER_URL = process.env.KB_BUILDER_URL || "http://localhost:3002";
 const API_URL = process.env.API_URL || "http://localhost:3000";
 const PERSONALIZATION_MODEL =
 	process.env.OPENAI_PERSONALIZATION_MODEL || "gpt-5-mini";
@@ -187,7 +186,8 @@ export async function handlePersonalizationJob(
 		// 5. Call OpenAI (with rate limiting)
 		const openai = getOpenAI();
 		const userMessage = `${userContext}\n\n${journeyContext}\n\nKnowledge Base Articles:\n${kbContext}\n\nGenerate personalized learning steps for this user's AI journey.`;
-		const estimatedTokens = Math.ceil((SYSTEM_PROMPT.length + userMessage.length) / 4) + 3000;
+		const estimatedTokens =
+			Math.ceil((SYSTEM_PROMPT.length + userMessage.length) / 4) + 3000;
 		await rateLimiter.waitForCapacity(estimatedTokens);
 		rateLimiter.recordRequest(estimatedTokens);
 
@@ -198,8 +198,7 @@ export async function handlePersonalizationJob(
 				{ role: "user", content: userMessage },
 			],
 			response_format: { type: "json_object" },
-			max_tokens: 3000,
-			temperature: 0.5,
+			max_completion_tokens: 8000,
 		});
 
 		const content = completion.choices[0]?.message?.content;
@@ -255,9 +254,7 @@ export async function handlePersonalizationJob(
 	} catch (err) {
 		const msg = err instanceof Error ? err.message : String(err);
 		await job.log(`FAILED: ${msg}`);
-		console.error(
-			`[personalization] Failed run=${runRequestId}: ${msg}`,
-		);
+		console.error(`[personalization] Failed run=${runRequestId}: ${msg}`);
 		throw err;
 	}
 }
