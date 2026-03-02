@@ -1,11 +1,11 @@
+import type { Article } from "@aijourney/shared";
 import * as cheerio from "cheerio";
-import type { CrawlSource } from "./crawl-sources.js";
 import {
-	saveArticle,
 	getArticleByUrl,
 	hashContent,
+	saveArticle,
 } from "./article-repository.js";
-import type { Article } from "@aijourney/shared";
+import type { CrawlSource } from "./crawl-sources.js";
 import { log } from "./log-stream.js";
 
 export interface CrawlProgress {
@@ -51,7 +51,7 @@ async function fetchPage(url: string): Promise<string> {
 	const timeout = setTimeout(() => controller.abort(), 15000);
 	try {
 		const res = await fetch(url, {
-			signal: controller.signal,
+			signal: controller.signal as never,
 			headers: {
 				"User-Agent":
 					"MitoAIJourney-KBBuilder/0.1 (internal knowledge base builder)",
@@ -201,7 +201,10 @@ export async function crawlSource(source: CrawlSource): Promise<void> {
 	};
 
 	try {
-		log("info", `Starting crawl of ${source.url}`, { sourceId: source.id, url: source.url });
+		log("info", `Starting crawl of ${source.url}`, {
+			sourceId: source.id,
+			url: source.url,
+		});
 
 		// Step 1: Fetch the main page and discover links
 		const mainHtml = await fetchPage(source.url);
@@ -211,10 +214,14 @@ export async function crawlSource(source: CrawlSource): Promise<void> {
 		const linksToProcess = links.slice(0, source.maxPages);
 		currentProgress.totalLinksFound = links.length;
 
-		log("info", `Found ${links.length} links on ${source.url}, processing up to ${linksToProcess.length}`, {
-			totalLinks: links.length,
-			processing: linksToProcess.length,
-		});
+		log(
+			"info",
+			`Found ${links.length} links on ${source.url}, processing up to ${linksToProcess.length}`,
+			{
+				totalLinks: links.length,
+				processing: linksToProcess.length,
+			},
+		);
 
 		// Step 2: Process each link
 		for (const link of linksToProcess) {
@@ -229,7 +236,10 @@ export async function crawlSource(source: CrawlSource): Promise<void> {
 				}
 
 				// Fetch the page
-				log("info", `Fetching: ${link}`, { url: link, progress: `${currentProgress.totalProcessed + 1}/${linksToProcess.length}` });
+				log("info", `Fetching: ${link}`, {
+					url: link,
+					progress: `${currentProgress.totalProcessed + 1}/${linksToProcess.length}`,
+				});
 				const html = await fetchPage(link);
 				const content = extractContent(html, link);
 
@@ -237,7 +247,11 @@ export async function crawlSource(source: CrawlSource): Promise<void> {
 				if (content.wordCount < 50) {
 					currentProgress.totalSkipped++;
 					currentProgress.totalProcessed++;
-					log("debug", `Skip (too short: ${content.wordCount} words): ${link}`, { url: link, wordCount: content.wordCount });
+					log(
+						"debug",
+						`Skip (too short: ${content.wordCount} words): ${link}`,
+						{ url: link, wordCount: content.wordCount },
+					);
 					continue;
 				}
 
@@ -288,16 +302,19 @@ export async function crawlSource(source: CrawlSource): Promise<void> {
 
 		currentProgress.status = "completed";
 		currentProgress.completedAt = new Date().toISOString();
-		log("info", `Crawl completed. New: ${currentProgress.totalNew}, Skipped: ${currentProgress.totalSkipped}, Errors: ${currentProgress.errors.length}`, {
-			totalNew: currentProgress.totalNew,
-			totalSkipped: currentProgress.totalSkipped,
-			errorCount: currentProgress.errors.length,
-		});
+		log(
+			"info",
+			`Crawl completed. New: ${currentProgress.totalNew}, Skipped: ${currentProgress.totalSkipped}, Errors: ${currentProgress.errors.length}`,
+			{
+				totalNew: currentProgress.totalNew,
+				totalSkipped: currentProgress.totalSkipped,
+				errorCount: currentProgress.errors.length,
+			},
+		);
 	} catch (err) {
 		currentProgress.status = "failed";
 		currentProgress.completedAt = new Date().toISOString();
-		const msg =
-			err instanceof Error ? err.message : "Unknown crawl error";
+		const msg = err instanceof Error ? err.message : "Unknown crawl error";
 		currentProgress.errors.push(msg);
 		log("error", `Fatal crawl error: ${msg}`, { error: msg });
 	}

@@ -7,6 +7,7 @@ export const userPreferencesSchema = z.object({
 	workflows: z.array(z.string()).optional(),
 	comfortLevel: z.enum(COMFORT_LEVELS).optional(),
 	goals: z.array(z.string()).optional(),
+	completedPractices: z.array(z.number().int().min(1).max(25)).optional(),
 });
 
 export const createUserSchema = z.object({

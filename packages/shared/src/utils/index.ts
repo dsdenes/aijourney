@@ -1,7 +1,7 @@
 import { ulid } from "ulid";
 
-export { RateLimiter, getRateLimiter } from "./rate-limiter.js";
 export type { RateLimiterConfig } from "./rate-limiter.js";
+export { getRateLimiter, RateLimiter } from "./rate-limiter.js";
 
 /** Generate a ULID (time-sortable unique ID) */
 export function generateId(): string {
@@ -22,4 +22,23 @@ export function isValidTransition(
 	const allowed = transitions[from];
 	if (!allowed) return false;
 	return allowed.includes(to);
+}
+
+/** Total number of prompting practices in the system */
+export const TOTAL_PRACTICES = 25;
+
+/**
+ * Compute the AI comfort level based on how many prompting practices
+ * the user has completed.
+ *
+ * - 0–8   → beginner
+ * - 9–16  → intermediate
+ * - 17–25 → advanced
+ */
+export function comfortLevelFromPractices(
+	completedCount: number,
+): "beginner" | "intermediate" | "advanced" {
+	if (completedCount >= 17) return "advanced";
+	if (completedCount >= 9) return "intermediate";
+	return "beginner";
 }

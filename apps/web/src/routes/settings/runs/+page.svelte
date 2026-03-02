@@ -12,6 +12,8 @@
     fullOutput?: string;
     model?: string;
     tokensUsed?: number;
+    promptTokens?: number;
+    completionTokens?: number;
     durationMs?: number;
     error?: string;
     metadata?: Record<string, unknown>;
@@ -27,6 +29,46 @@
   let filterStatus = $state('all');
   let autoRefresh = $state(true);
   let refreshInterval: ReturnType<typeof setInterval> | null = null;
+
+  /**
+   * Estimate cost in USD based on model and token counts.
+   * Prices per 1M tokens (input/output) as of mid-2025.
+   */
+  const MODEL_PRICING: Record<string, { input: number; output: number }> = {
+    // OpenAI
+    'gpt-5-mini':       { input: 0.30, output: 1.25 },
+    'gpt-4.1-mini':     { input: 0.40, output: 1.60 },
+    'gpt-4.1-nano':     { input: 0.10, output: 0.40 },
+    'gpt-4.1':          { input: 2.00, output: 8.00 },
+    'gpt-4o':           { input: 2.50, output: 10.00 },
+    'gpt-4o-mini':      { input: 0.15, output: 0.60 },
+    'o3-mini':          { input: 1.10, output: 4.40 },
+    // Embeddings
+    'text-embedding-3-small': { input: 0.02, output: 0.00 },
+    'text-embedding-3-large': { input: 0.13, output: 0.00 },
+  };
+
+  function estimateCost(run: AgentRun): number | null {
+    if (!run.model || !run.tokensUsed) return null;
+    const pricing = MODEL_PRICING[run.model];
+    if (!pricing) {
+      // Fallback: estimate with gpt-5-mini pricing
+      const fallback = MODEL_PRICING['gpt-5-mini']!;
+      const promptT = run.promptTokens ?? Math.round(run.tokensUsed * 0.7);
+      const completionT = run.completionTokens ?? run.tokensUsed - promptT;
+      return (promptT * fallback.input + completionT * fallback.output) / 1_000_000;
+    }
+    const promptT = run.promptTokens ?? Math.round(run.tokensUsed * 0.7);
+    const completionT = run.completionTokens ?? run.tokensUsed - promptT;
+    return (promptT * pricing.input + completionT * pricing.output) / 1_000_000;
+  }
+
+  function formatCost(cost: number | null): string {
+    if (cost === null) return '—';
+    if (cost < 0.001) return `$${(cost * 100).toFixed(4)}¢`;
+    if (cost < 0.01) return `$${cost.toFixed(4)}`;
+    return `$${cost.toFixed(3)}`;
+  }
 
   const filteredRuns = $derived(() => {
     let filtered = runs;
@@ -51,7 +93,8 @@
     const avgDuration = runsWithDuration.length > 0
       ? runsWithDuration.reduce((sum, r) => sum + (r.durationMs ?? 0), 0) / runsWithDuration.length
       : 0;
-    return { total, completed, failed, running, totalTokens, avgDuration };
+    const totalEstimatedCost = runs.reduce((sum, r) => sum + (estimateCost(r) ?? 0), 0);
+    return { total, completed, failed, running, totalTokens, avgDuration, totalEstimatedCost };
   });
 
   async function loadData() {
@@ -149,7 +192,7 @@
 
   <!-- Stats cards -->
   {#if !loading && runs.length > 0}
-    <div class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+    <div class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
       <div class="rounded-lg bg-surface p-3 text-center">
         <p class="text-2xl font-bold text-text">{stats().total}</p>
         <p class="text-xs font-medium text-text">Total Runs</p>
@@ -169,6 +212,10 @@
       <div class="rounded-lg bg-surface p-3 text-center">
         <p class="text-2xl font-bold text-text">{stats().totalTokens.toLocaleString()}</p>
         <p class="text-xs font-medium text-text">Total Tokens</p>
+      </div>
+      <div class="rounded-lg bg-surface p-3 text-center">
+        <p class="text-2xl font-bold text-amber-400">{formatCost(stats().totalEstimatedCost)}</p>
+        <p class="text-xs font-medium text-text">Est. Cost</p>
       </div>
       <div class="rounded-lg bg-surface p-3 text-center">
         <p class="text-2xl font-bold text-text">{formatDuration(stats().avgDuration)}</p>
@@ -247,6 +294,13 @@
             {#if run.tokensUsed}
               <span class="shrink-0 text-xs text-text-muted">
                 🔤 {run.tokensUsed.toLocaleString()}
+              </span>
+            {/if}
+
+            <!-- Cost -->
+            {#if estimateCost(run) !== null}
+              <span class="shrink-0 text-xs text-amber-400">
+                💰 {formatCost(estimateCost(run))}
               </span>
             {/if}
 
@@ -336,6 +390,12 @@
                         <div class="flex gap-2">
                           <dt class="w-24 shrink-0 text-text">Tokens</dt>
                           <dd class="text-text">{run.tokensUsed.toLocaleString()}</dd>
+                        </div>
+                      {/if}
+                      {#if estimateCost(run) !== null}
+                        <div class="flex gap-2">
+                          <dt class="w-24 shrink-0 text-text">Est. Cost</dt>
+                          <dd class="font-medium text-amber-400">{formatCost(estimateCost(run))}</dd>
                         </div>
                       {/if}
                       <div class="flex gap-2">

@@ -5,6 +5,7 @@
   const navItems = [
     { label: 'Dashboard', href: '/', icon: '🏠' },
     { label: 'AI Chat', href: '/chat', icon: '💬' },
+    { label: 'AI Planner', href: '/ai-planner', icon: '🗺️' },
     { label: 'Prompting Practices', href: '/prompting-practices', icon: '📖' },
     { label: 'Optimize My Prompt', href: '/optimize-prompt', icon: '✨' },
     { label: 'Profile', href: '/profile', icon: '👤' },

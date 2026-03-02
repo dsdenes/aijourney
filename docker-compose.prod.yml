@@ -1,0 +1,71 @@
+services:
+  redis:
+    image: redis:7-alpine
+    restart: always
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      target: api
+    ports:
+      - "3000:3000"
+    restart: always
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
+      AWS_REGION: eu-central-1
+      REDIS_URL: redis://redis:6379
+      APP_URL: "https://${CLOUDFRONT_DOMAIN}"
+      API_URL: "https://${CLOUDFRONT_DOMAIN}/api"
+      ALLOWED_EMAIL_DOMAIN: mito.hu
+      COGNITO_USER_POOL_ID: "${COGNITO_USER_POOL_ID}"
+      COGNITO_CLIENT_ID: "${COGNITO_CLIENT_ID}"
+      COGNITO_CLIENT_SECRET: "${COGNITO_CLIENT_SECRET}"
+      COGNITO_DOMAIN: "${COGNITO_DOMAIN}"
+      COGNITO_ISSUER: "${COGNITO_ISSUER}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY}"
+      KB_BUILDER_URL: "http://localhost:3002"
+
+  worker:
+    build:
+      context: .
+      target: worker
+    restart: always
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
+      AWS_REGION: eu-central-1
+      REDIS_URL: redis://redis:6379
+      OPENAI_API_KEY: "${OPENAI_API_KEY}"
+
+  kb-builder:
+    build:
+      context: .
+      target: kb-builder
+    restart: always
+    environment:
+      NODE_ENV: production
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
+      AWS_REGION: eu-central-1
+      OPENAI_API_KEY: "${OPENAI_API_KEY}"
+      KB_BUILDER_PORT: "3002"
+
+volumes:
+  redis_data:

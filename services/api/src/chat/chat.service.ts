@@ -1,6 +1,6 @@
+import { getRateLimiter } from "@aijourney/shared";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import OpenAI from "openai";
-import { getRateLimiter } from "@aijourney/shared";
 import { AgentRunsService } from "../agent-runs/agent-runs.service";
 import { AppConfigService } from "../config/config.service";
 
@@ -67,6 +67,8 @@ export interface ChatResponse {
 	fullInput?: string;
 	/** Full raw response from OpenAI */
 	fullOutput?: string;
+	/** Step-by-step technical details on how the answer was produced */
+	technicalSteps?: string[];
 }
 
 type RagProvider = "self" | "bedrock";
@@ -119,12 +121,14 @@ export class ChatService {
 	 */
 	private async fetchSummaries(): Promise<KBSummary[]> {
 		try {
-			const res = await fetch("http://localhost:3002/summaries");
+			const res = await fetch(`${this.configService.config.KB_BUILDER_URL}/summaries`);
 			if (!res.ok) return [];
 			const data = (await res.json()) as { data: KBSummary[] };
 			return data.data || [];
 		} catch {
-			this.logger.warn("KB Builder service unavailable — no summaries for context");
+			this.logger.warn(
+				"KB Builder service unavailable — no summaries for context",
+			);
 			return [];
 		}
 	}
@@ -134,7 +138,7 @@ export class ChatService {
 	 */
 	private async fetchArticles(): Promise<KBArticle[]> {
 		try {
-			const res = await fetch("http://localhost:3002/articles");
+			const res = await fetch(`${this.configService.config.KB_BUILDER_URL}/articles`);
 			if (!res.ok) return [];
 			const data = (await res.json()) as { data: KBArticle[] };
 			return data.data || [];
@@ -190,10 +194,7 @@ export class ChatService {
 	/**
 	 * Format summaries as context for the LLM prompt.
 	 */
-	private formatContext(
-		summaries: KBSummary[],
-		articles: KBArticle[],
-	): string {
+	private formatContext(summaries: KBSummary[], articles: KBArticle[]): string {
 		if (summaries.length === 0) {
 			return "No relevant articles found in the knowledge base.";
 		}
@@ -230,13 +231,15 @@ ${c.donts.map((d) => `  ✗ ${d}`).join("\n")}`;
 		embeddingTokens: number;
 	}> {
 		try {
-			const res = await fetch("http://localhost:3002/rag/query", {
+			const res = await fetch(`${this.configService.config.KB_BUILDER_URL}/rag/query`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ query, topK: 8, scoreThreshold: 0.3 }),
 			});
 			if (!res.ok) {
-				this.logger.warn(`RAG query returned ${res.status} — falling back to keyword search`);
+				this.logger.warn(
+					`RAG query returned ${res.status} — falling back to keyword search`,
+				);
 				return { context: "", sources: [], embeddingTokens: 0 };
 			}
 
@@ -244,7 +247,11 @@ ${c.donts.map((d) => `  ✗ ${d}`).join("\n")}`;
 			const result = data.data;
 
 			if (!result.chunks || result.chunks.length === 0) {
-				return { context: "No relevant information found in the knowledge base.", sources: [], embeddingTokens: result.tokensUsed };
+				return {
+					context: "No relevant information found in the knowledge base.",
+					sources: [],
+					embeddingTokens: result.tokensUsed,
+				};
 			}
 
 			// Group chunks by article and format as context
@@ -277,7 +284,9 @@ ${chunk.text}`;
 
 			return { context, sources, embeddingTokens: result.tokensUsed };
 		} catch (err) {
-			this.logger.warn(`RAG query failed: ${err instanceof Error ? err.message : String(err)} — falling back to keyword search`);
+			this.logger.warn(
+				`RAG query failed: ${err instanceof Error ? err.message : String(err)} — falling back to keyword search`,
+			);
 			return { context: "", sources: [], embeddingTokens: 0 };
 		}
 	}
@@ -305,7 +314,10 @@ ${chunk.text}`;
 			const durationMs = Date.now() - startTime;
 
 			await this.agentRunsService.completeRun(agentRun.id, {
-				output: result.answer.length > 300 ? result.answer.slice(0, 300) + "…" : result.answer,
+				output:
+					result.answer.length > 300
+						? result.answer.slice(0, 300) + "…"
+						: result.answer,
 				fullInput: result.fullInput,
 				fullOutput: result.fullOutput,
 				tokensUsed: result.tokensUsed,
@@ -339,33 +351,67 @@ ${chunk.text}`;
 	): Promise<ChatResponse> {
 		const openai = this.getOpenAI();
 		const ragProvider = this.getRagProvider();
+		const technicalSteps: string[] = [];
 
 		let context: string;
 		let sources: { title: string; url: string; relevance: string }[];
 		let embeddingTokens = 0;
 
+		technicalSteps.push(
+			`RAG provider: ${ragProvider === "self" ? "Self-hosted Qdrant (vector search)" : "AWS Bedrock Knowledge Base"}`,
+		);
+
 		if (ragProvider === "self") {
 			// Semantic search via Qdrant
-			this.logger.log(`Using self-hosted RAG (Qdrant) for query: "${query.slice(0, 60)}"`);
+			this.logger.log(
+				`Using self-hosted RAG (Qdrant) for query: "${query.slice(0, 60)}"`,
+			);
+			technicalSteps.push(
+				"Generating query embedding via OpenAI text-embedding-3-small",
+			);
 			const ragResult = await this.searchRag(query);
 			context = ragResult.context;
 			sources = ragResult.sources;
 			embeddingTokens = ragResult.embeddingTokens;
 
-			// If RAG returned nothing, fall back to keyword search over summaries
+			if (embeddingTokens > 0) {
+				technicalSteps.push(`Embedding used ${embeddingTokens} tokens`);
+			}
+
 			if (!context || context.includes("No relevant information")) {
-				this.logger.log("RAG returned no results — falling back to keyword search");
+				technicalSteps.push(
+					"Qdrant returned no relevant chunks — falling back to keyword search over KB summaries",
+				);
 				const fallback = await this.keywordSearch(query);
 				context = fallback.context;
 				sources = fallback.sources;
+				technicalSteps.push(
+					`Keyword search found ${sources.length} relevant sources`,
+				);
+			} else {
+				technicalSteps.push(
+					`Qdrant returned ${sources.length} relevant document chunks`,
+				);
 			}
 		} else {
 			// Legacy keyword-based search
-			this.logger.log(`Using keyword search for query: "${query.slice(0, 60)}"`);
+			this.logger.log(
+				`Using keyword search for query: "${query.slice(0, 60)}"`,
+			);
+			technicalSteps.push(
+				"Performing keyword-based search over Knowledge Base summaries",
+			);
 			const fallback = await this.keywordSearch(query);
 			context = fallback.context;
 			sources = fallback.sources;
+			technicalSteps.push(
+				`Found ${sources.length} relevant sources via keyword matching`,
+			);
 		}
+
+		technicalSteps.push(
+			`Including ${conversationHistory.length} previous messages as conversation context (max 10)`,
+		);
 
 		// Build messages
 		const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
@@ -389,9 +435,10 @@ ${chunk.text}`;
 		);
 
 		// Rate limit: estimate tokens from message payload + max completion
-		const estimatedTokens = Math.ceil(
-			messages.reduce((sum, m) => sum + (m.content?.length ?? 0), 0) / 4,
-		) + 1500;
+		const estimatedTokens =
+			Math.ceil(
+				messages.reduce((sum, m) => sum + (m.content?.length ?? 0), 0) / 4,
+			) + 1500;
 		await this.rateLimiter.waitForCapacity(estimatedTokens);
 		this.rateLimiter.recordRequest(estimatedTokens);
 
@@ -402,9 +449,11 @@ ${chunk.text}`;
 		});
 
 		const choice = completion.choices[0];
-		const answer = choice?.message?.content || "Sorry, I could not generate a response.";
+		const answer =
+			choice?.message?.content || "Sorry, I could not generate a response.";
 		const tokensUsed = (completion.usage?.total_tokens ?? 0) + embeddingTokens;
-		const promptTokens = (completion.usage?.prompt_tokens ?? 0) + embeddingTokens;
+		const promptTokens =
+			(completion.usage?.prompt_tokens ?? 0) + embeddingTokens;
 		const completionTokens = completion.usage?.completion_tokens ?? 0;
 
 		// Record actual usage
@@ -418,6 +467,11 @@ ${chunk.text}`;
 			`Chat response: ${tokensUsed} tokens (${promptTokens} in / ${completionTokens} out), ${sources.length} sources [provider=${ragProvider}]`,
 		);
 
+		technicalSteps.push(`Called OpenAI model: ${CHAT_MODEL}`);
+		technicalSteps.push(
+			`Prompt tokens: ${promptTokens.toLocaleString()}, completion tokens: ${completionTokens.toLocaleString()}, total: ${tokensUsed.toLocaleString()}`,
+		);
+
 		return {
 			answer,
 			sources,
@@ -427,6 +481,7 @@ ${chunk.text}`;
 			model: CHAT_MODEL,
 			fullInput: JSON.stringify(messages),
 			fullOutput: answer,
+			technicalSteps,
 		};
 	}
 

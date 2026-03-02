@@ -152,6 +152,34 @@ describe("updateUserSchema", () => {
 		});
 		expect(result.success).toBe(false);
 	});
+
+	it("should accept preferences with completedPractices", () => {
+		const result = updateUserSchema.safeParse({
+			preferences: { completedPractices: [1, 5, 10, 25] },
+		});
+		expect(result.success).toBe(true);
+	});
+
+	it("should reject completedPractices with out-of-range IDs", () => {
+		const result = updateUserSchema.safeParse({
+			preferences: { completedPractices: [0] },
+		});
+		expect(result.success).toBe(false);
+	});
+
+	it("should reject completedPractices with IDs above 25", () => {
+		const result = updateUserSchema.safeParse({
+			preferences: { completedPractices: [26] },
+		});
+		expect(result.success).toBe(false);
+	});
+
+	it("should accept empty completedPractices array", () => {
+		const result = updateUserSchema.safeParse({
+			preferences: { completedPractices: [] },
+		});
+		expect(result.success).toBe(true);
+	});
 });
 
 describe("createJourneySchema", () => {

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { generateId, isValidTransition, nowISO } from "../utils/index.js";
+import {
+	comfortLevelFromPractices,
+	generateId,
+	isValidTransition,
+	nowISO,
+	TOTAL_PRACTICES,
+} from "../utils/index.js";
 
 describe("generateId", () => {
 	it("should return a ULID string of 26 characters", () => {
@@ -93,5 +99,39 @@ describe("isValidTransition", () => {
 				expect(isValidTransition(transitions, terminal, target)).toBe(false);
 			}
 		}
+	});
+});
+
+describe("TOTAL_PRACTICES", () => {
+	it("should be 25", () => {
+		expect(TOTAL_PRACTICES).toBe(25);
+	});
+});
+
+describe("comfortLevelFromPractices", () => {
+	it("should return beginner for 0 completed", () => {
+		expect(comfortLevelFromPractices(0)).toBe("beginner");
+	});
+
+	it("should return beginner for 1-8 completed", () => {
+		for (const n of [1, 4, 8]) {
+			expect(comfortLevelFromPractices(n)).toBe("beginner");
+		}
+	});
+
+	it("should return intermediate for 9-16 completed", () => {
+		for (const n of [9, 12, 16]) {
+			expect(comfortLevelFromPractices(n)).toBe("intermediate");
+		}
+	});
+
+	it("should return advanced for 17-25 completed", () => {
+		for (const n of [17, 20, 25]) {
+			expect(comfortLevelFromPractices(n)).toBe("advanced");
+		}
+	});
+
+	it("should return advanced for counts above 25", () => {
+		expect(comfortLevelFromPractices(30)).toBe("advanced");
 	});
 });

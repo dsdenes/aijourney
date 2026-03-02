@@ -6,6 +6,7 @@ export interface UserPreferences {
 	workflows?: string[];
 	comfortLevel?: ComfortLevel;
 	goals?: string[];
+	completedPractices?: number[];
 }
 
 export interface User {

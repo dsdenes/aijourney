@@ -427,27 +427,17 @@
       <!-- Action Buttons -->
       <div class="rounded-lg bg-surface p-4">
         <h3 class="mb-3 text-xs font-semibold uppercase text-text">Actions</h3>
-        <div class="grid grid-cols-2 gap-3">
+        <div>
           <button
             onclick={triggerCrawl}
             disabled={crawling}
-            class="rounded-md bg-primary px-3 py-2.5 text-sm font-medium text-white hover:bg-primary/80 disabled:opacity-50"
+            class="w-full rounded-md bg-primary px-3 py-2.5 text-sm font-medium text-white hover:bg-primary/80 disabled:opacity-50"
           >
             {crawling ? '⏳ Crawling…' : '🚀 Start Crawl'}
-          </button>
-          <button
-            onclick={triggerPipeline}
-            disabled={pipelining || crawling}
-            class="rounded-md bg-emerald-600 px-3 py-2.5 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
-          >
-            {pipelining ? '⏳ Processing…' : '⚡ Run Pipeline'}
           </button>
         </div>
         {#if triggerResult}
           <pre class="mt-3 max-h-24 overflow-auto rounded bg-background p-2 text-xs text-text-muted">{triggerResult}</pre>
-        {/if}
-        {#if pipelineTriggerResult}
-          <pre class="mt-3 max-h-24 overflow-auto rounded bg-background p-2 text-xs text-text-muted">{pipelineTriggerResult}</pre>
         {/if}
       </div>
 

@@ -1,8 +1,11 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { page } from '$app/state';
   import { auth } from '$lib/stores/auth.svelte';
   import { api } from '$lib/api';
   import { JOB_TITLE_DESCRIPTIONS, JOB_TITLES } from '@aijourney/shared';
+
+  const isEditMode = $derived(page.url.searchParams.get('edit') === 'true');
 
   let selectedTitle = $state('');
   let jobDescription = $state('');
@@ -10,6 +13,25 @@
   let showDropdown = $state(false);
   let saving = $state(false);
   let error = $state('');
+  let initialized = $state(false);
+
+  // Pre-fill in edit mode
+  $effect(() => {
+    if (isEditMode && auth.user && !initialized) {
+      // Load current profile to pre-fill fields
+      api.get(`/users/${auth.user.userId}`).then((res: any) => {
+        const profile = res.data;
+        if (profile?.jobTitle) {
+          selectedTitle = profile.jobTitle;
+          searchQuery = profile.jobTitle;
+        }
+        if (profile?.jobDescription) {
+          jobDescription = profile.jobDescription;
+        }
+        initialized = true;
+      }).catch(() => { initialized = true; });
+    }
+  });
 
   const filteredTitles = $derived(
     searchQuery.trim()
@@ -63,7 +85,7 @@
         auth.setUser({ ...auth.user, onboardingComplete: true });
       }
 
-      goto('/');
+      goto(isEditMode ? '/profile' : '/');
     } catch (err: any) {
       error = err?.message || 'Failed to save. Please try again.';
     } finally {
@@ -75,9 +97,9 @@
 <div class="flex min-h-[80vh] items-center justify-center">
   <div class="w-full max-w-lg">
     <div class="mb-8 text-center">
-      <h1 class="text-3xl font-bold text-text">Welcome to Mito AI Journey</h1>
+      <h1 class="text-3xl font-bold text-text">{isEditMode ? 'Update Your Role' : 'Welcome to Mito AI Journey'}</h1>
       <p class="mt-2 text-text-muted">
-        Tell us about your role so we can personalize your AI experience.
+        {isEditMode ? 'Change your job title and description to better match your current role.' : 'Tell us about your role so we can personalize your AI experience.'}
       </p>
     </div>
 
@@ -170,7 +192,7 @@
             Saving...
           </span>
         {:else}
-          Continue
+          {isEditMode ? 'Save Changes' : 'Continue'}
         {/if}
       </button>
     </div>

@@ -12,6 +12,7 @@
     sources: ChatSource[];
     tokensUsed: number;
     model: string;
+    technicalSteps?: string[];
   }
 
   interface ChatMessage {
@@ -20,6 +21,7 @@
     sources?: ChatSource[];
     model?: string;
     tokensUsed?: number;
+    technicalSteps?: string[];
     isError?: boolean;
   }
 
@@ -62,6 +64,7 @@
             sources: chatData.sources.filter(s => s.url),
             model: chatData.model,
             tokensUsed: chatData.tokensUsed,
+            technicalSteps: chatData.technicalSteps,
           },
         ];
       } else {
@@ -145,6 +148,20 @@
                   <span>🔤 {msg.tokensUsed.toLocaleString()} tokens</span>
                 {/if}
               </div>
+            {/if}
+
+            <!-- Technical Steps (collapsible) -->
+            {#if msg.technicalSteps && msg.technicalSteps.length > 0}
+              <details class="mt-2 border-t border-border/20 pt-2">
+                <summary class="cursor-pointer select-none text-[10px] font-semibold uppercase text-text-muted hover:text-text">
+                  🔧 Technical Steps ({msg.technicalSteps.length})
+                </summary>
+                <ol class="mt-1.5 list-decimal space-y-0.5 pl-4 text-[11px] text-text-muted">
+                  {#each msg.technicalSteps as step}
+                    <li>{step}</li>
+                  {/each}
+                </ol>
+              </details>
             {/if}
           </div>
         </div>

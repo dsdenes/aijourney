@@ -16,6 +16,7 @@ const envSchema = z.object({
 	COGNITO_ISSUER: z.string().default(""),
 	APP_URL: z.string().default("http://localhost:5173"),
 	API_URL: z.string().default("http://localhost:3000"),
+	KB_BUILDER_URL: z.string().default("http://localhost:3002"),
 	ALLOWED_EMAIL_DOMAIN: z.string().default("mito.hu"),
 });
 

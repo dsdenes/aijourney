@@ -1,8 +1,23 @@
 <script lang="ts">
   import { promptingPractices } from '$lib/data/prompting-practices';
+  import { auth } from '$lib/stores/auth.svelte';
+  import { api } from '$lib/api';
+  import { TOTAL_PRACTICES } from '@aijourney/shared';
 
   let expandedId = $state<number | null>(null);
   let searchQuery = $state('');
+  let completedPractices = $state<number[]>([]);
+
+  $effect(() => {
+    if (auth.user) loadProgress();
+  });
+
+  async function loadProgress() {
+    try {
+      const res = await api.get(`/users/${auth.user?.userId}`);
+      completedPractices = res.data?.preferences?.completedPractices ?? [];
+    } catch { /* ignore */ }
+  }
 
   function toggle(id: number) {
     expandedId = expandedId === id ? null : id;
@@ -16,6 +31,8 @@
         )
       : promptingPractices
   );
+
+  const completedCount = $derived(completedPractices.length);
 </script>
 
 <div class="mx-auto max-w-4xl">
@@ -24,6 +41,14 @@
     <p class="mt-2 text-text-muted">
       {promptingPractices.length} proven practices with real examples — everything you need to get great results from AI.
     </p>
+    {#if completedCount > 0}
+      <p class="mt-1 text-sm font-medium text-success">
+        ✓ {completedCount} / {TOTAL_PRACTICES} completed
+        {#if completedCount >= TOTAL_PRACTICES}
+          — All done! 🎉
+        {/if}
+      </p>
+    {/if}
   </div>
 
   <!-- Search -->
@@ -51,8 +76,9 @@
           onclick={() => toggle(practice.id)}
           class="flex w-full items-start gap-4 px-6 py-5 text-left transition-colors hover:bg-surface-dark"
         >
-          <span class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
-            {practice.id}
+          <span class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-bold
+            {completedPractices.includes(practice.id) ? 'bg-success/10 text-success' : 'bg-primary/10 text-primary'}">
+            {completedPractices.includes(practice.id) ? '✓' : practice.id}
           </span>
           <div class="flex-1">
             <h2 class="text-lg font-semibold text-text">{practice.title}</h2>

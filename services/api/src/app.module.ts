@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { AgentRunsModule } from "./agent-runs/agent-runs.module";
+import { AiPlannerModule } from "./ai-planner/ai-planner.module";
 import { AuthModule } from "./auth/auth.module";
 import { ChatModule } from "./chat/chat.module";
 import { ConfigModule } from "./config/config.module";
@@ -24,6 +25,7 @@ import { WorkersModule } from "./workers/workers.module";
 		AgentRunsModule,
 		ChatModule,
 		PromptOptimizerModule,
+		AiPlannerModule,
 	],
 })
 export class AppModule {}

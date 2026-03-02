@@ -25,6 +25,20 @@ export {
 	userPreferencesSchema,
 } from "./schemas/user.schema.js";
 export type {
+	AgentRun,
+	AgentRunStatus,
+	AgentType,
+} from "./types/agent-run.js";
+export { AGENT_RUN_STATUSES, AGENT_TYPES } from "./types/agent-run.js";
+export type {
+	PlannerAnswer,
+	PlannerQuestion,
+	PlannerRound,
+	PlannerStrategy,
+	PlannerStrategyStep,
+	PlannerTool,
+} from "./types/ai-planner.js";
+export type {
 	Article,
 	ArticleDedupe,
 	ArticleMetadata,
@@ -43,12 +57,6 @@ export type {
 export type { KPI, RubricLevel } from "./types/kpi.js";
 export type { RunLog, RunLogActor } from "./types/run-log.js";
 export type {
-	AgentRun,
-	AgentRunStatus,
-	AgentType,
-} from "./types/agent-run.js";
-export { AGENT_TYPES, AGENT_RUN_STATUSES } from "./types/agent-run.js";
-export type {
 	RunApproval,
 	RunBudget,
 	RunExecution,
@@ -64,8 +72,14 @@ export type {
 } from "./types/summary.js";
 // Types
 export type { User, UserPreferences } from "./types/user.js";
-
-// Utils
-export { generateId, isValidTransition, nowISO } from "./utils/index.js";
-export { RateLimiter, getRateLimiter } from "./utils/index.js";
 export type { RateLimiterConfig } from "./utils/index.js";
+// Utils
+export {
+	comfortLevelFromPractices,
+	generateId,
+	getRateLimiter,
+	isValidTransition,
+	nowISO,
+	RateLimiter,
+	TOTAL_PRACTICES,
+} from "./utils/index.js";

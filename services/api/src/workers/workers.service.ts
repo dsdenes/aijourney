@@ -6,9 +6,10 @@ import {
 	type OnModuleInit,
 } from "@nestjs/common";
 import { Queue } from "bullmq";
-import IORedis from "ioredis";
 import type { Response } from "express";
+import IORedis from "ioredis";
 import { AppConfigService } from "../config/config.service";
+import { DEFAULT_CRAWL_SOURCES } from "./default-crawl-sources";
 
 /** Describes a single worker queue and its capabilities */
 export interface WorkerDefinition {
@@ -280,106 +281,115 @@ export class WorkersService implements OnModuleInit, OnModuleDestroy {
 	/**
 	 * KB Builder is a standalone HTTP service, so we proxy health/status/trigger via HTTP.
 	 */
+	private get kbUrl(): string {
+		return this.configService.config.KB_BUILDER_URL;
+	}
+
 	async getKbBuilderStatus(): Promise<Record<string, unknown>> {
 		try {
-			const res = await fetch("http://localhost:3002/status");
+			const res = await fetch(`${this.kbUrl}/status`);
 			return (await res.json()) as Record<string, unknown>;
 		} catch {
 			return {
-				status: "unreachable",
-				error: "KB Builder service not available",
+				data: { status: "offline", message: "KB Builder service is not running. Start it locally or deploy it." },
 			};
 		}
 	}
 
 	async triggerKbBuilder(): Promise<Record<string, unknown>> {
 		try {
-			const res = await fetch("http://localhost:3002/ingest", {
+			const res = await fetch(`${this.kbUrl}/ingest`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 			});
 			return (await res.json()) as Record<string, unknown>;
 		} catch {
 			return {
-				status: "error",
-				error: "KB Builder service not available",
+				error: { code: "KB_OFFLINE", message: "KB Builder service is not running" },
 			};
 		}
 	}
 
 	async getKbBuilderHealth(): Promise<Record<string, unknown>> {
 		try {
-			const res = await fetch("http://localhost:3002/health");
+			const res = await fetch(`${this.kbUrl}/health`);
 			return (await res.json()) as Record<string, unknown>;
 		} catch {
 			return {
-				status: "unreachable",
-				error: "KB Builder service not available",
+				data: { status: "offline", pipeline: "idle" },
 			};
 		}
 	}
 
 	async getKbBuilderProgress(): Promise<Record<string, unknown>> {
 		try {
-			const res = await fetch("http://localhost:3002/progress");
+			const res = await fetch(`${this.kbUrl}/progress`);
 			return (await res.json()) as Record<string, unknown>;
 		} catch {
-			return { status: "unreachable", error: "KB Builder service not available" };
+			return {
+				data: { status: "idle", total: 0, completed: 0, failed: 0 },
+			};
 		}
 	}
 
 	async getKbBuilderArticles(): Promise<Record<string, unknown>> {
 		try {
-			const res = await fetch("http://localhost:3002/articles");
+			const res = await fetch(`${this.kbUrl}/articles`);
 			return (await res.json()) as Record<string, unknown>;
 		} catch {
-			return { data: [], meta: { total: 0 }, error: "KB Builder service not available" };
+			return { data: [], meta: { total: 0 } };
 		}
 	}
 
 	async getKbBuilderSources(): Promise<Record<string, unknown>> {
 		try {
-			const res = await fetch("http://localhost:3002/sources");
+			const res = await fetch(`${this.kbUrl}/sources`);
 			return (await res.json()) as Record<string, unknown>;
 		} catch {
-			return { data: [], error: "KB Builder service not available" };
+			// KB Builder unavailable — return built-in default sources
+			return { data: DEFAULT_CRAWL_SOURCES, meta: { fallback: true } };
 		}
 	}
 
-	async addKbBuilderSource(body: Record<string, unknown>): Promise<Record<string, unknown>> {
+	async addKbBuilderSource(
+		body: Record<string, unknown>,
+	): Promise<Record<string, unknown>> {
 		try {
-			const res = await fetch("http://localhost:3002/sources", {
+			const res = await fetch(`${this.kbUrl}/sources`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(body),
 			});
 			return (await res.json()) as Record<string, unknown>;
 		} catch {
-			return { error: "KB Builder service not available" };
+			return { error: { code: "KB_OFFLINE", message: "KB Builder service is not running" } };
 		}
 	}
 
-	async updateKbBuilderSource(id: string, body: Record<string, unknown>): Promise<Record<string, unknown>> {
+	async updateKbBuilderSource(
+		id: string,
+		body: Record<string, unknown>,
+	): Promise<Record<string, unknown>> {
 		try {
-			const res = await fetch(`http://localhost:3002/sources/${id}`, {
+			const res = await fetch(`${this.kbUrl}/sources/${id}`, {
 				method: "PATCH",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(body),
 			});
 			return (await res.json()) as Record<string, unknown>;
 		} catch {
-			return { error: "KB Builder service not available" };
+			return { error: { code: "KB_OFFLINE", message: "KB Builder service is not running" } };
 		}
 	}
 
 	async deleteKbBuilderSource(id: string): Promise<Record<string, unknown>> {
 		try {
-			const res = await fetch(`http://localhost:3002/sources/${id}`, {
+			const res = await fetch(`${this.kbUrl}/sources/${id}`, {
 				method: "DELETE",
 			});
 			return (await res.json()) as Record<string, unknown>;
 		} catch {
-			return { error: "KB Builder service not available" };
+			return { error: { code: "KB_OFFLINE", message: "KB Builder service is not running" } };
 		}
 	}
 
@@ -403,11 +413,13 @@ export class WorkersService implements OnModuleInit, OnModuleDestroy {
 
 		void (async () => {
 			try {
-				const upstream = await fetch("http://localhost:3002/logs/stream", {
+				const upstream = await fetch(`${this.kbUrl}/logs/stream`, {
 					signal: controller.signal as AbortSignal,
 				});
 				if (!upstream.body) {
-					clientRes.write("data: {\"level\":\"error\",\"message\":\"KB Builder stream unavailable\"}\n\n");
+					clientRes.write(
+						'data: {"level":"error","message":"KB Builder stream unavailable"}\n\n',
+					);
 					clientRes.end();
 					return;
 				}
@@ -424,107 +436,123 @@ export class WorkersService implements OnModuleInit, OnModuleDestroy {
 				clientRes.end();
 			} catch (err) {
 				if ((err as Error).name !== "AbortError") {
-					this.logger.warn(`KB Builder SSE proxy error: ${(err as Error).message}`);
+					this.logger.warn(
+						`KB Builder SSE proxy error: ${(err as Error).message}`,
+					);
 					try {
-						clientRes.write(`data: ${JSON.stringify({ level: "error", message: "KB Builder stream disconnected", timestamp: new Date().toISOString() })}\n\n`);
-					} catch { /* client already gone */ }
+						clientRes.write(
+							`data: ${JSON.stringify({ level: "error", message: "KB Builder stream disconnected", timestamp: new Date().toISOString() })}\n\n`,
+						);
+					} catch {
+						/* client already gone */
+					}
 				}
-				try { clientRes.end(); } catch { /* ignore */ }
+				try {
+					clientRes.end();
+				} catch {
+					/* ignore */
+				}
 			}
 		})();
 	}
 
 	async getKbBuilderLogs(): Promise<Record<string, unknown>> {
 		try {
-			const res = await fetch("http://localhost:3002/logs");
+			const res = await fetch(`${this.kbUrl}/logs`);
 			return (await res.json()) as Record<string, unknown>;
 		} catch {
-			return { data: [], error: "KB Builder service not available" };
+			return { data: [] };
 		}
 	}
 
 	async clearKbBuilderLogs(): Promise<Record<string, unknown>> {
 		try {
-			const res = await fetch("http://localhost:3002/logs", { method: "DELETE" });
+			const res = await fetch(`${this.kbUrl}/logs`, { method: "DELETE" });
 			return (await res.json()) as Record<string, unknown>;
 		} catch {
-			return { error: "KB Builder service not available" };
+			return { error: { code: "KB_OFFLINE", message: "KB Builder service is not running" } };
 		}
 	}
 
 	async triggerKbBuilderPipeline(): Promise<Record<string, unknown>> {
 		try {
-			const res = await fetch("http://localhost:3002/pipeline", {
+			const res = await fetch(`${this.kbUrl}/pipeline`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 			});
 			return (await res.json()) as Record<string, unknown>;
 		} catch {
-			return { error: "KB Builder service not available" };
+			return { error: { code: "KB_OFFLINE", message: "KB Builder service is not running" } };
 		}
 	}
 
 	async getKbBuilderPipelineProgress(): Promise<Record<string, unknown>> {
 		try {
-			const res = await fetch("http://localhost:3002/pipeline/progress");
+			const res = await fetch(`${this.kbUrl}/pipeline/progress`);
 			return (await res.json()) as Record<string, unknown>;
 		} catch {
-			return { data: null, error: "KB Builder service not available" };
+			return { data: { status: "idle", total: 0, completed: 0, failed: 0 } };
 		}
 	}
 
 	async getKbBuilderSummaries(): Promise<Record<string, unknown>> {
 		try {
-			const res = await fetch("http://localhost:3002/summaries");
+			const res = await fetch(`${this.kbUrl}/summaries`);
 			return (await res.json()) as Record<string, unknown>;
 		} catch {
-			return { data: [], error: "KB Builder service not available" };
+			return { data: [] };
 		}
 	}
 
 	// ─── Article Deletion ───
 
-	async deleteKbBuilderArticle(articleId: string): Promise<Record<string, unknown>> {
+	async deleteKbBuilderArticle(
+		articleId: string,
+	): Promise<Record<string, unknown>> {
 		try {
-			const res = await fetch(`http://localhost:3002/articles/${articleId}`, {
+			const res = await fetch(`${this.kbUrl}/articles/${articleId}`, {
 				method: "DELETE",
 			});
 			return (await res.json()) as Record<string, unknown>;
 		} catch {
-			return { error: "KB Builder service not available" };
+			return { error: { code: "KB_OFFLINE", message: "KB Builder service is not running" } };
 		}
 	}
 
 	// ─── Batch Summarization ───
 
-	async submitBatchSummarization(mode: string): Promise<Record<string, unknown>> {
+	async submitBatchSummarization(
+		mode: string,
+	): Promise<Record<string, unknown>> {
 		try {
-			const res = await fetch("http://localhost:3002/batch-summarize", {
+			const res = await fetch(`${this.kbUrl}/batch-summarize`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ mode }),
 			});
 			return (await res.json()) as Record<string, unknown>;
 		} catch {
-			return { error: "KB Builder service not available" };
+			return { error: { code: "KB_OFFLINE", message: "KB Builder service is not running" } };
 		}
 	}
 
-	async getBatchSummarizationStatus(batchId: string): Promise<Record<string, unknown>> {
+	async getBatchSummarizationStatus(
+		batchId: string,
+	): Promise<Record<string, unknown>> {
 		try {
-			const res = await fetch(`http://localhost:3002/batch-summarize/${batchId}`);
+			const res = await fetch(`${this.kbUrl}/batch-summarize/${batchId}`);
 			return (await res.json()) as Record<string, unknown>;
 		} catch {
-			return { error: "KB Builder service not available" };
+			return { error: { code: "KB_OFFLINE", message: "KB Builder service is not running" } };
 		}
 	}
 
 	async getActiveBatches(): Promise<Record<string, unknown>> {
 		try {
-			const res = await fetch("http://localhost:3002/batch-summarize");
+			const res = await fetch(`${this.kbUrl}/batch-summarize`);
 			return (await res.json()) as Record<string, unknown>;
 		} catch {
-			return { data: [], error: "KB Builder service not available" };
+			return { data: [] };
 		}
 	}
 }

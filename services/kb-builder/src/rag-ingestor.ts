@@ -8,15 +8,18 @@
  * embedded, and upserted into Qdrant with rich metadata.
  */
 
-import { spawn } from "node:child_process";
-import { resolve, dirname } from "node:path";
+import { type ChildProcess, spawn } from "node:child_process";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import OpenAI from "openai";
 import type { Article, Summary } from "@aijourney/shared";
 import { getRateLimiter } from "@aijourney/shared";
-import { getArticlesByStatus, updateArticleStatus } from "./article-repository.js";
-import { getSummaryByArticleId } from "./summary-repository.js";
+import OpenAI from "openai";
+import {
+	getArticlesByStatus,
+	updateArticleStatus,
+} from "./article-repository.js";
 import { log } from "./log-stream.js";
+import { getSummaryByArticleId } from "./summary-repository.js";
 
 // ── Config ──
 
@@ -116,44 +119,52 @@ export async function chunkDocuments(
 ): Promise<ChunkOutput[]> {
 	const inputJson = JSON.stringify(inputs);
 	return new Promise((resolve, reject) => {
-		const child = spawn(CHUNKER_BIN, [], {
+		const child: ChildProcess = spawn(CHUNKER_BIN, [], {
 			stdio: ["pipe", "pipe", "pipe"],
 		});
 
 		let stdout = "";
 		let stderr = "";
 
-		child.stdout.on("data", (data: Buffer) => {
+		child.stdout!.on("data", (data: Buffer) => {
 			stdout += data.toString();
 		});
 
-		child.stderr.on("data", (data: Buffer) => {
+		child.stderr!.on("data", (data: Buffer) => {
 			stderr += data.toString();
 		});
 
-		child.on("error", (err) => {
+		child.on("error", (err: Error) => {
 			reject(new Error(`Chunker spawn error: ${err.message}`));
 		});
 
-		child.on("close", (code) => {
+		child.on("close", (code: number | null) => {
 			if (stderr) {
 				log("warn", `Chunker stderr: ${stderr.slice(0, 200)}`);
 			}
 			if (code !== 0) {
-				reject(new Error(`Chunker exited with code ${code}: ${stderr.slice(0, 500)}`));
+				reject(
+					new Error(
+						`Chunker exited with code ${code}: ${stderr.slice(0, 500)}`,
+					),
+				);
 				return;
 			}
 			try {
 				const parsed = JSON.parse(stdout) as ChunkOutput[];
 				resolve(parsed);
 			} catch (err) {
-				reject(new Error(`Chunker output parse error: ${err instanceof Error ? err.message : String(err)}`));
+				reject(
+					new Error(
+						`Chunker output parse error: ${err instanceof Error ? err.message : String(err)}`,
+					),
+				);
 			}
 		});
 
 		// Write input to stdin and close the pipe
-		child.stdin.write(inputJson);
-		child.stdin.end();
+		child.stdin!.write(inputJson);
+		child.stdin!.end();
 	});
 }
 
@@ -179,7 +190,9 @@ async function embedTexts(
 		const batch = texts.slice(i, i + EMBEDDING_BATCH_SIZE);
 
 		// Estimate tokens: ~4 chars per token across all batch texts
-		const estimatedTokens = Math.ceil(batch.reduce((sum, t) => sum + t.length, 0) / 4);
+		const estimatedTokens = Math.ceil(
+			batch.reduce((sum, t) => sum + t.length, 0) / 4,
+		);
 		await embeddingRateLimiter.waitForCapacity(estimatedTokens);
 		embeddingRateLimiter.recordRequest(estimatedTokens);
 
@@ -190,7 +203,9 @@ async function embedTexts(
 
 		const actualTokens = response.usage?.total_tokens ?? 0;
 		if (actualTokens > 0) {
-			embeddingRateLimiter.recordUsage(Math.max(0, actualTokens - estimatedTokens));
+			embeddingRateLimiter.recordUsage(
+				Math.max(0, actualTokens - estimatedTokens),
+			);
 		}
 
 		const batchEmbeddings = response.data
@@ -262,11 +277,15 @@ export async function runRagIngestion(): Promise<RagIngestionResult> {
 		errors: [],
 	};
 
-	log("info", `RAG ingestion: processing ${articles.length} summarized articles`, {
-		count: articles.length,
-		qdrantUrl: QDRANT_URL,
-		collection: QDRANT_COLLECTION,
-	});
+	log(
+		"info",
+		`RAG ingestion: processing ${articles.length} summarized articles`,
+		{
+			count: articles.length,
+			qdrantUrl: QDRANT_URL,
+			collection: QDRANT_COLLECTION,
+		},
+	);
 
 	if (articles.length === 0) {
 		log("info", "RAG ingestion: no summarized articles to process");
@@ -326,7 +345,10 @@ export async function runRagIngestion(): Promise<RagIngestionResult> {
 	});
 
 	// Step 3: Embed all chunks
-	log("info", `Embedding ${chunks.length} chunks via OpenAI ${EMBEDDING_MODEL}`);
+	log(
+		"info",
+		`Embedding ${chunks.length} chunks via OpenAI ${EMBEDDING_MODEL}`,
+	);
 	const chunkTexts = chunks.map((c) => c.text);
 	let embeddings: number[][];
 	let embeddingTokens: number;
@@ -381,11 +403,9 @@ export async function runRagIngestion(): Promise<RagIngestionResult> {
 	for (let i = 0; i < points.length; i += UPSERT_BATCH) {
 		const batch = points.slice(i, i + UPSERT_BATCH);
 		try {
-			await qdrantRequest(
-				`/collections/${QDRANT_COLLECTION}/points`,
-				"PUT",
-				{ points: batch },
-			);
+			await qdrantRequest(`/collections/${QDRANT_COLLECTION}/points`, "PUT", {
+				points: batch,
+			});
 		} catch (err) {
 			const msg = `Qdrant upsert failed (batch ${Math.floor(i / UPSERT_BATCH)}): ${err instanceof Error ? err.message : String(err)}`;
 			result.errors.push(msg);
@@ -435,9 +455,15 @@ function hashToUuid(docId: string, chunkIndex: number): string {
 	}
 	// Convert to a UUID-like string (Qdrant accepts UUIDs or u64)
 	const hex = Math.abs(hash).toString(16).padStart(8, "0");
-	const hex2 = Math.abs(hash * 31).toString(16).padStart(8, "0");
-	const hex3 = Math.abs(hash * 997).toString(16).padStart(8, "0");
-	const hex4 = Math.abs(hash * 7919).toString(16).padStart(8, "0");
+	const hex2 = Math.abs(hash * 31)
+		.toString(16)
+		.padStart(8, "0");
+	const hex3 = Math.abs(hash * 997)
+		.toString(16)
+		.padStart(8, "0");
+	const hex4 = Math.abs(hash * 7919)
+		.toString(16)
+		.padStart(8, "0");
 	return `${hex}-${hex2.slice(0, 4)}-4${hex2.slice(5, 8)}-a${hex3.slice(1, 4)}-${hex4.slice(0, 8)}${hex.slice(0, 4)}`;
 }
 
@@ -445,7 +471,9 @@ function hashToUuid(docId: string, chunkIndex: number): string {
  * Delete all Qdrant vectors associated with a given article (doc_id).
  * Uses Qdrant's points/delete with a filter on the doc_id payload field.
  */
-export async function deleteVectorsByArticleId(articleId: string): Promise<number> {
+export async function deleteVectorsByArticleId(
+	articleId: string,
+): Promise<number> {
 	try {
 		// First, count existing points for this article
 		const scrollResult = (await qdrantRequest(
@@ -482,7 +510,10 @@ export async function deleteVectorsByArticleId(articleId: string): Promise<numbe
 		log("info", `Deleted ${count} Qdrant vectors for article ${articleId}`);
 		return count;
 	} catch (err) {
-		log("warn", `Failed to delete Qdrant vectors for ${articleId}: ${err instanceof Error ? err.message : String(err)}`);
+		log(
+			"warn",
+			`Failed to delete Qdrant vectors for ${articleId}: ${err instanceof Error ? err.message : String(err)}`,
+		);
 		return 0;
 	}
 }
@@ -497,6 +528,9 @@ export async function deleteAllVectors(): Promise<void> {
 		// Re-create empty collection
 		await ensureCollection();
 	} catch (err) {
-		log("warn", `Failed to delete Qdrant collection: ${err instanceof Error ? err.message : String(err)}`);
+		log(
+			"warn",
+			`Failed to delete Qdrant collection: ${err instanceof Error ? err.message : String(err)}`,
+		);
 	}
 }
