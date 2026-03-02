@@ -10,6 +10,7 @@
     id: number;
     question: string;
     answer: boolean;
+    context?: string;
   }
 
   interface StrategyStep {
@@ -50,23 +51,29 @@
   let round2Selections = $state<Record<number, boolean>>({});
   let round3Selections = $state<Record<number, boolean>>({});
 
+  // Extra context per question
+  let round1Context = $state<Record<number, string>>({});
+  let round2Context = $state<Record<number, string>>({});
+  let round3Context = $state<Record<number, string>>({});
+
   // Final strategy
   let strategy = $state<Strategy | null>(null);
   let promptCopied = $state(false);
 
-  function getAnswers(questions: PlannerQuestion[], selections: Record<number, boolean>): PlannerAnswer[] {
+  function getAnswers(questions: PlannerQuestion[], selections: Record<number, boolean>, contexts: Record<number, string> = {}): PlannerAnswer[] {
     return questions.map(q => ({
       id: q.id,
       question: q.question,
       answer: !!selections[q.id],
+      ...(contexts[q.id]?.trim() ? { context: contexts[q.id].trim() } : {}),
     }));
   }
 
   function getAllAnswers(): PlannerAnswer[] {
     return [
-      ...getAnswers(round1Questions, round1Selections),
-      ...getAnswers(round2Questions, round2Selections),
-      ...getAnswers(round3Questions, round3Selections),
+      ...getAnswers(round1Questions, round1Selections, round1Context),
+      ...getAnswers(round2Questions, round2Selections, round2Context),
+      ...getAnswers(round3Questions, round3Selections, round3Context),
     ];
   }
 
@@ -90,6 +97,7 @@
       if (res.data) {
         round1Questions = res.data.questions;
         round1Selections = {};
+        round1Context = {};
         step = 'round1';
       } else if (res.error) {
         throw new Error(res.error.message);
@@ -109,12 +117,13 @@
       const res = await api.post<{ round: number; questions: PlannerQuestion[] }>('/ai-planner/questions', {
         goal: goal.trim(),
         round: 2,
-        previousAnswers: getAnswers(round1Questions, round1Selections),
+        previousAnswers: getAnswers(round1Questions, round1Selections, round1Context),
       });
 
       if (res.data) {
         round2Questions = res.data.questions;
         round2Selections = {};
+        round2Context = {};
         step = 'round2';
       } else if (res.error) {
         throw new Error(res.error.message);
@@ -132,8 +141,8 @@
 
     try {
       const answers = [
-        ...getAnswers(round1Questions, round1Selections),
-        ...getAnswers(round2Questions, round2Selections),
+        ...getAnswers(round1Questions, round1Selections, round1Context),
+        ...getAnswers(round2Questions, round2Selections, round2Context),
       ];
       const res = await api.post<{ round: number; questions: PlannerQuestion[] }>('/ai-planner/questions', {
         goal: goal.trim(),
@@ -144,6 +153,7 @@
       if (res.data) {
         round3Questions = res.data.questions;
         round3Selections = {};
+        round3Context = {};
         step = 'round3';
       } else if (res.error) {
         throw new Error(res.error.message);
@@ -196,6 +206,9 @@
     round1Selections = {};
     round2Selections = {};
     round3Selections = {};
+    round1Context = {};
+    round2Context = {};
+    round3Context = {};
     strategy = null;
     promptCopied = false;
   }
@@ -313,6 +326,7 @@
     {@const questions = step === 'round1' ? round1Questions : step === 'round2' ? round2Questions : round3Questions}
     {@const selections = step === 'round1' ? round1Selections : step === 'round2' ? round2Selections : round3Selections}
     {@const submitFn = step === 'round1' ? submitRound1 : step === 'round2' ? submitRound2 : submitRound3}
+    {@const contexts = step === 'round1' ? round1Context : step === 'round2' ? round2Context : round3Context}
     {@const count = selectedCount(selections)}
     {@const roundDescriptions = {
       1: 'Select the statements that apply to your project. These help us understand the scope.',
@@ -335,26 +349,44 @@
       </div>
       <p class="mb-5 text-sm text-text-muted">{roundDescriptions[roundNum as 1 | 2 | 3]}</p>
 
-      <div class="grid gap-3 sm:grid-cols-2">
+      <div class="grid gap-3">
         {#each questions as q (q.id)}
           {@const selected = !!selections[q.id]}
-          <button
-            onclick={() => {
-              if (step === 'round1') round1Selections = { ...round1Selections, [q.id]: !selected };
-              else if (step === 'round2') round2Selections = { ...round2Selections, [q.id]: !selected };
-              else round3Selections = { ...round3Selections, [q.id]: !selected };
-            }}
-            class="flex items-start gap-3 rounded-lg border p-4 text-left transition-all
-              {selected
-                ? 'border-primary bg-primary/5 ring-1 ring-primary/30'
-                : 'border-border hover:border-primary/50 hover:bg-surface-dark'}"
-          >
-            <span class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border text-xs
-              {selected ? 'border-primary bg-primary text-white' : 'border-text-faint/30'}">
-              {selected ? '✓' : ''}
-            </span>
-            <span class="text-sm {selected ? 'text-text font-medium' : 'text-text-muted'}">{q.question}</span>
-          </button>
+          <div class="rounded-lg border transition-all
+            {selected
+              ? 'border-primary bg-primary/5 ring-1 ring-primary/30'
+              : 'border-border hover:border-primary/50'}">
+            <button
+              onclick={() => {
+                if (step === 'round1') round1Selections = { ...round1Selections, [q.id]: !selected };
+                else if (step === 'round2') round2Selections = { ...round2Selections, [q.id]: !selected };
+                else round3Selections = { ...round3Selections, [q.id]: !selected };
+              }}
+              class="flex w-full items-start gap-3 p-4 text-left"
+            >
+              <span class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border text-xs
+                {selected ? 'border-primary bg-primary text-white' : 'border-text-faint/30'}">
+                {selected ? '✓' : ''}
+              </span>
+              <span class="text-sm font-bold {selected ? 'text-text' : 'text-text-muted'}">{q.question}</span>
+            </button>
+            <div class="px-4 pb-3 pl-12">
+              <textarea
+                placeholder="Add context (optional)"
+                rows="1"
+                value={contexts[q.id] ?? ''}
+                oninput={(e) => {
+                  const val = (e.target as HTMLTextAreaElement).value;
+                  if (step === 'round1') round1Context = { ...round1Context, [q.id]: val };
+                  else if (step === 'round2') round2Context = { ...round2Context, [q.id]: val };
+                  else round3Context = { ...round3Context, [q.id]: val };
+                }}
+                onfocus={(e) => { (e.target as HTMLTextAreaElement).rows = 3; }}
+                onblur={(e) => { const t = e.target as HTMLTextAreaElement; if (!t.value.trim()) t.rows = 1; }}
+                class="w-full resize-none rounded border border-border bg-surface-dark px-3 py-1.5 text-xs text-text placeholder-text-faint focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20"
+              ></textarea>
+            </div>
+          </div>
         {/each}
       </div>
 
@@ -481,11 +513,16 @@
       </summary>
       <div class="mt-4 space-y-2">
         {#each getAllAnswers() as answer (answer.question)}
-          <div class="flex items-center gap-2 text-sm">
-            <span class="shrink-0 {answer.answer ? 'text-success' : 'text-text-faint'}">
+          <div class="flex items-start gap-2 text-sm">
+            <span class="mt-0.5 shrink-0 {answer.answer ? 'text-success' : 'text-text-faint'}">
               {answer.answer ? '✓' : '✗'}
             </span>
-            <span class="text-text-muted">{answer.question}</span>
+            <div>
+              <span class="text-text-muted">{answer.question}</span>
+              {#if answer.context}
+                <p class="mt-0.5 text-xs text-text-faint italic">"{answer.context}"</p>
+              {/if}
+            </div>
           </div>
         {/each}
       </div>
