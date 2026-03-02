@@ -1,0 +1,35 @@
+{
+	"name": "@aijourney/shared",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"main": "./dist/cjs/index.js",
+	"types": "./dist/esm/index.d.ts",
+	"exports": {
+		".": {
+			"import": {
+				"types": "./dist/esm/index.d.ts",
+				"default": "./dist/esm/index.js"
+			},
+			"require": {
+				"types": "./dist/cjs/index.d.ts",
+				"default": "./dist/cjs/index.js"
+			}
+		}
+	},
+	"scripts": {
+		"build": "tsc -p tsconfig.json && tsc -p tsconfig.cjs.json && echo '{\"type\":\"commonjs\"}' > dist/cjs/package.json",
+		"dev": "tsc --watch",
+		"clean": "rm -rf dist",
+		"lint": "eslint src/",
+		"test": "vitest run"
+	},
+	"dependencies": {
+		"ulid": "^2.3.0",
+		"zod": "^3.24.0"
+	},
+	"devDependencies": {
+		"typescript": "^5.7.0",
+		"vitest": "^3.0.0"
+	}
+}
