@@ -310,7 +310,7 @@ async function summarizeArticleInternal(
 		);
 	}
 
-	// Save summary to DynamoDB
+	// Save summary to MongoDB
 	const summary = await saveSummary({
 		articleId: article.id,
 		runRequestId: "", // MVP: no run request tracking yet

@@ -1,12 +1,17 @@
 services:
   # ---------- Infrastructure ----------
-  dynamodb-local:
-    image: amazon/dynamodb-local:latest
+  mongodb:
+    image: mongo:8
     ports:
-      - "8000:8000"
-    command: "-jar DynamoDBLocal.jar -sharedDb"
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/01-init.js:ro
+    environment:
+      MONGO_INITDB_DATABASE: aijourney
+    command: ["mongod", "--wiredTigerCacheSizeGB", "0.5"]
     healthcheck:
-      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/8000' 2>/dev/null || exit 1"]
+      test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok", "--quiet"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -36,18 +41,6 @@ services:
       timeout: 3s
       retries: 5
 
-  # ---------- Init: seed DynamoDB tables ----------
-  seed-db:
-    build:
-      context: .
-      target: seed
-    depends_on:
-      dynamodb-local:
-        condition: service_healthy
-    environment:
-      DYNAMODB_ENDPOINT: http://dynamodb-local:8000
-      AWS_REGION: eu-central-1
-
   # ---------- Application services ----------
   api:
     build:
@@ -56,16 +49,14 @@ services:
     ports:
       - "3000:3000"
     depends_on:
-      dynamodb-local:
+      mongodb:
         condition: service_healthy
       redis:
         condition: service_healthy
-      seed-db:
-        condition: service_completed_successfully
     environment:
       NODE_ENV: development
       PORT: "3000"
-      DYNAMODB_ENDPOINT: http://dynamodb-local:8000
+      MONGODB_URI: mongodb://mongodb:27017
       AWS_REGION: eu-central-1
       REDIS_URL: redis://redis:6379
       APP_URL: http://localhost:5173
@@ -91,12 +82,12 @@ services:
     ports:
       - "3002:3002"
     depends_on:
-      dynamodb-local:
+      mongodb:
         condition: service_healthy
     environment:
       NODE_ENV: development
       KB_BUILDER_PORT: "3002"
-      DYNAMODB_ENDPOINT: http://dynamodb-local:8000
+      MONGODB_URI: mongodb://mongodb:27017
       AWS_REGION: eu-central-1
 
   web:
@@ -109,5 +100,6 @@ services:
       - api
 
 volumes:
+  mongo_data:
   redis_data:
   qdrant_data:

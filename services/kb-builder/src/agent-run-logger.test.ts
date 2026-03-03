@@ -1,35 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockSend } = vi.hoisted(() => ({ mockSend: vi.fn() }));
+const mockInsertOne = vi.fn().mockResolvedValue({});
+const mockFindOne = vi.fn().mockResolvedValue(null);
+const mockUpdateOne = vi.fn().mockResolvedValue({});
+const mockCollection = {
+	insertOne: mockInsertOne,
+	findOne: mockFindOne,
+	updateOne: mockUpdateOne,
+};
 
-vi.mock("@aws-sdk/client-dynamodb", () => ({
-	DynamoDBClient: class {
-		constructor() {}
-	},
-}));
-
-vi.mock("@aws-sdk/lib-dynamodb", () => ({
-	DynamoDBDocumentClient: {
-		from: () => ({ send: mockSend }),
-	},
-	PutCommand: class {
-		input: any;
-		constructor(input: any) {
-			this.input = input;
-		}
-	},
-	GetCommand: class {
-		input: any;
-		constructor(input: any) {
-			this.input = input;
-		}
-	},
-	UpdateCommand: class {
-		input: any;
-		constructor(input: any) {
-			this.input = input;
-		}
-	},
+vi.mock("./db.js", () => ({
+	getDb: () => ({
+		collection: () => mockCollection,
+	}),
 }));
 
 vi.mock("./log-stream.js", () => ({
@@ -58,7 +41,7 @@ describe("agent-run-logger", () => {
 
 	describe("startAgentRun", () => {
 		it("should create a run with running status", async () => {
-			mockSend.mockResolvedValue({});
+			mockInsertOne.mockResolvedValue({});
 
 			const run = await startAgentRun({
 				agent: "summarizer",
@@ -72,11 +55,14 @@ describe("agent-run-logger", () => {
 			expect(run.input).toBe("Batch summarization");
 			expect(run.model).toBe("gpt-5-mini");
 			expect(run.createdAt).toBe("2026-01-15T10:00:00.000Z");
-			expect(mockSend).toHaveBeenCalledOnce();
+			expect(mockInsertOne).toHaveBeenCalledOnce();
+			// Verify _id mapping
+			const doc = mockInsertOne.mock.calls[0]![0];
+			expect(doc._id).toBe("test-run-id");
 		});
 
 		it("should include optional metadata and fullInput", async () => {
-			mockSend.mockResolvedValue({});
+			mockInsertOne.mockResolvedValue({});
 
 			const run = await startAgentRun({
 				agent: "crawler",
@@ -89,8 +75,8 @@ describe("agent-run-logger", () => {
 			expect(run.metadata).toEqual({ sourceId: "src-1" });
 		});
 
-		it("should not throw if DynamoDB fails (logs warning)", async () => {
-			mockSend.mockRejectedValue(new Error("DynamoDB error"));
+		it("should not throw if MongoDB fails (logs warning)", async () => {
+			mockInsertOne.mockRejectedValue(new Error("MongoDB error"));
 
 			const run = await startAgentRun({
 				agent: "chat",
@@ -105,9 +91,8 @@ describe("agent-run-logger", () => {
 
 	describe("completeAgentRun", () => {
 		it("should update run with completion data", async () => {
-			mockSend
-				.mockResolvedValueOnce({ Item: { metadata: { existing: "data" } } }) // GetCommand
-				.mockResolvedValueOnce({}); // UpdateCommand
+			mockFindOne.mockResolvedValue({ metadata: { existing: "data" } });
+			mockUpdateOne.mockResolvedValue({});
 
 			await completeAgentRun("run-1", {
 				output: "Summary completed",
@@ -117,47 +102,46 @@ describe("agent-run-logger", () => {
 				durationMs: 2000,
 			});
 
-			expect(mockSend).toHaveBeenCalledTimes(2);
-			const updateCommand = mockSend.mock.calls[1][0];
-			expect(updateCommand.input.UpdateExpression).toContain("#s = :status");
-			expect(updateCommand.input.ExpressionAttributeValues[":status"]).toBe(
-				"completed",
-			);
+			expect(mockFindOne).toHaveBeenCalledWith({ _id: "run-1" });
+			expect(mockUpdateOne).toHaveBeenCalledOnce();
+			const [filter, update] = mockUpdateOne.mock.calls[0]!;
+			expect(filter).toEqual({ _id: "run-1" });
+			expect(update.$set.status).toBe("completed");
+			expect(update.$set.output).toBe("Summary completed");
+			expect(update.$set.tokensUsed).toBe(500);
 		});
 
 		it("should merge existing metadata", async () => {
-			mockSend
-				.mockResolvedValueOnce({ Item: { metadata: { old: "value" } } })
-				.mockResolvedValueOnce({});
+			mockFindOne.mockResolvedValue({ metadata: { old: "value" } });
+			mockUpdateOne.mockResolvedValue({});
 
 			await completeAgentRun("run-1", {
 				output: "done",
 				metadata: { new: "value" },
 			});
 
-			const updateCommand = mockSend.mock.calls[1][0];
-			expect(updateCommand.input.ExpressionAttributeValues[":meta"]).toEqual({
+			const update = mockUpdateOne.mock.calls[0]![1];
+			expect(update.$set.metadata).toEqual({
 				old: "value",
 				new: "value",
 			});
 		});
 
 		it("should include fullOutput when provided", async () => {
-			mockSend.mockResolvedValueOnce({ Item: {} }).mockResolvedValueOnce({});
+			mockFindOne.mockResolvedValue({});
+			mockUpdateOne.mockResolvedValue({});
 
 			await completeAgentRun("run-1", {
 				output: "short",
 				fullOutput: "full output text",
 			});
 
-			const updateCommand = mockSend.mock.calls[1][0];
-			expect(updateCommand.input.UpdateExpression).toContain(
-				"fullOutput = :fout",
-			);
+			const update = mockUpdateOne.mock.calls[0]![1];
+			expect(update.$set.fullOutput).toBe("full output text");
 		});
 
-		it("should not throw if DynamoDB fails (logs warning)", async () => {
-			mockSend.mockRejectedValue(new Error("DynamoDB unavailable"));
+		it("should not throw if MongoDB fails (logs warning)", async () => {
+			mockFindOne.mockRejectedValue(new Error("MongoDB unavailable"));
 
 			// Should not throw
 			await completeAgentRun("run-1", { output: "done" });
@@ -166,30 +150,29 @@ describe("agent-run-logger", () => {
 
 	describe("failAgentRun", () => {
 		it("should update run with failure data", async () => {
-			mockSend.mockResolvedValue({});
+			mockUpdateOne.mockResolvedValue({});
 
 			await failAgentRun("run-1", "Connection timeout", 5000);
 
-			expect(mockSend).toHaveBeenCalledOnce();
-			const command = mockSend.mock.calls[0][0];
-			expect(command.input.ExpressionAttributeValues[":status"]).toBe("failed");
-			expect(command.input.ExpressionAttributeValues[":error"]).toBe(
-				"Connection timeout",
-			);
-			expect(command.input.ExpressionAttributeValues[":dur"]).toBe(5000);
+			expect(mockUpdateOne).toHaveBeenCalledOnce();
+			const [filter, update] = mockUpdateOne.mock.calls[0]!;
+			expect(filter).toEqual({ _id: "run-1" });
+			expect(update.$set.status).toBe("failed");
+			expect(update.$set.error).toBe("Connection timeout");
+			expect(update.$set.durationMs).toBe(5000);
 		});
 
 		it("should default durationMs to 0", async () => {
-			mockSend.mockResolvedValue({});
+			mockUpdateOne.mockResolvedValue({});
 
 			await failAgentRun("run-1", "Error");
 
-			const command = mockSend.mock.calls[0][0];
-			expect(command.input.ExpressionAttributeValues[":dur"]).toBe(0);
+			const update = mockUpdateOne.mock.calls[0]![1];
+			expect(update.$set.durationMs).toBe(0);
 		});
 
-		it("should not throw if DynamoDB fails (logs warning)", async () => {
-			mockSend.mockRejectedValue(new Error("DynamoDB error"));
+		it("should not throw if MongoDB fails (logs warning)", async () => {
+			mockUpdateOne.mockRejectedValue(new Error("MongoDB error"));
 
 			// Should not throw
 			await failAgentRun("run-1", "Error message");

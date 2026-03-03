@@ -1,54 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Must use vi.hoisted() so the mock fn is available when vi.mock hoists
-const { mockSend } = vi.hoisted(() => ({ mockSend: vi.fn() }));
+// Mock db.ts to return a mock collection
+const mockInsertOne = vi.fn().mockResolvedValue({});
+const mockFindOne = vi.fn().mockResolvedValue(null);
+const mockUpdateOne = vi.fn().mockResolvedValue({});
+const mockDeleteOne = vi.fn().mockResolvedValue({ deletedCount: 1 });
+const mockCountDocuments = vi.fn().mockResolvedValue(0);
+const mockToArray = vi.fn().mockResolvedValue([]);
+const mockSort = vi.fn().mockReturnValue({ toArray: mockToArray });
+const mockFind = vi.fn().mockReturnValue({ sort: mockSort, toArray: mockToArray });
+const mockCollection = {
+	insertOne: mockInsertOne,
+	findOne: mockFindOne,
+	updateOne: mockUpdateOne,
+	deleteOne: mockDeleteOne,
+	countDocuments: mockCountDocuments,
+	find: mockFind,
+};
 
-vi.mock("@aws-sdk/client-dynamodb", () => ({
-	DynamoDBClient: class {
-		constructor() {}
-	},
-}));
-
-vi.mock("@aws-sdk/lib-dynamodb", () => ({
-	DynamoDBDocumentClient: {
-		from: () => ({ send: mockSend }),
-	},
-	PutCommand: class {
-		input: any;
-		constructor(input: any) {
-			this.input = input;
-		}
-	},
-	ScanCommand: class {
-		input: any;
-		constructor(input: any) {
-			this.input = input;
-		}
-	},
-	QueryCommand: class {
-		input: any;
-		constructor(input: any) {
-			this.input = input;
-		}
-	},
-	GetCommand: class {
-		input: any;
-		constructor(input: any) {
-			this.input = input;
-		}
-	},
-	UpdateCommand: class {
-		input: any;
-		constructor(input: any) {
-			this.input = input;
-		}
-	},
-	DeleteCommand: class {
-		input: any;
-		constructor(input: any) {
-			this.input = input;
-		}
-	},
+vi.mock("./db.js", () => ({
+	getDb: () => ({
+		collection: () => mockCollection,
+	}),
 }));
 
 vi.mock("@aijourney/shared", async () => {
@@ -75,33 +48,34 @@ import {
 describe("article-repository", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		// Restore default mock returns
+		mockFind.mockReturnValue({ sort: mockSort, toArray: mockToArray });
+		mockSort.mockReturnValue({ toArray: mockToArray });
+		mockToArray.mockResolvedValue([]);
 	});
 
 	describe("hashContent", () => {
 		it("should return SHA-256 hex hash of content", () => {
 			const hash = hashContent("test content");
-
 			expect(hash).toMatch(/^[0-9a-f]{64}$/);
 		});
 
 		it("should return same hash for same content", () => {
 			const h1 = hashContent("identical");
 			const h2 = hashContent("identical");
-
 			expect(h1).toBe(h2);
 		});
 
 		it("should return different hash for different content", () => {
 			const h1 = hashContent("content A");
 			const h2 = hashContent("content B");
-
 			expect(h1).not.toBe(h2);
 		});
 	});
 
 	describe("saveArticle", () => {
 		it("should create article with generated id and timestamps", async () => {
-			mockSend.mockResolvedValue({});
+			mockInsertOne.mockResolvedValue({});
 
 			const result = await saveArticle({
 				url: "https://example.com/article",
@@ -121,30 +95,32 @@ describe("article-repository", () => {
 			expect(result.createdAt).toBe("2026-01-15T10:00:00.000Z");
 			expect(result.updatedAt).toBe("2026-01-15T10:00:00.000Z");
 			expect(result.url).toBe("https://example.com/article");
-			expect(mockSend).toHaveBeenCalledOnce();
+			expect(mockInsertOne).toHaveBeenCalledOnce();
+			// Verify doc uses _id instead of id
+			const doc = mockInsertOne.mock.calls[0]![0];
+			expect(doc._id).toBe("test-id-abc");
+			expect(doc.id).toBeUndefined();
 		});
 	});
 
 	describe("getArticleByUrl", () => {
 		it("should return article when found", async () => {
-			const article = { id: "a1", url: "https://example.com/article" };
-			mockSend.mockResolvedValue({ Items: [article] });
+			mockFindOne.mockResolvedValue({
+				_id: "a1",
+				url: "https://example.com/article",
+			});
 
 			const result = await getArticleByUrl("https://example.com/article");
 
-			expect(result).toEqual(article);
+			expect(result).toEqual({
+				id: "a1",
+				url: "https://example.com/article",
+			});
+			expect(mockFindOne).toHaveBeenCalledWith({ url: "https://example.com/article" });
 		});
 
 		it("should return null when not found", async () => {
-			mockSend.mockResolvedValue({ Items: [] });
-
-			const result = await getArticleByUrl("https://example.com/missing");
-
-			expect(result).toBeNull();
-		});
-
-		it("should return null when Items is undefined", async () => {
-			mockSend.mockResolvedValue({});
+			mockFindOne.mockResolvedValue(null);
 
 			const result = await getArticleByUrl("https://example.com/missing");
 
@@ -154,136 +130,116 @@ describe("article-repository", () => {
 
 	describe("getAllArticles", () => {
 		it("should return all articles sorted by createdAt desc", async () => {
-			const articles = [
-				{ id: "1", createdAt: "2026-01-01T00:00:00Z" },
-				{ id: "2", createdAt: "2026-01-03T00:00:00Z" },
-				{ id: "3", createdAt: "2026-01-02T00:00:00Z" },
+			const docs = [
+				{ _id: "2", createdAt: "2026-01-03T00:00:00Z" },
+				{ _id: "3", createdAt: "2026-01-02T00:00:00Z" },
+				{ _id: "1", createdAt: "2026-01-01T00:00:00Z" },
 			];
-			mockSend.mockResolvedValue({ Items: articles });
+			mockToArray.mockResolvedValue(docs);
+			mockSort.mockReturnValue({ toArray: mockToArray });
+			mockFind.mockReturnValue({ sort: mockSort });
 
 			const result = await getAllArticles();
 
-			expect(result[0].id).toBe("2");
-			expect(result[1].id).toBe("3");
-			expect(result[2].id).toBe("1");
-		});
-
-		it("should handle pagination", async () => {
-			mockSend
-				.mockResolvedValueOnce({
-					Items: [{ id: "1", createdAt: "2026-01-01T00:00:00Z" }],
-					LastEvaluatedKey: { id: "1" },
-				})
-				.mockResolvedValueOnce({
-					Items: [{ id: "2", createdAt: "2026-01-02T00:00:00Z" }],
-				});
-
-			const result = await getAllArticles();
-
-			expect(result).toHaveLength(2);
-			expect(mockSend).toHaveBeenCalledTimes(2);
+			expect(result).toHaveLength(3);
+			expect(result[0]!.id).toBe("2");
+			expect(mockFind).toHaveBeenCalledWith({});
+			expect(mockSort).toHaveBeenCalledWith({ createdAt: -1 });
 		});
 	});
 
 	describe("getArticlesByStatus", () => {
-		it("should query using status-crawledAt-index", async () => {
-			mockSend.mockResolvedValue({ Items: [{ id: "1", status: "fetched" }] });
+		it("should query by status and sort by fetchedAt desc", async () => {
+			mockToArray.mockResolvedValue([
+				{ _id: "1", status: "fetched" },
+			]);
+			mockSort.mockReturnValue({ toArray: mockToArray });
+			mockFind.mockReturnValue({ sort: mockSort });
 
 			const result = await getArticlesByStatus("fetched");
 
 			expect(result).toHaveLength(1);
-			const command = mockSend.mock.calls[0][0];
-			expect(command.input.IndexName).toBe("status-crawledAt-index");
+			expect(mockFind).toHaveBeenCalledWith({ status: "fetched" });
+			expect(mockSort).toHaveBeenCalledWith({ fetchedAt: -1 });
 		});
 
 		it("should return empty array when no items", async () => {
-			mockSend.mockResolvedValue({});
+			mockToArray.mockResolvedValue([]);
+			mockSort.mockReturnValue({ toArray: mockToArray });
+			mockFind.mockReturnValue({ sort: mockSort });
 
 			const result = await getArticlesByStatus("fetched");
-
 			expect(result).toEqual([]);
 		});
 	});
 
 	describe("getArticleById", () => {
 		it("should return article when found", async () => {
-			const article = { id: "a1", title: "Test" };
-			mockSend.mockResolvedValue({ Item: article });
+			mockFindOne.mockResolvedValue({ _id: "a1", title: "Test" });
 
 			const result = await getArticleById("a1");
 
-			expect(result).toEqual(article);
+			expect(result).toEqual({ id: "a1", title: "Test" });
+			expect(mockFindOne).toHaveBeenCalledWith({ _id: "a1" });
 		});
 
 		it("should return null when not found", async () => {
-			mockSend.mockResolvedValue({});
+			mockFindOne.mockResolvedValue(null);
 
-			const result = await getArticleById("non-existent");
-
+			const result = await getArticleById("no-exist");
 			expect(result).toBeNull();
 		});
 	});
 
 	describe("countArticles", () => {
-		it("should return count from scan", async () => {
-			mockSend.mockResolvedValue({ Count: 42 });
+		it("should return document count", async () => {
+			mockCountDocuments.mockResolvedValue(15);
 
 			const result = await countArticles();
-
-			expect(result).toBe(42);
-		});
-
-		it("should return 0 when Count is undefined", async () => {
-			mockSend.mockResolvedValue({});
-
-			const result = await countArticles();
-
-			expect(result).toBe(0);
+			expect(result).toBe(15);
 		});
 	});
 
 	describe("updateArticleStatus", () => {
 		it("should update status and updatedAt", async () => {
-			mockSend.mockResolvedValue({});
-
 			await updateArticleStatus("a1", "summarized");
 
-			expect(mockSend).toHaveBeenCalledOnce();
-			const command = mockSend.mock.calls[0][0];
-			expect(command.input.Key).toEqual({ id: "a1" });
-			expect(command.input.UpdateExpression).toContain("#s = :status");
+			expect(mockUpdateOne).toHaveBeenCalledWith(
+				{ _id: "a1" },
+				{
+					$set: {
+						status: "summarized",
+						updatedAt: "2026-01-15T10:00:00.000Z",
+					},
+				},
+			);
 		});
 
 		it("should include qualityScore when provided", async () => {
-			mockSend.mockResolvedValue({});
+			await updateArticleStatus("a1", "quality_pass", {
+				qualityScore: 0.85,
+			});
 
-			await updateArticleStatus("a1", "quality_passed", { qualityScore: 0.85 });
-
-			const command = mockSend.mock.calls[0][0];
-			expect(command.input.UpdateExpression).toContain("#qs = :qs");
-			expect(command.input.ExpressionAttributeValues[":qs"]).toBe(0.85);
+			const setArg =
+				mockUpdateOne.mock.calls[0]![1].$set;
+			expect(setArg.qualityScore).toBe(0.85);
 		});
 	});
 
 	describe("deleteArticle", () => {
-		it("should delete existing article and return true", async () => {
-			mockSend
-				.mockResolvedValueOnce({ Item: { id: "a1" } }) // getArticleById
-				.mockResolvedValueOnce({}); // DeleteCommand
+		it("should return true when deleted", async () => {
+			mockDeleteOne.mockResolvedValue({ deletedCount: 1 });
 
 			const result = await deleteArticle("a1");
-
 			expect(result).toBe(true);
-			expect(mockSend).toHaveBeenCalledTimes(2);
+			expect(mockDeleteOne).toHaveBeenCalledWith({ _id: "a1" });
 		});
 
-		it("should return false when article does not exist", async () => {
-			mockSend.mockResolvedValueOnce({}); // getArticleById returns undefined
+		it("should return false when not found", async () => {
+			mockDeleteOne.mockResolvedValue({ deletedCount: 0 });
 
-			const result = await deleteArticle("non-existent");
-
+			const result = await deleteArticle("no-exist");
 			expect(result).toBe(false);
-			expect(mockSend).toHaveBeenCalledOnce();
 		});
 	});
 });

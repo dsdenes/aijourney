@@ -56,7 +56,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, "jwt") {
 			throw new UnauthorizedException(`Email domain must be @${domain}`);
 		}
 
-		// Look up the actual role from DynamoDB (not from JWT claim)
+		// Look up the actual role from MongoDB (not from JWT claim)
 		let role = "employee";
 		try {
 			const dbUser = await this.usersService.getByEmail(email);

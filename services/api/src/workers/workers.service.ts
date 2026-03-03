@@ -52,7 +52,7 @@ const WORKER_DEFINITIONS: WorkerDefinition[] = [
 		name: "Summarization",
 		slug: "summarization",
 		description:
-			"Processes articles through OpenAI to generate concise summaries. Fetches article content from DynamoDB, calls the LLM, tracks token usage, and stores results.",
+			"Processes articles through OpenAI to generate concise summaries. Fetches article content from MongoDB, calls the LLM, tracks token usage, and stores results.",
 		queueName: "summarization",
 		concurrency: 2,
 		defaultJobData: { runRequestId: "manual", articleId: "" },
@@ -79,7 +79,7 @@ const WORKER_DEFINITIONS: WorkerDefinition[] = [
 		name: "KB Builder",
 		slug: "kb-builder",
 		description:
-			"Standalone pipeline service that crawls target URLs, extracts and cleans content, deduplicates, stores in S3, creates DynamoDB article records, generates summaries via OpenAI, and triggers Bedrock KB sync.",
+			"Standalone pipeline service that crawls target URLs, extracts and cleans content, deduplicates, stores in S3, creates MongoDB article records, generates summaries via OpenAI, and triggers Bedrock KB sync.",
 		queueName: "",
 		concurrency: 1,
 		defaultJobData: {},

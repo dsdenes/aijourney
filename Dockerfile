@@ -26,7 +26,7 @@ COPY packages/shared/tsconfig.cjs.json packages/shared/tsconfig.cjs.json
 COPY packages/shared/src/ packages/shared/src/
 RUN pnpm --filter @aijourney/shared build
 
-# ---- Seed: create DynamoDB tables ----
+# ---- Seed: create MongoDB indexes ----
 FROM shared-build AS seed
 COPY scripts/ scripts/
 CMD ["pnpm", "run", "seed:db"]

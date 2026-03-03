@@ -1,255 +1,112 @@
 #!/usr/bin/env tsx
 /**
- * Creates all DynamoDB tables for local development.
+ * Creates all MongoDB collections and indexes for local development.
  * Usage: pnpm run seed:db
+ *
+ * Replaces the old DynamoDB seed-db.ts.
  */
-import {
-	CreateTableCommand,
-	type CreateTableCommandInput,
-	DynamoDBClient,
-	ListTablesCommand,
-} from "@aws-sdk/client-dynamodb";
+import { MongoClient } from "mongodb";
 
-const endpoint = process.env.DYNAMODB_ENDPOINT || "http://localhost:8000";
-const client = new DynamoDBClient({
-	endpoint,
-	region: "eu-central-1",
-	credentials: { accessKeyId: "local", secretAccessKey: "local" },
-});
-
-const tables: CreateTableCommandInput[] = [
-	{
-		TableName: "users",
-		KeySchema: [{ AttributeName: "id", KeyType: "HASH" }],
-		AttributeDefinitions: [
-			{ AttributeName: "id", AttributeType: "S" },
-			{ AttributeName: "email", AttributeType: "S" },
-		],
-		GlobalSecondaryIndexes: [
-			{
-				IndexName: "email-index",
-				KeySchema: [{ AttributeName: "email", KeyType: "HASH" }],
-				Projection: { ProjectionType: "ALL" },
-			},
-		],
-		BillingMode: "PAY_PER_REQUEST",
-	},
-	{
-		TableName: "journeys",
-		KeySchema: [{ AttributeName: "id", KeyType: "HASH" }],
-		AttributeDefinitions: [
-			{ AttributeName: "id", AttributeType: "S" },
-			{ AttributeName: "userId", AttributeType: "S" },
-			{ AttributeName: "createdAt", AttributeType: "S" },
-		],
-		GlobalSecondaryIndexes: [
-			{
-				IndexName: "userId-createdAt-index",
-				KeySchema: [
-					{ AttributeName: "userId", KeyType: "HASH" },
-					{ AttributeName: "createdAt", KeyType: "RANGE" },
-				],
-				Projection: { ProjectionType: "ALL" },
-			},
-		],
-		BillingMode: "PAY_PER_REQUEST",
-	},
-	{
-		TableName: "steps",
-		KeySchema: [{ AttributeName: "id", KeyType: "HASH" }],
-		AttributeDefinitions: [
-			{ AttributeName: "id", AttributeType: "S" },
-			{ AttributeName: "journeyId", AttributeType: "S" },
-			{ AttributeName: "order", AttributeType: "N" },
-		],
-		GlobalSecondaryIndexes: [
-			{
-				IndexName: "journeyId-order-index",
-				KeySchema: [
-					{ AttributeName: "journeyId", KeyType: "HASH" },
-					{ AttributeName: "order", KeyType: "RANGE" },
-				],
-				Projection: { ProjectionType: "ALL" },
-			},
-		],
-		BillingMode: "PAY_PER_REQUEST",
-	},
-	{
-		TableName: "kpis",
-		KeySchema: [{ AttributeName: "id", KeyType: "HASH" }],
-		AttributeDefinitions: [
-			{ AttributeName: "id", AttributeType: "S" },
-			{ AttributeName: "stepId", AttributeType: "S" },
-		],
-		GlobalSecondaryIndexes: [
-			{
-				IndexName: "stepId-index",
-				KeySchema: [{ AttributeName: "stepId", KeyType: "HASH" }],
-				Projection: { ProjectionType: "ALL" },
-			},
-		],
-		BillingMode: "PAY_PER_REQUEST",
-	},
-	{
-		TableName: "evidence",
-		KeySchema: [{ AttributeName: "id", KeyType: "HASH" }],
-		AttributeDefinitions: [
-			{ AttributeName: "id", AttributeType: "S" },
-			{ AttributeName: "kpiId", AttributeType: "S" },
-			{ AttributeName: "submittedAt", AttributeType: "S" },
-		],
-		GlobalSecondaryIndexes: [
-			{
-				IndexName: "kpiId-submittedAt-index",
-				KeySchema: [
-					{ AttributeName: "kpiId", KeyType: "HASH" },
-					{ AttributeName: "submittedAt", KeyType: "RANGE" },
-				],
-				Projection: { ProjectionType: "ALL" },
-			},
-		],
-		BillingMode: "PAY_PER_REQUEST",
-	},
-	{
-		TableName: "run_requests",
-		KeySchema: [{ AttributeName: "id", KeyType: "HASH" }],
-		AttributeDefinitions: [
-			{ AttributeName: "id", AttributeType: "S" },
-			{ AttributeName: "userId", AttributeType: "S" },
-			{ AttributeName: "status", AttributeType: "S" },
-			{ AttributeName: "createdAt", AttributeType: "S" },
-		],
-		GlobalSecondaryIndexes: [
-			{
-				IndexName: "userId-status-index",
-				KeySchema: [
-					{ AttributeName: "userId", KeyType: "HASH" },
-					{ AttributeName: "status", KeyType: "RANGE" },
-				],
-				Projection: { ProjectionType: "ALL" },
-			},
-			{
-				IndexName: "status-createdAt-index",
-				KeySchema: [
-					{ AttributeName: "status", KeyType: "HASH" },
-					{ AttributeName: "createdAt", KeyType: "RANGE" },
-				],
-				Projection: { ProjectionType: "ALL" },
-			},
-		],
-		BillingMode: "PAY_PER_REQUEST",
-	},
-	{
-		TableName: "run_logs",
-		KeySchema: [
-			{ AttributeName: "runRequestId", KeyType: "HASH" },
-			{ AttributeName: "timestamp", KeyType: "RANGE" },
-		],
-		AttributeDefinitions: [
-			{ AttributeName: "runRequestId", AttributeType: "S" },
-			{ AttributeName: "timestamp", AttributeType: "S" },
-		],
-		BillingMode: "PAY_PER_REQUEST",
-	},
-	{
-		TableName: "agent_runs",
-		KeySchema: [{ AttributeName: "id", KeyType: "HASH" }],
-		AttributeDefinitions: [
-			{ AttributeName: "id", AttributeType: "S" },
-			{ AttributeName: "agent", AttributeType: "S" },
-			{ AttributeName: "createdAt", AttributeType: "S" },
-			{ AttributeName: "status", AttributeType: "S" },
-		],
-		GlobalSecondaryIndexes: [
-			{
-				IndexName: "agent-createdAt-index",
-				KeySchema: [
-					{ AttributeName: "agent", KeyType: "HASH" },
-					{ AttributeName: "createdAt", KeyType: "RANGE" },
-				],
-				Projection: { ProjectionType: "ALL" },
-			},
-			{
-				IndexName: "status-createdAt-index",
-				KeySchema: [
-					{ AttributeName: "status", KeyType: "HASH" },
-					{ AttributeName: "createdAt", KeyType: "RANGE" },
-				],
-				Projection: { ProjectionType: "ALL" },
-			},
-		],
-		BillingMode: "PAY_PER_REQUEST",
-	},
-	{
-		TableName: "articles",
-		KeySchema: [{ AttributeName: "id", KeyType: "HASH" }],
-		AttributeDefinitions: [
-			{ AttributeName: "id", AttributeType: "S" },
-			{ AttributeName: "status", AttributeType: "S" },
-			{ AttributeName: "crawledAt", AttributeType: "S" },
-		],
-		GlobalSecondaryIndexes: [
-			{
-				IndexName: "status-crawledAt-index",
-				KeySchema: [
-					{ AttributeName: "status", KeyType: "HASH" },
-					{ AttributeName: "crawledAt", KeyType: "RANGE" },
-				],
-				Projection: { ProjectionType: "ALL" },
-			},
-		],
-		BillingMode: "PAY_PER_REQUEST",
-	},
-	{
-		TableName: "summaries",
-		KeySchema: [{ AttributeName: "id", KeyType: "HASH" }],
-		AttributeDefinitions: [
-			{ AttributeName: "id", AttributeType: "S" },
-			{ AttributeName: "articleId", AttributeType: "S" },
-		],
-		GlobalSecondaryIndexes: [
-			{
-				IndexName: "articleId-index",
-				KeySchema: [{ AttributeName: "articleId", KeyType: "HASH" }],
-				Projection: { ProjectionType: "ALL" },
-			},
-		],
-		BillingMode: "PAY_PER_REQUEST",
-	},
-	{
-		TableName: "events",
-		KeySchema: [
-			{ AttributeName: "userId", KeyType: "HASH" },
-			{ AttributeName: "timestamp", KeyType: "RANGE" },
-		],
-		AttributeDefinitions: [
-			{ AttributeName: "userId", AttributeType: "S" },
-			{ AttributeName: "timestamp", AttributeType: "S" },
-		],
-		BillingMode: "PAY_PER_REQUEST",
-	},
-];
+const uri = process.env.MONGODB_URI || "mongodb://localhost:27017";
 
 async function main() {
-	console.log(`Creating tables on ${endpoint}...`);
+	console.log(`Connecting to MongoDB: ${uri}`);
+	const client = new MongoClient(uri);
+	await client.connect();
+	const db = client.db("aijourney");
 
-	const existing = await client.send(new ListTablesCommand({}));
-	const existingNames = new Set(existing.TableNames || []);
+	// Create indexes (idempotent — createIndex is a no-op if index exists)
+	console.log("Ensuring indexes...");
 
-	for (const table of tables) {
-		const name = table.TableName!;
-		if (existingNames.has(name)) {
-			console.log(`  ✓ ${name} (already exists)`);
-			continue;
-		}
-		try {
-			await client.send(new CreateTableCommand(table));
-			console.log(`  ✓ ${name} (created)`);
-		} catch (err: any) {
-			console.error(`  ✗ ${name}: ${err.message}`);
-		}
-	}
+	await db
+		.collection("users")
+		.createIndex({ email: 1 }, { unique: true, name: "email_unique" });
+	console.log("  ✓ users");
 
+	await db
+		.collection("journeys")
+		.createIndex(
+			{ userId: 1, createdAt: -1 },
+			{ name: "userId_createdAt_desc" },
+		);
+	console.log("  ✓ journeys");
+
+	await db
+		.collection("steps")
+		.createIndex({ journeyId: 1, order: 1 }, { name: "journeyId_order" });
+	console.log("  ✓ steps");
+
+	await db
+		.collection("kpis")
+		.createIndex({ stepId: 1 }, { name: "stepId" });
+	console.log("  ✓ kpis");
+
+	await db
+		.collection("evidence")
+		.createIndex(
+			{ kpiId: 1, submittedAt: -1 },
+			{ name: "kpiId_submittedAt_desc" },
+		);
+	console.log("  ✓ evidence");
+
+	await db
+		.collection("run_requests")
+		.createIndex({ userId: 1, status: 1 }, { name: "userId_status" });
+	await db
+		.collection("run_requests")
+		.createIndex(
+			{ status: 1, createdAt: -1 },
+			{ name: "status_createdAt_desc" },
+		);
+	console.log("  ✓ run_requests");
+
+	await db
+		.collection("run_logs")
+		.createIndex(
+			{ runRequestId: 1, timestamp: 1 },
+			{ unique: true, name: "runRequestId_timestamp_unique" },
+		);
+	console.log("  ✓ run_logs");
+
+	await db
+		.collection("agent_runs")
+		.createIndex(
+			{ agent: 1, createdAt: -1 },
+			{ name: "agent_createdAt_desc" },
+		);
+	await db
+		.collection("agent_runs")
+		.createIndex(
+			{ status: 1, createdAt: -1 },
+			{ name: "status_createdAt_desc" },
+		);
+	console.log("  ✓ agent_runs");
+
+	await db
+		.collection("articles")
+		.createIndex(
+			{ status: 1, fetchedAt: -1 },
+			{ name: "status_fetchedAt_desc" },
+		);
+	await db
+		.collection("articles")
+		.createIndex({ url: 1 }, { unique: true, name: "url_unique" });
+	console.log("  ✓ articles");
+
+	await db
+		.collection("summaries")
+		.createIndex({ articleId: 1 }, { name: "articleId" });
+	console.log("  ✓ summaries");
+
+	await db
+		.collection("events")
+		.createIndex(
+			{ userId: 1, timestamp: -1 },
+			{ name: "userId_timestamp_desc" },
+		);
+	console.log("  ✓ events");
+
+	await client.close();
 	console.log("Done!");
 }
 

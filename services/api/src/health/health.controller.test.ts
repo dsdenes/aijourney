@@ -11,7 +11,7 @@ describe("HealthController", () => {
 		service = {
 			check: vi.fn().mockResolvedValue({
 				status: "ok",
-				dynamodb: "connected",
+				mongodb: "connected",
 				timestamp: "2025-01-01T00:00:00.000Z",
 			}),
 		};
@@ -33,7 +33,7 @@ describe("HealthController", () => {
 		const result = await controller.check();
 
 		expect(result.status).toBe("ok");
-		expect(result.dynamodb).toBe("connected");
+		expect(result.mongodb).toBe("connected");
 		expect(service.check).toHaveBeenCalledOnce();
 	});
 });

@@ -1,83 +1,54 @@
 import type { User } from "@aijourney/shared";
-import {
-	type DynamoDBDocumentClient,
-	GetCommand,
-	PutCommand,
-	QueryCommand,
-	ScanCommand,
-	UpdateCommand,
-} from "@aws-sdk/lib-dynamodb";
+import type { Db } from "mongodb";
 import { Inject, Injectable } from "@nestjs/common";
-import { DYNAMODB_CLIENT } from "../dynamodb/dynamodb.module";
+import { MONGODB_DB } from "../mongodb/mongodb.module";
 
-const TABLE_NAME = "users";
+interface UserDoc {
+	_id: string;
+	[key: string]: unknown;
+}
+
+function toDoc(user: User): UserDoc {
+	const { id, ...rest } = user;
+	return { _id: id, ...rest } as UserDoc;
+}
+
+function fromDoc(doc: UserDoc): User {
+	const { _id, ...rest } = doc;
+	return { id: _id, ...rest } as User;
+}
 
 @Injectable()
 export class UsersRepository {
-	constructor(@Inject(DYNAMODB_CLIENT) private readonly db: DynamoDBDocumentClient) {}
+	private readonly col;
+
+	constructor(@Inject(MONGODB_DB) db: Db) {
+		this.col = db.collection<UserDoc>("users");
+	}
 
 	async create(user: User): Promise<User> {
-		await this.db.send(
-			new PutCommand({
-				TableName: TABLE_NAME,
-				Item: user,
-				ConditionExpression: "attribute_not_exists(id)",
-			}),
-		);
+		await this.col.insertOne(toDoc(user));
 		return user;
 	}
 
 	async getById(id: string): Promise<User | undefined> {
-		const result = await this.db.send(
-			new GetCommand({ TableName: TABLE_NAME, Key: { id } }),
-		);
-		return result.Item as User | undefined;
+		const doc = await this.col.findOne({ _id: id });
+		return doc ? fromDoc(doc) : undefined;
 	}
 
 	async getByEmail(email: string): Promise<User | undefined> {
-		const result = await this.db.send(
-			new QueryCommand({
-				TableName: TABLE_NAME,
-				IndexName: "email-index",
-				KeyConditionExpression: "email = :email",
-				ExpressionAttributeValues: { ":email": email },
-				Limit: 1,
-			}),
-		);
-		return result.Items?.[0] as User | undefined;
+		const doc = await this.col.findOne({ email });
+		return doc ? fromDoc(doc as UserDoc) : undefined;
 	}
 
 	async update(id: string, updates: Partial<User>): Promise<void> {
-		const entries = Object.entries(updates).filter(([k]) => k !== "id");
-		if (entries.length === 0) return;
-
-		const ExpressionAttributeNames: Record<string, string> = {};
-		const ExpressionAttributeValues: Record<string, unknown> = {};
-		const updateParts: string[] = [];
-
-		for (const [key, value] of entries) {
-			const attrName = `#${key}`;
-			const attrValue = `:${key}`;
-			ExpressionAttributeNames[attrName] = key;
-			ExpressionAttributeValues[attrValue] = value;
-			updateParts.push(`${attrName} = ${attrValue}`);
-		}
-
-		await this.db.send(
-			new UpdateCommand({
-				TableName: TABLE_NAME,
-				Key: { id },
-				UpdateExpression: `SET ${updateParts.join(", ")}`,
-				ExpressionAttributeNames,
-				ExpressionAttributeValues,
-			}),
-		);
+		const { id: _id, ...rest } = updates;
+		if (Object.keys(rest).length === 0) return;
+		await this.col.updateOne({ _id: id }, { $set: rest });
 	}
 
 	async listAll(limit = 50): Promise<User[]> {
-		const result = await this.db.send(
-			new ScanCommand({ TableName: TABLE_NAME, Limit: limit }),
-		);
-		return (result.Items || []) as User[];
+		const docs = await this.col.find({}).limit(limit).toArray();
+		return docs.map((d) => fromDoc(d));
 	}
 }

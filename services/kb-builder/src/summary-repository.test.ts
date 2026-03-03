@@ -1,47 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockSend } = vi.hoisted(() => ({ mockSend: vi.fn() }));
+const mockInsertOne = vi.fn().mockResolvedValue({});
+const mockFindOne = vi.fn().mockResolvedValue(null);
+const mockDeleteOne = vi.fn().mockResolvedValue({ deletedCount: 0 });
+const mockCountDocuments = vi.fn().mockResolvedValue(0);
+const mockToArray = vi.fn().mockResolvedValue([]);
+const mockSort = vi.fn().mockReturnValue({ toArray: mockToArray });
+const mockFind = vi.fn().mockReturnValue({ sort: mockSort });
+const mockCollection = {
+	insertOne: mockInsertOne,
+	findOne: mockFindOne,
+	deleteOne: mockDeleteOne,
+	countDocuments: mockCountDocuments,
+	find: mockFind,
+};
 
-vi.mock("@aws-sdk/client-dynamodb", () => ({
-	DynamoDBClient: class {
-		constructor() {}
-	},
-}));
-
-vi.mock("@aws-sdk/lib-dynamodb", () => ({
-	DynamoDBDocumentClient: {
-		from: () => ({ send: mockSend }),
-	},
-	PutCommand: class {
-		input: any;
-		constructor(input: any) {
-			this.input = input;
-		}
-	},
-	ScanCommand: class {
-		input: any;
-		constructor(input: any) {
-			this.input = input;
-		}
-	},
-	QueryCommand: class {
-		input: any;
-		constructor(input: any) {
-			this.input = input;
-		}
-	},
-	GetCommand: class {
-		input: any;
-		constructor(input: any) {
-			this.input = input;
-		}
-	},
-	DeleteCommand: class {
-		input: any;
-		constructor(input: any) {
-			this.input = input;
-		}
-	},
+vi.mock("./db.js", () => ({
+	getDb: () => ({
+		collection: () => mockCollection,
+	}),
 }));
 
 vi.mock("@aijourney/shared", async () => {
@@ -66,11 +43,14 @@ import {
 describe("summary-repository", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		mockFind.mockReturnValue({ sort: mockSort });
+		mockSort.mockReturnValue({ toArray: mockToArray });
+		mockToArray.mockResolvedValue([]);
 	});
 
 	describe("saveSummary", () => {
 		it("should create summary with generated id and timestamp", async () => {
-			mockSend.mockResolvedValue({});
+			mockInsertOne.mockResolvedValue({});
 
 			const result = await saveSummary({
 				articleId: "a1",
@@ -96,32 +76,25 @@ describe("summary-repository", () => {
 			expect(result.id).toBe("test-summary-id");
 			expect(result.createdAt).toBe("2026-01-15T10:00:00.000Z");
 			expect(result.articleId).toBe("a1");
-			expect(mockSend).toHaveBeenCalledOnce();
+			expect(mockInsertOne).toHaveBeenCalledOnce();
+			// Verify _id mapping
+			const doc = mockInsertOne.mock.calls[0]![0];
+			expect(doc._id).toBe("test-summary-id");
 		});
 	});
 
 	describe("getSummaryByArticleId", () => {
 		it("should return summary when found", async () => {
-			const summary = { id: "s1", articleId: "a1" };
-			mockSend.mockResolvedValue({ Items: [summary] });
+			mockFindOne.mockResolvedValue({ _id: "s1", articleId: "a1" });
 
 			const result = await getSummaryByArticleId("a1");
 
-			expect(result).toEqual(summary);
-			const command = mockSend.mock.calls[0][0];
-			expect(command.input.IndexName).toBe("articleId-index");
+			expect(result).toEqual({ id: "s1", articleId: "a1" });
+			expect(mockFindOne).toHaveBeenCalledWith({ articleId: "a1" });
 		});
 
 		it("should return null when not found", async () => {
-			mockSend.mockResolvedValue({ Items: [] });
-
-			const result = await getSummaryByArticleId("a99");
-
-			expect(result).toBeNull();
-		});
-
-		it("should return null when Items is undefined", async () => {
-			mockSend.mockResolvedValue({});
+			mockFindOne.mockResolvedValue(null);
 
 			const result = await getSummaryByArticleId("a99");
 
@@ -131,105 +104,75 @@ describe("summary-repository", () => {
 
 	describe("getSummaryById", () => {
 		it("should return summary when found", async () => {
-			const summary = { id: "s1", articleId: "a1" };
-			mockSend.mockResolvedValue({ Item: summary });
+			mockFindOne.mockResolvedValue({ _id: "s1", articleId: "a1" });
 
 			const result = await getSummaryById("s1");
 
-			expect(result).toEqual(summary);
+			expect(result).toEqual({ id: "s1", articleId: "a1" });
+			expect(mockFindOne).toHaveBeenCalledWith({ _id: "s1" });
 		});
 
 		it("should return null when not found", async () => {
-			mockSend.mockResolvedValue({});
+			mockFindOne.mockResolvedValue(null);
 
 			const result = await getSummaryById("non-existent");
-
 			expect(result).toBeNull();
 		});
 	});
 
 	describe("getAllSummaries", () => {
 		it("should return all summaries sorted by createdAt desc", async () => {
-			const summaries = [
-				{ id: "1", createdAt: "2026-01-01T00:00:00Z" },
-				{ id: "2", createdAt: "2026-01-03T00:00:00Z" },
-				{ id: "3", createdAt: "2026-01-02T00:00:00Z" },
+			const docs = [
+				{ _id: "2", createdAt: "2026-01-03T00:00:00Z" },
+				{ _id: "3", createdAt: "2026-01-02T00:00:00Z" },
+				{ _id: "1", createdAt: "2026-01-01T00:00:00Z" },
 			];
-			mockSend.mockResolvedValue({ Items: summaries });
+			mockToArray.mockResolvedValue(docs);
+			mockSort.mockReturnValue({ toArray: mockToArray });
+			mockFind.mockReturnValue({ sort: mockSort });
 
 			const result = await getAllSummaries();
 
-			expect(result[0].id).toBe("2");
-			expect(result[1].id).toBe("3");
-			expect(result[2].id).toBe("1");
-		});
-
-		it("should handle pagination", async () => {
-			mockSend
-				.mockResolvedValueOnce({
-					Items: [{ id: "1", createdAt: "2026-01-01T00:00:00Z" }],
-					LastEvaluatedKey: { id: "1" },
-				})
-				.mockResolvedValueOnce({
-					Items: [{ id: "2", createdAt: "2026-01-02T00:00:00Z" }],
-				});
-
-			const result = await getAllSummaries();
-
-			expect(result).toHaveLength(2);
-			expect(mockSend).toHaveBeenCalledTimes(2);
+			expect(result).toHaveLength(3);
+			expect(result[0]!.id).toBe("2");
+			expect(mockFind).toHaveBeenCalledWith({});
+			expect(mockSort).toHaveBeenCalledWith({ createdAt: -1 });
 		});
 	});
 
 	describe("countSummaries", () => {
 		it("should return count", async () => {
-			mockSend.mockResolvedValue({ Count: 15 });
+			mockCountDocuments.mockResolvedValue(15);
 
 			const result = await countSummaries();
-
 			expect(result).toBe(15);
-		});
-
-		it("should return 0 when Count is undefined", async () => {
-			mockSend.mockResolvedValue({});
-
-			const result = await countSummaries();
-
-			expect(result).toBe(0);
 		});
 	});
 
 	describe("deleteSummaryById", () => {
-		it("should send DeleteCommand", async () => {
-			mockSend.mockResolvedValue({});
-
+		it("should call deleteOne with _id", async () => {
 			await deleteSummaryById("s1");
 
-			expect(mockSend).toHaveBeenCalledOnce();
-			const command = mockSend.mock.calls[0][0];
-			expect(command.input.Key).toEqual({ id: "s1" });
+			expect(mockDeleteOne).toHaveBeenCalledWith({ _id: "s1" });
 		});
 	});
 
 	describe("deleteSummaryByArticleId", () => {
-		it("should delete summary and return true when found", async () => {
-			mockSend
-				.mockResolvedValueOnce({ Items: [{ id: "s1", articleId: "a1" }] }) // getSummaryByArticleId
-				.mockResolvedValueOnce({}); // deleteSummaryById
+		it("should delete and return true when found", async () => {
+			mockDeleteOne.mockResolvedValue({ deletedCount: 1 });
 
 			const result = await deleteSummaryByArticleId("a1");
 
 			expect(result).toBe(true);
-			expect(mockSend).toHaveBeenCalledTimes(2);
+			expect(mockDeleteOne).toHaveBeenCalledWith({ articleId: "a1" });
 		});
 
 		it("should return false when no summary exists", async () => {
-			mockSend.mockResolvedValueOnce({ Items: [] });
+			mockDeleteOne.mockResolvedValue({ deletedCount: 0 });
 
 			const result = await deleteSummaryByArticleId("a99");
 
 			expect(result).toBe(false);
-			expect(mockSend).toHaveBeenCalledOnce();
 		});
 	});
 });

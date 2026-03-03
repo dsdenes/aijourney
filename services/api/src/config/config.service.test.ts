@@ -55,13 +55,13 @@ describe("AppConfigService", () => {
 		process.env = originalEnv;
 	});
 
-	it("should accept optional DYNAMODB_ENDPOINT", () => {
+	it("should accept MONGODB_URI with default", () => {
 		const originalEnv = { ...process.env };
-		process.env.DYNAMODB_ENDPOINT = "http://localhost:8000";
+		process.env.MONGODB_URI = "mongodb://myhost:27017";
 
 		const configService = new AppConfigService();
-		expect(configService.config.DYNAMODB_ENDPOINT).toBe(
-			"http://localhost:8000",
+		expect(configService.config.MONGODB_URI).toBe(
+			"mongodb://myhost:27017",
 		);
 
 		process.env = originalEnv;

@@ -6,7 +6,7 @@ const envSchema = z.object({
 		.enum(["development", "production", "test"])
 		.default("development"),
 	PORT: z.coerce.number().default(3000),
-	DYNAMODB_ENDPOINT: z.string().url().optional(),
+	MONGODB_URI: z.string().default("mongodb://localhost:27017"),
 	AWS_REGION: z.string().default("eu-central-1"),
 	REDIS_URL: z.string().default("redis://localhost:6379"),
 	COGNITO_USER_POOL_ID: z.string().default(""),

@@ -1,19 +1,32 @@
 import { Test, type TestingModule } from "@nestjs/testing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DYNAMODB_CLIENT } from "../dynamodb/dynamodb.module";
+import { MONGODB_DB } from "../mongodb/mongodb.module";
 import { UsersRepository } from "./users.repository";
 
 describe("UsersRepository", () => {
 	let repo: UsersRepository;
-	let mockDb: { send: ReturnType<typeof vi.fn> };
+	let mockCollection: Record<string, ReturnType<typeof vi.fn>>;
+	let mockDb: { collection: ReturnType<typeof vi.fn> };
 
 	beforeEach(async () => {
-		mockDb = { send: vi.fn() };
+		mockCollection = {
+			insertOne: vi.fn().mockResolvedValue({}),
+			findOne: vi.fn().mockResolvedValue(null),
+			updateOne: vi.fn().mockResolvedValue({}),
+			find: vi.fn().mockReturnValue({
+				limit: vi.fn().mockReturnValue({
+					toArray: vi.fn().mockResolvedValue([]),
+				}),
+			}),
+		};
+		mockDb = {
+			collection: vi.fn().mockReturnValue(mockCollection),
+		};
 
 		const module: TestingModule = await Test.createTestingModule({
 			providers: [
 				UsersRepository,
-				{ provide: DYNAMODB_CLIENT, useValue: mockDb },
+				{ provide: MONGODB_DB, useValue: mockDb },
 			],
 		}).compile();
 
@@ -21,7 +34,7 @@ describe("UsersRepository", () => {
 	});
 
 	describe("create", () => {
-		it("should put an item in DynamoDB and return it", async () => {
+		it("should insert a document and return the user", async () => {
 			const user = {
 				id: "u1",
 				email: "test@mito.hu",
@@ -35,31 +48,29 @@ describe("UsersRepository", () => {
 				lastLoginAt: "2025-01-01T00:00:00Z",
 			};
 
-			mockDb.send.mockResolvedValue({});
 			const result = await repo.create(user);
 
 			expect(result).toEqual(user);
-			expect(mockDb.send).toHaveBeenCalledOnce();
-			const command = mockDb.send.mock.calls[0]![0];
-			expect(command.input.TableName).toBe("users");
-			expect(command.input.Item).toEqual(user);
-			expect(command.input.ConditionExpression).toBe(
-				"attribute_not_exists(id)",
-			);
+			expect(mockCollection.insertOne).toHaveBeenCalledOnce();
+			const doc = mockCollection.insertOne.mock.calls[0]![0];
+			expect(doc._id).toBe("u1");
+			expect(doc.email).toBe("test@mito.hu");
 		});
 	});
 
 	describe("getById", () => {
 		it("should return user when found", async () => {
-			const user = { id: "u1", email: "test@mito.hu" };
-			mockDb.send.mockResolvedValue({ Item: user });
+			mockCollection.findOne.mockResolvedValue({
+				_id: "u1",
+				email: "test@mito.hu",
+			});
 
 			const result = await repo.getById("u1");
-			expect(result).toEqual(user);
+			expect(result).toEqual({ id: "u1", email: "test@mito.hu" });
 		});
 
 		it("should return undefined when not found", async () => {
-			mockDb.send.mockResolvedValue({});
+			mockCollection.findOne.mockResolvedValue(null);
 
 			const result = await repo.getById("nonexistent");
 			expect(result).toBeUndefined();
@@ -67,19 +78,21 @@ describe("UsersRepository", () => {
 	});
 
 	describe("getByEmail", () => {
-		it("should query email-index GSI", async () => {
-			const user = { id: "u1", email: "test@mito.hu" };
-			mockDb.send.mockResolvedValue({ Items: [user] });
+		it("should query by email field", async () => {
+			mockCollection.findOne.mockResolvedValue({
+				_id: "u1",
+				email: "test@mito.hu",
+			});
 
 			const result = await repo.getByEmail("test@mito.hu");
-			expect(result).toEqual(user);
-
-			const command = mockDb.send.mock.calls[0]![0];
-			expect(command.input.IndexName).toBe("email-index");
+			expect(result).toEqual({ id: "u1", email: "test@mito.hu" });
+			expect(mockCollection.findOne).toHaveBeenCalledWith({
+				email: "test@mito.hu",
+			});
 		});
 
 		it("should return undefined when no match", async () => {
-			mockDb.send.mockResolvedValue({ Items: [] });
+			mockCollection.findOne.mockResolvedValue(null);
 
 			const result = await repo.getByEmail("nobody@mito.hu");
 			expect(result).toBeUndefined();
@@ -87,52 +100,48 @@ describe("UsersRepository", () => {
 	});
 
 	describe("update", () => {
-		it("should construct correct update expression", async () => {
-			mockDb.send.mockResolvedValue({});
+		it("should call updateOne with $set", async () => {
+			await repo.update("u1", {
+				name: "New Name",
+				department: "Engineering",
+			});
 
-			await repo.update("u1", { name: "New Name", department: "Engineering" });
-
-			const command = mockDb.send.mock.calls[0]![0];
-			expect(command.input.Key).toEqual({ id: "u1" });
-			expect(command.input.UpdateExpression).toContain("#name = :name");
-			expect(command.input.UpdateExpression).toContain(
-				"#department = :department",
+			expect(mockCollection.updateOne).toHaveBeenCalledWith(
+				{ _id: "u1" },
+				{ $set: { name: "New Name", department: "Engineering" } },
 			);
-			expect(command.input.ExpressionAttributeValues[":name"]).toBe("New Name");
 		});
 
 		it("should skip if no fields to update", async () => {
 			await repo.update("u1", {});
-			expect(mockDb.send).not.toHaveBeenCalled();
+			expect(mockCollection.updateOne).not.toHaveBeenCalled();
 		});
 
 		it("should filter out id from updates", async () => {
-			mockDb.send.mockResolvedValue({});
-
 			await repo.update("u1", { id: "u1", name: "X" } as any);
 
-			const command = mockDb.send.mock.calls[0]![0];
-			expect(command.input.UpdateExpression).not.toContain("#id");
+			expect(mockCollection.updateOne).toHaveBeenCalledWith(
+				{ _id: "u1" },
+				{ $set: { name: "X" } },
+			);
 		});
 	});
 
 	describe("listAll", () => {
-		it("should scan table with limit", async () => {
-			mockDb.send.mockResolvedValue({ Items: [{ id: "u1" }, { id: "u2" }] });
+		it("should find with limit", async () => {
+			const mockLimit = vi.fn().mockReturnValue({
+				toArray: vi
+					.fn()
+					.mockResolvedValue([
+						{ _id: "u1", email: "a@mito.hu" },
+						{ _id: "u2", email: "b@mito.hu" },
+					]),
+			});
+			mockCollection.find.mockReturnValue({ limit: mockLimit });
 
 			const result = await repo.listAll();
 			expect(result).toHaveLength(2);
-
-			const command = mockDb.send.mock.calls[0]![0];
-			expect(command.input.TableName).toBe("users");
-			expect(command.input.Limit).toBe(50);
-		});
-
-		it("should return empty array when no items", async () => {
-			mockDb.send.mockResolvedValue({ Items: undefined });
-
-			const result = await repo.listAll();
-			expect(result).toEqual([]);
+			expect(mockLimit).toHaveBeenCalledWith(50);
 		});
 	});
 });

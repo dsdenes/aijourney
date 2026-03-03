@@ -268,10 +268,10 @@ app.delete("/articles/:id", async (req, res) => {
 		// Delete vectors from Qdrant
 		const vectorsDeleted = await deleteVectorsByArticleId(id);
 
-		// Delete summary from DynamoDB
+		// Delete summary from MongoDB
 		const summaryDeleted = await deleteSummaryByArticleId(id);
 
-		// Delete article from DynamoDB
+		// Delete article from MongoDB
 		await deleteArticle(id);
 
 		log("info", `Deleted article ${id} (${article.title.slice(0, 60)})`, {

@@ -234,13 +234,13 @@ describe("Pipeline", () => {
 
 		it("should handle quality filter failure", async () => {
 			vi.mocked(runQualityFilter).mockRejectedValue(
-				new Error("DynamoDB timeout"),
+				new Error("MongoDB timeout"),
 			);
 
 			const result = await runPipeline();
 
 			expect(result.status).toBe("failed");
-			expect(result.error).toContain("DynamoDB timeout");
+			expect(result.error).toContain("MongoDB timeout");
 			expect(result.completedAt).toBeDefined();
 		});
 

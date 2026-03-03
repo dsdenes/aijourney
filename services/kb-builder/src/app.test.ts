@@ -1,6 +1,33 @@
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+// Mock db.js so that getDb() returns a mock MongoDB Db
+// This must be set up BEFORE importing app (which imports repositories)
+const mockToArray = vi.fn().mockResolvedValue([]);
+const mockSort = vi.fn().mockReturnValue({ toArray: mockToArray });
+const mockFind = vi.fn().mockReturnValue({ sort: mockSort, toArray: mockToArray });
+const mockFindOne = vi.fn().mockResolvedValue(null);
+const mockInsertOne = vi.fn().mockResolvedValue({});
+const mockUpdateOne = vi.fn().mockResolvedValue({});
+const mockDeleteOne = vi.fn().mockResolvedValue({ deletedCount: 0 });
+const mockCountDocuments = vi.fn().mockResolvedValue(0);
+
+vi.mock("./db.js", () => ({
+	getDb: () => ({
+		collection: () => ({
+			find: mockFind,
+			findOne: mockFindOne,
+			insertOne: mockInsertOne,
+			updateOne: mockUpdateOne,
+			deleteOne: mockDeleteOne,
+			countDocuments: mockCountDocuments,
+		}),
+	}),
+	initDb: vi.fn().mockResolvedValue(undefined),
+	closeDb: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { app } from "./app.js";
 
 let server: http.Server;

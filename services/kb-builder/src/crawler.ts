@@ -190,7 +190,7 @@ export async function extractArticleText(url: string): Promise<string> {
 }
 
 /**
- * Crawl all enabled sources and store articles in DynamoDB.
+ * Crawl all enabled sources and store articles in MongoDB.
  */
 export async function crawlSource(source: CrawlSource): Promise<void> {
 	currentProgress = {
@@ -257,7 +257,7 @@ export async function crawlSource(source: CrawlSource): Promise<void> {
 
 				const contentHash = hashContent(content.text);
 
-				// Save to DynamoDB
+				// Save to MongoDB
 				const article = await saveArticle({
 					url: link,
 					title: content.title,

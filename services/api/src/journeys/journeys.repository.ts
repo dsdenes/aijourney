@@ -1,73 +1,52 @@
 import type { Journey } from "@aijourney/shared";
-import {
-	type DynamoDBDocumentClient,
-	GetCommand,
-	PutCommand,
-	QueryCommand,
-	UpdateCommand,
-} from "@aws-sdk/lib-dynamodb";
+import type { Db } from "mongodb";
 import { Inject, Injectable } from "@nestjs/common";
-import { DYNAMODB_CLIENT } from "../dynamodb/dynamodb.module";
+import { MONGODB_DB } from "../mongodb/mongodb.module";
 
-const TABLE_NAME = "journeys";
+interface JourneyDoc {
+	_id: string;
+	[key: string]: unknown;
+}
+
+function toDoc(journey: Journey): JourneyDoc {
+	const { id, ...rest } = journey;
+	return { _id: id, ...rest } as JourneyDoc;
+}
+
+function fromDoc(doc: JourneyDoc): Journey {
+	const { _id, ...rest } = doc;
+	return { id: _id, ...rest } as Journey;
+}
 
 @Injectable()
 export class JourneysRepository {
-	constructor(@Inject(DYNAMODB_CLIENT) private readonly db: DynamoDBDocumentClient) {}
+	private readonly col;
+
+	constructor(@Inject(MONGODB_DB) db: Db) {
+		this.col = db.collection<JourneyDoc>("journeys");
+	}
 
 	async create(journey: Journey): Promise<Journey> {
-		await this.db.send(
-			new PutCommand({
-				TableName: TABLE_NAME,
-				Item: journey,
-				ConditionExpression: "attribute_not_exists(id)",
-			}),
-		);
+		await this.col.insertOne(toDoc(journey));
 		return journey;
 	}
 
 	async getById(id: string): Promise<Journey | undefined> {
-		const result = await this.db.send(
-			new GetCommand({ TableName: TABLE_NAME, Key: { id } }),
-		);
-		return result.Item as Journey | undefined;
+		const doc = await this.col.findOne({ _id: id });
+		return doc ? fromDoc(doc) : undefined;
 	}
 
 	async listByUser(userId: string): Promise<Journey[]> {
-		const result = await this.db.send(
-			new QueryCommand({
-				TableName: TABLE_NAME,
-				IndexName: "userId-createdAt-index",
-				KeyConditionExpression: "userId = :uid",
-				ExpressionAttributeValues: { ":uid": userId },
-				ScanIndexForward: false,
-			}),
-		);
-		return (result.Items || []) as Journey[];
+		const docs = await this.col
+			.find({ userId })
+			.sort({ createdAt: -1 })
+			.toArray();
+		return docs.map((d) => fromDoc(d));
 	}
 
 	async update(id: string, updates: Partial<Journey>): Promise<void> {
-		const entries = Object.entries(updates).filter(([k]) => k !== "id");
-		if (entries.length === 0) return;
-
-		const ExpressionAttributeNames: Record<string, string> = {};
-		const ExpressionAttributeValues: Record<string, unknown> = {};
-		const updateParts: string[] = [];
-
-		for (const [key, value] of entries) {
-			ExpressionAttributeNames[`#${key}`] = key;
-			ExpressionAttributeValues[`:${key}`] = value;
-			updateParts.push(`#${key} = :${key}`);
-		}
-
-		await this.db.send(
-			new UpdateCommand({
-				TableName: TABLE_NAME,
-				Key: { id },
-				UpdateExpression: `SET ${updateParts.join(", ")}`,
-				ExpressionAttributeNames,
-				ExpressionAttributeValues,
-			}),
-		);
+		const { id: _id, ...rest } = updates;
+		if (Object.keys(rest).length === 0) return;
+		await this.col.updateOne({ _id: id }, { $set: rest });
 	}
 }

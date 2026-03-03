@@ -1,29 +1,19 @@
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import {
-	DynamoDBDocumentClient,
-	GetCommand,
-	PutCommand,
-	UpdateCommand,
-} from "@aws-sdk/lib-dynamodb";
 import { generateId, nowISO } from "@aijourney/shared";
 import type { AgentRun, AgentRunStatus, AgentType } from "@aijourney/shared";
+import { getDb } from "./db.js";
 import { log } from "./log-stream.js";
 
-const client = new DynamoDBClient({
-	region: process.env.AWS_REGION || "eu-central-1",
-	...(process.env.DYNAMODB_ENDPOINT && {
-		endpoint: process.env.DYNAMODB_ENDPOINT,
-	}),
-});
+interface AgentRunDoc {
+	_id: string;
+	[key: string]: unknown;
+}
 
-const ddb = DynamoDBDocumentClient.from(client, {
-	marshallOptions: { removeUndefinedValues: true },
-});
-
-const TABLE = "agent_runs";
+function col() {
+	return getDb().collection<AgentRunDoc>("agent_runs");
+}
 
 /**
- * Start a new agent run and persist it to DynamoDB.
+ * Start a new agent run and persist it to MongoDB.
  * Returns the run record for later updates.
  */
 export async function startAgentRun(params: {
@@ -45,12 +35,16 @@ export async function startAgentRun(params: {
 	};
 
 	try {
-		await ddb.send(new PutCommand({ TableName: TABLE, Item: run }));
+		const { id, ...rest } = run;
+		await col().insertOne({ _id: id, ...rest } as AgentRunDoc);
 		log("debug", `Agent run started: ${run.id} [${run.agent}]`, {
 			runId: run.id,
 		});
 	} catch (err) {
-		log("warn", `Failed to log agent run start: ${err instanceof Error ? err.message : String(err)}`);
+		log(
+			"warn",
+			`Failed to log agent run start: ${err instanceof Error ? err.message : String(err)}`,
+		);
 	}
 
 	return run;
@@ -73,56 +67,37 @@ export async function completeAgentRun(
 ): Promise<void> {
 	try {
 		// Fetch existing to merge metadata
-		const existing = await ddb.send(
-			new GetCommand({ TableName: TABLE, Key: { id } }),
-		);
-		const existingMeta = (existing.Item?.metadata as Record<string, unknown>) || {};
+		const existing = await col().findOne({ _id: id });
+		const existingMeta =
+			(existing?.metadata as Record<string, unknown>) || {};
 		const mergedMetadata = { ...existingMeta, ...(result.metadata || {}) };
 
-		const updateParts = [
-			"#s = :status",
-			"#out = :output",
-			"tokensUsed = :tokens",
-			"promptTokens = :ptokens",
-			"completionTokens = :ctokens",
-			"durationMs = :dur",
-			"completedAt = :comp",
-			"metadata = :meta",
-		];
-		const exprNames: Record<string, string> = {
-			"#s": "status",
-			"#out": "output",
-		};
-		const exprValues: Record<string, unknown> = {
-			":status": "completed" as AgentRunStatus,
-			":output": result.output,
-			":tokens": result.tokensUsed ?? 0,
-			":ptokens": result.promptTokens ?? 0,
-			":ctokens": result.completionTokens ?? 0,
-			":dur": result.durationMs ?? 0,
-			":comp": nowISO(),
-			":meta": mergedMetadata,
+		const updates: Record<string, unknown> = {
+			status: "completed" as AgentRunStatus,
+			output: result.output,
+			tokensUsed: result.tokensUsed ?? 0,
+			promptTokens: result.promptTokens ?? 0,
+			completionTokens: result.completionTokens ?? 0,
+			durationMs: result.durationMs ?? 0,
+			completedAt: nowISO(),
+			metadata: mergedMetadata,
 		};
 
 		if (result.fullOutput !== undefined) {
-			updateParts.push("fullOutput = :fout");
-			exprValues[":fout"] = result.fullOutput;
+			updates.fullOutput = result.fullOutput;
 		}
 
-		await ddb.send(
-			new UpdateCommand({
-				TableName: TABLE,
-				Key: { id },
-				UpdateExpression: "SET " + updateParts.join(", "),
-				ExpressionAttributeNames: exprNames,
-				ExpressionAttributeValues: exprValues,
-			}),
+		await col().updateOne({ _id: id }, { $set: updates });
+		log(
+			"debug",
+			`Agent run completed: ${id} (${result.tokensUsed ?? 0} tokens [${result.promptTokens ?? 0} in / ${result.completionTokens ?? 0} out])`,
+			{ runId: id },
 		);
-		log("debug", `Agent run completed: ${id} (${result.tokensUsed ?? 0} tokens [${result.promptTokens ?? 0} in / ${result.completionTokens ?? 0} out])`, {
-			runId: id,
-		});
 	} catch (err) {
-		log("warn", `Failed to log agent run completion: ${err instanceof Error ? err.message : String(err)}`);
+		log(
+			"warn",
+			`Failed to log agent run completion: ${err instanceof Error ? err.message : String(err)}`,
+		);
 	}
 }
 
@@ -135,26 +110,22 @@ export async function failAgentRun(
 	durationMs?: number,
 ): Promise<void> {
 	try {
-		await ddb.send(
-			new UpdateCommand({
-				TableName: TABLE,
-				Key: { id },
-				UpdateExpression:
-					"SET #s = :status, #err = :error, durationMs = :dur, completedAt = :comp",
-				ExpressionAttributeNames: {
-					"#s": "status",
-					"#err": "error",
+		await col().updateOne(
+			{ _id: id },
+			{
+				$set: {
+					status: "failed" as AgentRunStatus,
+					error,
+					durationMs: durationMs ?? 0,
+					completedAt: nowISO(),
 				},
-				ExpressionAttributeValues: {
-					":status": "failed" as AgentRunStatus,
-					":error": error,
-					":dur": durationMs ?? 0,
-					":comp": nowISO(),
-				},
-			}),
+			},
 		);
 		log("debug", `Agent run failed: ${id} — ${error}`, { runId: id });
 	} catch (err) {
-		log("warn", `Failed to log agent run failure: ${err instanceof Error ? err.message : String(err)}`);
+		log(
+			"warn",
+			`Failed to log agent run failure: ${err instanceof Error ? err.message : String(err)}`,
+		);
 	}
 }

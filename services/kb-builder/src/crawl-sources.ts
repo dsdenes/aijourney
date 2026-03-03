@@ -1,6 +1,6 @@
 /**
  * Crawl source configuration.
- * In MVP, stored in-memory with defaults. Later can be persisted to DynamoDB.
+ * In MVP, stored in-memory with defaults. Later can be persisted to MongoDB.
  */
 
 export interface CrawlSource {

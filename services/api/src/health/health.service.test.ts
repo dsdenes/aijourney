@@ -1,21 +1,21 @@
 import { Test, type TestingModule } from "@nestjs/testing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DYNAMODB_CLIENT } from "../dynamodb/dynamodb.module";
+import { MONGODB_DB } from "../mongodb/mongodb.module";
 import { HealthService } from "./health.service";
 
 describe("HealthService", () => {
 	let service: HealthService;
-	let mockDynamodb: { send: ReturnType<typeof vi.fn> };
+	let mockDb: { command: ReturnType<typeof vi.fn> };
 
 	beforeEach(async () => {
-		mockDynamodb = { send: vi.fn() };
+		mockDb = { command: vi.fn() };
 
 		const module: TestingModule = await Test.createTestingModule({
 			providers: [
 				HealthService,
 				{
-					provide: DYNAMODB_CLIENT,
-					useValue: mockDynamodb,
+					provide: MONGODB_DB,
+					useValue: mockDb,
 				},
 			],
 		}).compile();
@@ -23,22 +23,22 @@ describe("HealthService", () => {
 		service = module.get<HealthService>(HealthService);
 	});
 
-	it("should return ok when dynamodb is connected", async () => {
-		mockDynamodb.send.mockResolvedValue({ Items: [] });
+	it("should return ok when mongodb is connected", async () => {
+		mockDb.command.mockResolvedValue({ ok: 1 });
 
 		const result = await service.check();
 
 		expect(result.status).toBe("ok");
-		expect(result.dynamodb).toBe("connected");
+		expect(result.mongodb).toBe("connected");
 		expect(result.timestamp).toBeDefined();
 	});
 
-	it("should return degraded when dynamodb is disconnected", async () => {
-		mockDynamodb.send.mockRejectedValue(new Error("Connection refused"));
+	it("should return degraded when mongodb is disconnected", async () => {
+		mockDb.command.mockRejectedValue(new Error("Connection refused"));
 
 		const result = await service.check();
 
 		expect(result.status).toBe("degraded");
-		expect(result.dynamodb).toBe("disconnected");
+		expect(result.mongodb).toBe("disconnected");
 	});
 });

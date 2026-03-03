@@ -1,23 +1,41 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentRunsRepository } from "./agent-runs.repository";
 
-// We test the repository with a mock DynamoDB client to verify
-// that the correct commands are sent with the right parameters.
+// We test the repository with a mock MongoDB Db to verify
+// that the correct collection operations are called.
 
-const mockSend = vi.fn();
-const mockDb = { send: mockSend };
+const mockInsertOne = vi.fn().mockResolvedValue({});
+const mockFindOne = vi.fn().mockResolvedValue(null);
+const mockUpdateOne = vi.fn().mockResolvedValue({});
+const mockToArray = vi.fn().mockResolvedValue([]);
+const mockLimit = vi.fn().mockReturnValue({ toArray: mockToArray });
+const mockSort = vi.fn().mockReturnValue({ limit: vi.fn().mockReturnValue({ toArray: mockToArray }), toArray: mockToArray });
+const mockFind = vi.fn().mockReturnValue({ limit: mockLimit, sort: mockSort, toArray: mockToArray });
+const mockCollection = {
+	insertOne: mockInsertOne,
+	findOne: mockFindOne,
+	updateOne: mockUpdateOne,
+	find: mockFind,
+};
+const mockDb = {
+	collection: vi.fn().mockReturnValue(mockCollection),
+};
 
 describe("AgentRunsRepository", () => {
 	let repo: AgentRunsRepository;
 
 	beforeEach(() => {
 		vi.clearAllMocks();
-		// Directly instantiate the repo with our mock DynamoDB client
+		mockFind.mockReturnValue({ limit: mockLimit, sort: mockSort, toArray: mockToArray });
+		mockSort.mockReturnValue({ limit: vi.fn().mockReturnValue({ toArray: mockToArray }), toArray: mockToArray });
+		mockLimit.mockReturnValue({ toArray: mockToArray });
+		mockToArray.mockResolvedValue([]);
+		// Directly instantiate the repo with our mock MongoDB Db
 		repo = new AgentRunsRepository(mockDb as any);
 	});
 
 	describe("create", () => {
-		it("should send PutCommand with the run data", async () => {
+		it("should insert document with _id mapping and return the run", async () => {
 			const run = {
 				id: "run-1",
 				agent: "chat" as const,
@@ -25,37 +43,30 @@ describe("AgentRunsRepository", () => {
 				input: "test",
 				createdAt: "2026-01-01T00:00:00Z",
 			};
-			mockSend.mockResolvedValue({});
+			mockInsertOne.mockResolvedValue({});
 
 			const result = await repo.create(run as any);
 
 			expect(result).toEqual(run);
-			expect(mockSend).toHaveBeenCalledOnce();
-			const command = mockSend.mock.calls[0][0];
-			expect(command.input).toMatchObject({
-				TableName: "agent_runs",
-				Item: run,
-			});
+			expect(mockInsertOne).toHaveBeenCalledOnce();
+			const doc = mockInsertOne.mock.calls[0]![0];
+			expect(doc._id).toBe("run-1");
+			expect(doc.agent).toBe("chat");
 		});
 	});
 
 	describe("getById", () => {
 		it("should return the item when found", async () => {
-			const run = { id: "run-1", agent: "chat" };
-			mockSend.mockResolvedValue({ Item: run });
+			mockFindOne.mockResolvedValue({ _id: "run-1", agent: "chat" });
 
 			const result = await repo.getById("run-1");
 
-			expect(result).toEqual(run);
-			const command = mockSend.mock.calls[0][0];
-			expect(command.input).toMatchObject({
-				TableName: "agent_runs",
-				Key: { id: "run-1" },
-			});
+			expect(result).toEqual({ id: "run-1", agent: "chat" });
+			expect(mockFindOne).toHaveBeenCalledWith({ _id: "run-1" });
 		});
 
 		it("should return undefined when item not found", async () => {
-			mockSend.mockResolvedValue({});
+			mockFindOne.mockResolvedValue(null);
 
 			const result = await repo.getById("non-existent");
 
@@ -64,8 +75,8 @@ describe("AgentRunsRepository", () => {
 	});
 
 	describe("update", () => {
-		it("should send UpdateCommand with correct expressions", async () => {
-			mockSend.mockResolvedValue({});
+		it("should call updateOne with $set", async () => {
+			mockUpdateOne.mockResolvedValue({});
 
 			await repo.update("run-1", {
 				status: "completed" as any,
@@ -73,67 +84,60 @@ describe("AgentRunsRepository", () => {
 				tokensUsed: 100,
 			});
 
-			expect(mockSend).toHaveBeenCalledOnce();
-			const command = mockSend.mock.calls[0][0];
-			expect(command.input.TableName).toBe("agent_runs");
-			expect(command.input.Key).toEqual({ id: "run-1" });
-			expect(command.input.UpdateExpression).toContain("SET");
-			expect(command.input.ExpressionAttributeNames).toHaveProperty(
-				"#status",
-				"status",
-			);
-			expect(command.input.ExpressionAttributeValues).toHaveProperty(
-				":status",
-				"completed",
+			expect(mockUpdateOne).toHaveBeenCalledWith(
+				{ _id: "run-1" },
+				{
+					$set: {
+						status: "completed",
+						output: "done",
+						tokensUsed: 100,
+					},
+				},
 			);
 		});
 
 		it("should skip update when no fields provided", async () => {
 			await repo.update("run-1", {});
 
-			expect(mockSend).not.toHaveBeenCalled();
+			expect(mockUpdateOne).not.toHaveBeenCalled();
 		});
 
-		it("should exclude id from update expression", async () => {
-			mockSend.mockResolvedValue({});
+		it("should exclude id from update", async () => {
+			mockUpdateOne.mockResolvedValue({});
 
 			await repo.update("run-1", {
 				id: "ignored" as any,
 				output: "test",
 			} as any);
 
-			const command = mockSend.mock.calls[0][0];
-			// Should not contain id in the expression
-			expect(command.input.UpdateExpression).not.toContain("id");
+			const setArg =
+				mockUpdateOne.mock.calls[0]![1].$set;
+			expect(setArg.id).toBeUndefined();
+			expect(setArg.output).toBe("test");
 		});
 	});
 
 	describe("listAll", () => {
-		it("should scan with default limit", async () => {
-			const runs = [{ id: "1" }, { id: "2" }];
-			mockSend.mockResolvedValue({ Items: runs });
+		it("should find with default limit of 200", async () => {
+			const docs = [{ _id: "1" }, { _id: "2" }];
+			mockToArray.mockResolvedValue(docs);
 
 			const result = await repo.listAll();
 
-			expect(result).toEqual(runs);
-			const command = mockSend.mock.calls[0][0];
-			expect(command.input).toMatchObject({
-				TableName: "agent_runs",
-				Limit: 200,
-			});
+			expect(result).toHaveLength(2);
+			expect(mockLimit).toHaveBeenCalledWith(200);
 		});
 
 		it("should use provided limit", async () => {
-			mockSend.mockResolvedValue({ Items: [] });
+			mockToArray.mockResolvedValue([]);
 
 			await repo.listAll(50);
 
-			const command = mockSend.mock.calls[0][0];
-			expect(command.input.Limit).toBe(50);
+			expect(mockLimit).toHaveBeenCalledWith(50);
 		});
 
 		it("should return empty array when no items", async () => {
-			mockSend.mockResolvedValue({ Items: undefined });
+			mockToArray.mockResolvedValue([]);
 
 			const result = await repo.listAll();
 
@@ -142,37 +146,30 @@ describe("AgentRunsRepository", () => {
 	});
 
 	describe("listByAgent", () => {
-		it("should query using agent-createdAt-index", async () => {
-			const runs = [{ id: "1", agent: "chat" }];
-			mockSend.mockResolvedValue({ Items: runs });
+		it("should find by agent sorted by createdAt desc", async () => {
+			const mockLimitInner = vi.fn().mockReturnValue({ toArray: vi.fn().mockResolvedValue([{ _id: "1", agent: "chat" }]) });
+			mockSort.mockReturnValue({ limit: mockLimitInner, toArray: vi.fn().mockResolvedValue([]) });
+			mockFind.mockReturnValue({ sort: mockSort });
 
 			const result = await repo.listByAgent("chat");
 
-			expect(result).toEqual(runs);
-			const command = mockSend.mock.calls[0][0];
-			expect(command.input).toMatchObject({
-				TableName: "agent_runs",
-				IndexName: "agent-createdAt-index",
-				KeyConditionExpression: "agent = :agent",
-				ExpressionAttributeValues: { ":agent": "chat" },
-				ScanIndexForward: false,
-			});
+			expect(result).toHaveLength(1);
+			expect(mockFind).toHaveBeenCalledWith({ agent: "chat" });
+			expect(mockSort).toHaveBeenCalledWith({ createdAt: -1 });
 		});
 	});
 
 	describe("listByStatus", () => {
-		it("should query using status-createdAt-index", async () => {
-			const runs = [{ id: "1", status: "running" }];
-			mockSend.mockResolvedValue({ Items: runs });
+		it("should find by status sorted by createdAt desc", async () => {
+			const mockLimitInner = vi.fn().mockReturnValue({ toArray: vi.fn().mockResolvedValue([{ _id: "1", status: "running" }]) });
+			mockSort.mockReturnValue({ limit: mockLimitInner, toArray: vi.fn().mockResolvedValue([]) });
+			mockFind.mockReturnValue({ sort: mockSort });
 
 			const result = await repo.listByStatus("running");
 
-			expect(result).toEqual(runs);
-			const command = mockSend.mock.calls[0][0];
-			expect(command.input).toMatchObject({
-				TableName: "agent_runs",
-				IndexName: "status-createdAt-index",
-			});
+			expect(result).toHaveLength(1);
+			expect(mockFind).toHaveBeenCalledWith({ status: "running" });
+			expect(mockSort).toHaveBeenCalledWith({ createdAt: -1 });
 		});
 	});
 });

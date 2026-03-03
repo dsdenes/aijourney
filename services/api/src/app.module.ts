@@ -4,7 +4,7 @@ import { AiPlannerModule } from "./ai-planner/ai-planner.module";
 import { AuthModule } from "./auth/auth.module";
 import { ChatModule } from "./chat/chat.module";
 import { ConfigModule } from "./config/config.module";
-import { DynamoDBModule } from "./dynamodb/dynamodb.module";
+import { MongoDBModule } from "./mongodb/mongodb.module";
 import { HealthModule } from "./health/health.module";
 import { JourneysModule } from "./journeys/journeys.module";
 import { PromptOptimizerModule } from "./prompt-optimizer/prompt-optimizer.module";
@@ -15,7 +15,7 @@ import { WorkersModule } from "./workers/workers.module";
 @Module({
 	imports: [
 		ConfigModule,
-		DynamoDBModule,
+		MongoDBModule,
 		HealthModule,
 		AuthModule,
 		UsersModule,
