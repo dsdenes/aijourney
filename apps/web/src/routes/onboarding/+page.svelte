@@ -97,7 +97,7 @@
 <div class="flex min-h-[80vh] items-center justify-center">
   <div class="w-full max-w-lg">
     <div class="mb-8 text-center">
-      <h1 class="text-3xl font-bold text-text">{isEditMode ? 'Update Your Role' : 'Welcome to Mito AI Journey'}</h1>
+      <h1 class="text-3xl font-bold text-text">{isEditMode ? 'Update Your Role' : 'Welcome to AI Journey'}</h1>
       <p class="mt-2 text-text-muted">
         {isEditMode ? 'Change your job title and description to better match your current role.' : 'Tell us about your role so we can personalize your AI experience.'}
       </p>

@@ -73,7 +73,7 @@ export interface ChatResponse {
 
 const CHAT_MODEL = process.env.OPENAI_CHAT_MODEL || "gpt-5-mini";
 
-const SYSTEM_PROMPT = `You are an AI knowledge assistant for a workplace AI adoption platform at mito.hu. You help employees learn about AI tools, techniques, and best practices.
+const SYSTEM_PROMPT = `You are an AI knowledge assistant for a workplace AI adoption platform. You help users learn about AI tools, techniques, and best practices.
 
 You have access to a curated knowledge base of summarized articles. Use the provided context to answer questions accurately and helpfully.
 

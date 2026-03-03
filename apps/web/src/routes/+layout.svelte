@@ -39,9 +39,9 @@
   {:else}
     <div class="flex flex-1 items-center justify-center">
       <div class="text-center">
-        <h1 class="mb-4 text-4xl font-bold text-text">Mito AI Journey</h1>
+        <h1 class="mb-4 text-4xl font-bold text-text">AI Journey</h1>
         <p class="mb-8 text-text-muted">
-          Personalized AI experimentation journeys for mito.hu employees
+          Personalized AI experimentation journeys
         </p>
         <button
           onclick={() => auth.login()}

@@ -8,7 +8,6 @@ describe("AuthService", () => {
 		config: {
 			GOOGLE_CLIENT_ID: "test-client-id",
 			GOOGLE_CLIENT_SECRET: "test-secret",
-			ALLOWED_EMAIL_DOMAIN: "mito.hu",
 		},
 	} as unknown as AppConfigService;
 
@@ -24,12 +23,12 @@ describe("AuthService", () => {
 		it("should return userId and email from payload", async () => {
 			const result = await service.validateUser({
 				sub: "user-123",
-				email: "test@mito.hu",
+				email: "test@example.com",
 			});
 
 			expect(result).toEqual({
 				userId: "user-123",
-				email: "test@mito.hu",
+				email: "test@example.com",
 			});
 		});
 	});

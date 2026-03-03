@@ -17,7 +17,7 @@
 <aside class="flex w-64 flex-col border-r border-border bg-surface">
   <!-- Logo -->
   <div class="flex h-16 items-center px-6">
-    <h1 class="text-xl font-bold text-primary">Mito AI Journey</h1>
+    <h1 class="text-xl font-bold text-primary">AI Journey</h1>
   </div>
 
   <!-- Navigation -->

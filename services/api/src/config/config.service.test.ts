@@ -15,7 +15,6 @@ describe("AppConfigService", () => {
 		expect(configService.config.NODE_ENV).toBe("test");
 		expect(configService.config.PORT).toBe(3000);
 		expect(configService.config.REDIS_URL).toBe("redis://localhost:6379");
-		expect(configService.config.ALLOWED_EMAIL_DOMAIN).toBe("mito.hu");
 
 		// Restore env
 		process.env = originalEnv;

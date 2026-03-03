@@ -50,12 +50,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, "jwt") {
 	async validate(
 		payload: Record<string, unknown>,
 	): Promise<{ userId: string; email: string; role: string }> {
-		const email = (payload["email"] || "dev@mito.hu") as string;
-		const domain = this.configService.config.ALLOWED_EMAIL_DOMAIN;
-
-		if (domain && !email.endsWith(`@${domain}`)) {
-			throw new UnauthorizedException(`Email domain must be @${domain}`);
-		}
+		const email = (payload["email"] || "dev@localhost") as string;
 
 		// Look up the actual role from MongoDB (not from JWT claim)
 		let role = "employee";

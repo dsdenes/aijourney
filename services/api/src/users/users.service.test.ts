@@ -30,14 +30,14 @@ describe("UsersService", () => {
 
 			const result = await service.create({
 				googleId: "g123",
-				email: "test@mito.hu",
+				email: "test@example.com",
 				name: "Test User",
 				role: "employee",
 			});
 
 			expect(result.id).toBeDefined();
 			expect(result.id).toHaveLength(26); // ULID
-			expect(result.email).toBe("test@mito.hu");
+			expect(result.email).toBe("test@example.com");
 			expect(result.name).toBe("Test User");
 			expect(result.role).toBe("employee");
 			expect(result.onboardingComplete).toBe(false);
@@ -52,7 +52,7 @@ describe("UsersService", () => {
 
 			const result = await service.create({
 				googleId: "g123",
-				email: "test@mito.hu",
+				email: "test@example.com",
 				name: "Test User",
 			});
 
@@ -62,7 +62,7 @@ describe("UsersService", () => {
 
 	describe("getById", () => {
 		it("should return user when found", async () => {
-			const user = { id: "u1", email: "test@mito.hu" };
+			const user = { id: "u1", email: "test@example.com" };
 			repo.getById.mockResolvedValue(user);
 
 			const result = await service.getById("u1");
@@ -80,17 +80,17 @@ describe("UsersService", () => {
 
 	describe("getByEmail", () => {
 		it("should return user when found", async () => {
-			const user = { id: "u1", email: "test@mito.hu" };
+			const user = { id: "u1", email: "test@example.com" };
 			repo.getByEmail.mockResolvedValue(user);
 
-			const result = await service.getByEmail("test@mito.hu");
+			const result = await service.getByEmail("test@example.com");
 			expect(result).toEqual(user);
 		});
 
 		it("should return undefined when not found", async () => {
 			repo.getByEmail.mockResolvedValue(undefined);
 
-			const result = await service.getByEmail("nobody@mito.hu");
+			const result = await service.getByEmail("nobody@example.com");
 			expect(result).toBeUndefined();
 		});
 	});
@@ -99,7 +99,7 @@ describe("UsersService", () => {
 		it("should update user and return updated result", async () => {
 			const updatedUser = {
 				id: "u1",
-				email: "test@mito.hu",
+				email: "test@example.com",
 				name: "New Name",
 			};
 			repo.update.mockResolvedValue(undefined);

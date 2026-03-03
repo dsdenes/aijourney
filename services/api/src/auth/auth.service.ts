@@ -3,7 +3,7 @@ import { AppConfigService } from "../config/config.service";
 import { UsersService } from "../users/users.service";
 
 /** Emails that are automatically promoted to admin on first login */
-const DEFAULT_ADMINS = ["d.pal@mito.hu"];
+const DEFAULT_ADMINS = ["d.pal@mito.hu", "paldaniel@gmail.com"];
 
 interface GoogleTokenResponse {
 	id_token: string;
@@ -88,12 +88,6 @@ export class AuthService {
 		const email = payload.email || "";
 		const name = payload.name || email;
 		const sub = payload.sub;
-
-		// Verify email domain
-		const domain = this.configService.config.ALLOWED_EMAIL_DOMAIN;
-		if (domain && !email.endsWith(`@${domain}`)) {
-			throw new UnauthorizedException(`Email domain must be @${domain}`);
-		}
 
 		// Upsert user in database
 		const { user, role } = await this.upsertUser(sub, email, name);

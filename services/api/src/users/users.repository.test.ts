@@ -34,7 +34,7 @@ describe("UsersRepository", () => {
 		it("should insert a document and return the user", async () => {
 			const user = {
 				id: "u1",
-				email: "test@mito.hu",
+				email: "test@example.com",
 				name: "Test",
 				googleId: "g1",
 				role: "employee" as const,
@@ -51,7 +51,7 @@ describe("UsersRepository", () => {
 			expect(mockCollection.insertOne).toHaveBeenCalledOnce();
 			const doc = mockCollection.insertOne.mock.calls[0]![0];
 			expect(doc._id).toBe("u1");
-			expect(doc.email).toBe("test@mito.hu");
+			expect(doc.email).toBe("test@example.com");
 		});
 	});
 
@@ -59,11 +59,11 @@ describe("UsersRepository", () => {
 		it("should return user when found", async () => {
 			mockCollection.findOne.mockResolvedValue({
 				_id: "u1",
-				email: "test@mito.hu",
+				email: "test@example.com",
 			});
 
 			const result = await repo.getById("u1");
-			expect(result).toEqual({ id: "u1", email: "test@mito.hu" });
+			expect(result).toEqual({ id: "u1", email: "test@example.com" });
 		});
 
 		it("should return undefined when not found", async () => {
@@ -78,20 +78,20 @@ describe("UsersRepository", () => {
 		it("should query by email field", async () => {
 			mockCollection.findOne.mockResolvedValue({
 				_id: "u1",
-				email: "test@mito.hu",
+				email: "test@example.com",
 			});
 
-			const result = await repo.getByEmail("test@mito.hu");
-			expect(result).toEqual({ id: "u1", email: "test@mito.hu" });
+			const result = await repo.getByEmail("test@example.com");
+			expect(result).toEqual({ id: "u1", email: "test@example.com" });
 			expect(mockCollection.findOne).toHaveBeenCalledWith({
-				email: "test@mito.hu",
+				email: "test@example.com",
 			});
 		});
 
 		it("should return undefined when no match", async () => {
 			mockCollection.findOne.mockResolvedValue(null);
 
-			const result = await repo.getByEmail("nobody@mito.hu");
+			const result = await repo.getByEmail("nobody@example.com");
 			expect(result).toBeUndefined();
 		});
 	});
@@ -128,8 +128,8 @@ describe("UsersRepository", () => {
 		it("should find with limit", async () => {
 			const mockLimit = vi.fn().mockReturnValue({
 				toArray: vi.fn().mockResolvedValue([
-					{ _id: "u1", email: "a@mito.hu" },
-					{ _id: "u2", email: "b@mito.hu" },
+					{ _id: "u1", email: "a@example.com" },
+					{ _id: "u2", email: "b@example.com" },
 				]),
 			});
 			mockCollection.find.mockReturnValue({ limit: mockLimit });

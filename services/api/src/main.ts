@@ -23,7 +23,7 @@ async function bootstrap() {
 
 	const swaggerConfig = new DocumentBuilder()
 		.setTitle("AI Journey API")
-		.setDescription("Mito AI Journey Platform — Backend API")
+		.setDescription("AI Journey Platform — Backend API")
 		.setVersion("0.1.0")
 		.addBearerAuth()
 		.build();
