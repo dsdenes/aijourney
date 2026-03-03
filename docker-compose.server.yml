@@ -1,0 +1,141 @@
+# docker-compose.server.yml — Production deployment on Scaleway (ai.1p.hu)
+# Usage: docker compose -f docker-compose.server.yml up -d --build
+
+services:
+  # ---------- API ----------
+  api:
+    build:
+      context: .
+      target: api
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      dynamodb-local:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      seed-db:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DYNAMODB_ENDPOINT: http://dynamodb-local:8000
+      AWS_REGION: eu-central-1
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
+      REDIS_URL: redis://redis:6379
+      APP_URL: "https://ai.1p.hu"
+      API_URL: "https://ai.1p.hu/api"
+      ALLOWED_EMAIL_DOMAIN: mito.hu
+      COGNITO_USER_POOL_ID: "${COGNITO_USER_POOL_ID}"
+      COGNITO_CLIENT_ID: "${COGNITO_CLIENT_ID}"
+      COGNITO_CLIENT_SECRET: "${COGNITO_CLIENT_SECRET}"
+      COGNITO_DOMAIN: "${COGNITO_DOMAIN}"
+      COGNITO_ISSUER: "${COGNITO_ISSUER}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY}"
+      KB_BUILDER_URL: "http://kb-builder:3002"
+      RAG_PROVIDER: "self"
+      QDRANT_URL: "http://qdrant:6333"
+      QDRANT_COLLECTION: "kb_chunks"
+
+  # ---------- Frontend ----------
+  web:
+    build:
+      context: .
+      target: web
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+
+  # ---------- Worker ----------
+  worker:
+    build:
+      context: .
+      target: worker
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
+      AWS_REGION: eu-central-1
+      REDIS_URL: redis://redis:6379
+      OPENAI_API_KEY: "${OPENAI_API_KEY}"
+      QDRANT_URL: "http://qdrant:6333"
+      DYNAMODB_ENDPOINT: http://dynamodb-local:8000
+
+  # ---------- KB Builder ----------
+  kb-builder:
+    build:
+      context: .
+      target: kb-builder
+    restart: unless-stopped
+    depends_on:
+      dynamodb-local:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
+      AWS_REGION: eu-central-1
+      OPENAI_API_KEY: "${OPENAI_API_KEY}"
+      KB_BUILDER_PORT: "3002"
+      DYNAMODB_ENDPOINT: http://dynamodb-local:8000
+      QDRANT_URL: "http://qdrant:6333"
+
+  # ---------- Infrastructure ----------
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    restart: unless-stopped
+    volumes:
+      - dynamodb_data:/home/dynamodblocal/data
+    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath /home/dynamodblocal/data"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/8000' 2>/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  seed-db:
+    build:
+      context: .
+      target: seed
+    depends_on:
+      dynamodb-local:
+        condition: service_healthy
+    environment:
+      DYNAMODB_ENDPOINT: http://dynamodb-local:8000
+      AWS_REGION: eu-central-1
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    restart: unless-stopped
+    volumes:
+      - qdrant_data:/qdrant/storage
+    expose:
+      - "6333"
+      - "6334"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/6333' 2>/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  dynamodb_data:
+  redis_data:
+  qdrant_data:
