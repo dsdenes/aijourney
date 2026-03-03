@@ -1,7 +1,8 @@
 # AGENTS.md — Operating Guide for AI Agents in This Repository
 
-> **Repository**: `ssh://git@gitlab.mito.hu:2222/815labs/mito-ai-journey.git`
-> **AWS Account**: `006207983055` (alias: `mito815`)
+> **Repository**: `https://github.com/dsdenes/aijourney` (SSH: `git@github.com:dsdenes/aijourney.git`)
+> **Deployment**: Self-hosted on Scaleway (`root@51.15.108.144`) at `https://ai.1p.hu`
+> **AWS Account**: `006207983055` (alias: `mito815`) — used for Cognito auth only
 > **Region**: `eu-central-1`
 
 ---
@@ -13,7 +14,7 @@
 3. [Project Structure Conventions](#3-project-structure-conventions)
 4. [Git Workflow](#4-git-workflow)
 5. [AWS Operations](#5-aws-operations)
-6. [GitLab Operations](#6-gitlab-operations)
+6. [GitHub Operations](#6-github-operations)
 7. [Development Setup](#7-development-setup)
 8. [Service Architecture](#8-service-architecture)
 9. [Coding Standards](#9-coding-standards)
@@ -66,9 +67,9 @@ If a guide conflicts with default behavior, follow the guide selected via `guide
 | Auth | Amazon Cognito (Google Workspace SSO, mito.hu only) |
 | RAG Storage | Amazon Bedrock Knowledge Bases |
 | Object Storage | Amazon S3 |
-| Compute | AWS ECS on Fargate |
-| IaC | Terraform |
-| CI/CD | GitLab CI |
+| Compute | Docker Compose on Scaleway (self-hosted) |
+| IaC | Docker Compose (production: `docker-compose.server.yml`) |
+| CI/CD | GitHub Actions (self-hosted runner) |
 | LLM | OpenAI API (primary) — **mandatory model: `gpt-5-mini`**; Bedrock models (configurable fallback) |
 
 ---
@@ -104,57 +105,21 @@ aws sts get-caller-identity --no-cli-pager
 - All other resources (ECS, S3, Cognito, Bedrock, VPC, etc.) can be created directly
 - **Always add `--no-cli-pager` to AWS CLI commands** to avoid interactive pager
 
-### GitLab
+### GitHub
 
-**SSH access** (for git operations):
-
-```bash
-# Remote URL
-ssh://git@gitlab.mito.hu:2222/815labs/mito-ai-journey.git
-
-# Verify SSH connectivity
-ssh -T -p 2222 git@gitlab.mito.hu
-# Expected: "Welcome to GitLab, @dpal!"
-```
-
-**API access** (for GitLab API / glab CLI):
+**Repository**: `https://github.com/dsdenes/aijourney`
 
 ```bash
-# Token is set as environment variable
-# GITLAB_TOKEN=REDACTED_GITLAB_TOKEN
+# SSH clone
+git clone git@github.com:dsdenes/aijourney.git
 
-# API base URL
-# https://gitlab.mito.hu/api/v4/
-
-# Project ID: 3098
-# Project path: 815labs/mito-ai-journey
-
-# Example API call:
-curl -s --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
-  "https://gitlab.mito.hu/api/v4/projects/3098"
+# GitHub CLI
+gh repo view dsdenes/aijourney
+gh pr list
+gh pr create --base main --title "feat(scope): description"
 ```
 
-**glab CLI**: Installed (`glab 1.82.0`) but needs to be configured for `gitlab.mito.hu`:
-
-```bash
-# Configure glab for the custom instance
-# Method 1: Environment variables per command
-GITLAB_HOST=https://gitlab.mito.hu glab <command>
-
-# Method 2: Login (one-time setup)
-glab auth login --hostname gitlab.mito.hu --token "$GITLAB_TOKEN"
-```
-
-**Access levels on project**:
-
-| User | Role | Access Level |
-|---|---|---|
-| `fmile` (Ferenc Mile) | Owner | 50 |
-| `dpal` (Dénes Pál) | Maintainer | 40 |
-| `fhizo` (Fanni Hízó) | Maintainer | 40 |
-| `project_3081_bot` | Bot (CI token) | via GITLAB_TOKEN |
-
-**Container registry**: Available at `gitlab-registry.mito.hu/815labs/mito-ai-journey`
+**Collaborators**: `dsdenes` (owner)
 
 ### Node.js / Package Managers
 
@@ -167,11 +132,9 @@ pnpm --version   # 9.15.4  (PREFERRED — use pnpm for this project)
 ### Other Tools Available
 
 ```bash
-terraform --version  # v1.5.7 (note: outdated, consider upgrading)
 docker --version     # 28.3.0
-# mongosh not needed (using DynamoDB)
 redis-cli            # available
-glab --version       # 1.82.0
+gh --version         # GitHub CLI
 ```
 
 **Not installed** (install when needed):
@@ -201,7 +164,8 @@ aijourney/
 │       └── backend.tf
 ├── docs/                       # Documentation
 ├── scripts/                    # Dev/ops scripts
-├── .gitlab-ci.yml              # CI/CD pipeline
+├── .github/workflows/          # GitHub Actions CI/CD
+├── docker-compose.server.yml   # Production deployment (Scaleway)
 ├── pnpm-workspace.yaml         # Monorepo workspace config
 ├── package.json                # Root package.json
 ├── IMPLEMENTATION_PLAN.md      # Detailed implementation plan
@@ -270,35 +234,32 @@ docs: update AGENTS.md with terraform IAM notes
 test(shared): add zod schema validation tests
 ```
 
-### Merge Request Process
+### Pull Request Process
 
 1. Create feature branch from `main`
 2. Implement + test locally
-3. Push to GitLab, create MR targeting `main`
-4. CI pipeline runs (lint → test → build → security)
-5. Review (at least 1 approval from maintainer)
+3. Push to GitHub, create PR targeting `main`
+4. CI pipeline runs (lint → test → build via GitHub Actions)
+5. Review (at least 1 approval)
 6. Squash merge to `main`
-7. Auto-deploy to MVP environment
+7. Auto-deploy to Scaleway server via self-hosted runner
 
 ### Git Commands
 
 ```bash
 # Clone (first time)
-git clone ssh://git@gitlab.mito.hu:2222/815labs/mito-ai-journey.git
-cd mito-ai-journey
+git clone git@github.com:dsdenes/aijourney.git
+cd aijourney
 
 # Create feature branch
 git checkout main
 git pull origin main
 git checkout -b feat/my-feature
 
-# Push and create MR
+# Push and create PR
 git push -u origin feat/my-feature
-# Then create MR via GitLab UI or:
-GITLAB_HOST=https://gitlab.mito.hu glab mr create \
-  --source-branch feat/my-feature \
-  --target-branch main \
-  --title "feat(scope): description"
+# Then create PR via GitHub UI or:
+gh pr create --base main --title "feat(scope): description"
 ```
 
 ---
@@ -377,74 +338,47 @@ The existing Terraform state bucket (`815-ai-tools-terraform-tf-state`) may be r
 
 ---
 
-## 6. GitLab Operations
+## 6. GitHub Operations
 
-### API Calls
-
-Always use the project-scoped token:
+### GitHub CLI
 
 ```bash
-# Base URL
-GITLAB_API="https://gitlab.mito.hu/api/v4"
-PROJECT_ID=3098
+# List PRs
+gh pr list
 
-# List issues
-curl -s --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
-  "$GITLAB_API/projects/$PROJECT_ID/issues"
+# Create PR
+gh pr create --base main --title "feat(scope): description"
 
-# Create issue
-curl -s --request POST --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
-  --header "Content-Type: application/json" \
-  --data '{"title": "feat(api): implement auth middleware", "labels": "backend,auth"}' \
-  "$GITLAB_API/projects/$PROJECT_ID/issues"
+# View repo
+gh repo view dsdenes/aijourney
 
-# List merge requests
-curl -s --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
-  "$GITLAB_API/projects/$PROJECT_ID/merge_requests"
-
-# Trigger pipeline
-curl -s --request POST --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
-  --data "ref=main" \
-  "$GITLAB_API/projects/$PROJECT_ID/pipeline"
+# Trigger workflow manually
+gh workflow run deploy.yml
 ```
 
-### glab CLI
+### GitHub Actions Secrets
 
-```bash
-# Use environment variable to target custom instance
-export GITLAB_HOST=https://gitlab.mito.hu
+These are configured in GitHub repository settings (Settings → Secrets → Actions):
 
-# Or configure once:
-glab auth login --hostname gitlab.mito.hu --token "$GITLAB_TOKEN"
+| Secret | Description |
+|---|---|
+| `AWS_ACCESS_KEY_ID` | AWS IAM access key |
+| `AWS_SECRET_ACCESS_KEY` | AWS IAM secret key |
+| `OPENAI_API_KEY` | OpenAI API key |
+| `COGNITO_USER_POOL_ID` | Cognito User Pool ID |
+| `COGNITO_CLIENT_ID` | Cognito App Client ID |
+| `COGNITO_CLIENT_SECRET` | Cognito App Client Secret |
+| `COGNITO_DOMAIN` | Cognito domain URL |
+| `COGNITO_ISSUER` | Cognito issuer URL |
 
-# Then use normally:
-glab issue list
-glab mr create --source-branch feat/foo --target-branch main
-glab pipeline list
-```
+### Self-Hosted Runner
 
-### Container Registry
+The GitHub Actions self-hosted runner is installed on the Scaleway server:
 
-```bash
-# Login to container registry
-docker login gitlab-registry.mito.hu -u gitlab-ci-token -p "$GITLAB_TOKEN"
-
-# Tag and push image
-docker build -t gitlab-registry.mito.hu/815labs/mito-ai-journey/api:latest services/api/
-docker push gitlab-registry.mito.hu/815labs/mito-ai-journey/api:latest
-```
-
-### CI/CD Variables to Set
-
-These must be configured in GitLab project settings (Settings → CI/CD → Variables):
-
-| Variable | Type | Protected | Masked | Description |
-|---|---|---|---|---|
-| `AWS_ACCESS_KEY_ID` | Variable | Yes | Yes | AWS IAM access key |
-| `AWS_SECRET_ACCESS_KEY` | Variable | Yes | Yes | AWS IAM secret key |
-| `AWS_DEFAULT_REGION` | Variable | Yes | No | `eu-central-1` |
-| `OPENAI_API_KEY` | Variable | Yes | Yes | OpenAI API key |
-| `TF_STATE_BUCKET` | Variable | No | No | S3 bucket for Terraform state |
+- **Location**: `/opt/actions-runner-aijourney/`
+- **Service**: `actions.runner.dsdenes-aijourney.scw-aijourney-runner`
+- **Labels**: `self-hosted`, `linux`, `x64`, `aijourney`
+- **User**: `gha` (uid 1001, in docker group)
 
 ---
 
@@ -507,8 +441,8 @@ To stop: `Ctrl+C` to kill the watchers, then `docker compose down dynamodb-local
 
 ```bash
 # 1. Clone
-git clone ssh://git@gitlab.mito.hu:2222/815labs/mito-ai-journey.git
-cd mito-ai-journey
+git clone git@github.com:dsdenes/aijourney.git
+cd aijourney
 
 # 2. Install dependencies
 pnpm install
@@ -592,7 +526,7 @@ Client (Browser)
 
 | Service | Endpoint | Expected Response |
 |---|---|---|
-| API | `GET /health` | `200 { status: "ok", dynamodb: "connected", redis: "connected" }` |
+| API | `GET /api/health` | `200 { status: "ok", dynamodb: "connected" }` |
 | Worker | Process keeps running, logs heartbeat | BullMQ worker active events |
 | KB Builder | `GET /health` | `200 { status: "ok", pipeline: "idle" }` |
 
@@ -883,37 +817,37 @@ Current Terraform version is `1.5.7` (October 2023). Consider upgrading to `1.7+
 
 ## 12. CI/CD Pipeline
 
-### Pipeline File
+### Pipeline Files
 
 ```
-.gitlab-ci.yml (root)
+.github/workflows/ci.yml     # Lint + test + build (on PR and push to main)
+.github/workflows/deploy.yml # Deploy to Scaleway (on push to main)
 ```
 
-### Stages
+### CI Workflow (`ci.yml`)
 
-1. `lint` — ESLint + Prettier
-2. `test` — Vitest with coverage gates
-3. `build` — Frontend + backend artifacts
-4. `security` — SAST, dependency scanning, secret detection
-5. `package` — Docker images → GitLab Container Registry
-6. `terraform:plan` — Plan artifacts (single MVP env)
-7. `terraform:apply` — Manual gate
-8. `deploy` — ECS service update + S3 frontend sync
-9. `smoke` — Health checks + basic functional tests
+Jobs (parallel where possible):
+1. `lint` — ESLint
+2. `test-shared` — Vitest (packages/shared)
+3. `test-api` — Vitest (services/api) with DynamoDB Local + Redis service containers
+4. `test-worker` — Vitest (services/worker)
+5. `test-kb-builder` — Vitest (services/kb-builder)
+6. `build-check` — Full Docker multi-stage build
 
-### Manual Gates
+### Deploy Workflow (`deploy.yml`)
 
-| Stage | MVP |
-|---|---|
-| `terraform:apply` | **Manual** |
-| `deploy` | Auto (on main merge) |
+- Triggered on push to `main`
+- Runs on self-hosted runner (`labels: [self-hosted, linux, aijourney]`)
+- Steps: git pull → write .env from secrets → docker compose build → docker compose up -d
+- Deployment directory: `/opt/aijourney`
 
-### Registry URLs
+### Deployment Commands (Manual)
 
-```
-gitlab-registry.mito.hu/815labs/mito-ai-journey/api:${CI_COMMIT_SHA}
-gitlab-registry.mito.hu/815labs/mito-ai-journey/worker:${CI_COMMIT_SHA}
-gitlab-registry.mito.hu/815labs/mito-ai-journey/kb-builder:${CI_COMMIT_SHA}
+```bash
+# On the Scaleway server:
+cd /opt/aijourney
+git pull
+docker compose -f docker-compose.server.yml up -d --build
 ```
 
 ---
@@ -933,13 +867,10 @@ gitlab-registry.mito.hu/815labs/mito-ai-journey/kb-builder:${CI_COMMIT_SHA}
 
 | Secret | Local Dev | Production |
 |---|---|---|
-| OpenAI API key | `.env` | AWS Secrets Manager |
-| DynamoDB | N/A (uses IAM locally + in AWS) | IAM task role |
-| ElastiCache auth token | `.env` (none for local) | AWS Secrets Manager |
-| Cognito client secret | `.env` | AWS Secrets Manager |
-| Session signing key | `.env` | AWS Secrets Manager |
-| GitLab token | `$GITLAB_TOKEN` env var | GitLab CI/CD variable |
-| AWS credentials | `~/.aws/credentials` (profile) | ECS task role (no keys) |
+| OpenAI API key | `.env` | GitHub Actions secret + server `.env` |
+| DynamoDB | N/A (DynamoDB Local) | DynamoDB Local in Docker |
+| Cognito client secret | `.env` | GitHub Actions secret + server `.env` |
+| AWS credentials | `~/.aws/credentials` (profile) | GitHub Actions secret + server `.env` |
 
 ### .gitignore Must Include
 
@@ -1056,16 +987,16 @@ terraform plan
 ### Deploy a Service Update
 
 ```bash
-# Build and push image
-docker build -t gitlab-registry.mito.hu/815labs/mito-ai-journey/api:latest services/api/
-docker push gitlab-registry.mito.hu/815labs/mito-ai-journey/api:latest
+# Option 1: Push to main → automatic deploy via GitHub Actions
 
-# Force new deployment
-AWS_PROFILE=mito815 aws ecs update-service \
-  --cluster aijourney-mvp \
-  --service api \
-  --force-new-deployment \
-  --no-cli-pager
+# Option 2: Manual deploy on server
+ssh root@51.15.108.144
+cd /opt/aijourney
+git pull
+docker compose -f docker-compose.server.yml up -d --build
+
+# Option 3: Rebuild specific service only
+docker compose -f docker-compose.server.yml up -d --build api
 ```
 
 ### Query DynamoDB Locally
@@ -1122,13 +1053,13 @@ GET ratelimit:global:runs
 | `ExpiredToken` | Re-authenticate: `aws configure` (for IAM user, keys don't expire unless rotated) |
 | Interactive pager opens | Add `--no-cli-pager` flag to all commands |
 
-### GitLab Issues
+### GitHub Issues
 
 | Problem | Solution |
 |---|---|
-| `401 Unauthorized` on glab | Set `GITLAB_HOST=https://gitlab.mito.hu` or use `--hostname` flag |
-| SSH permission denied | Verify SSH key is added to GitLab profile, test with `ssh -T -p 2222 git@gitlab.mito.hu` |
-| Can't push | Check branch permissions, ensure you're pushing to a feature branch (not protected `main`) |
+| `gh` uses wrong user | Ensure `GITHUB_TOKEN` env var is not set to a different user's PAT |
+| SSH permission denied | Verify SSH key is added to GitHub profile |
+| Push rejected by secret scanning | Remove secrets from code history with `git filter-repo` |
 
 ### Docker Issues
 
@@ -1161,26 +1092,26 @@ GET ratelimit:global:runs
 │ AWS Permissions  │ PowerUser (all except billing + IAM     │
 │                  │ write)                                   │
 ├──────────────────┼─────────────────────────────────────────┤
-│ GitLab Instance  │ https://gitlab.mito.hu                  │
-│ GitLab SSH       │ ssh://git@gitlab.mito.hu:2222           │
-│ GitLab User      │ @dpal (Maintainer, access_level 40)     │
-│ GitLab Project   │ 815labs/mito-ai-journey (ID: 3098)      │
-│ GitLab Token     │ Project token (bot, GITLAB_TOKEN env)   │
-│ GitLab Registry  │ gitlab-registry.mito.hu/815labs/        │
-│                  │ mito-ai-journey                          │
+│ GitHub Repo      │ https://github.com/dsdenes/aijourney    │
+│ GitHub SSH       │ git@github.com:dsdenes/aijourney.git    │
+│ GitHub User      │ dsdenes (owner)                          │
+│ Server           │ root@51.15.108.144 (Scaleway)           │
+│ Domain           │ https://ai.1p.hu                         │
+│ Runner           │ scw-aijourney-runner (self-hosted)       │
+│ Runner Path      │ /opt/actions-runner-aijourney/           │
+│ Deploy Path      │ /opt/aijourney/                           │
 ├──────────────────┼─────────────────────────────────────────┤
-│ Tools            │ node 24.12, pnpm 9.15, terraform 1.5.7 │
-│                  │ docker 28.3, glab 1.82                   │
+│ Tools            │ node 24.12, pnpm 9.15, docker 28.3     │
+│                  │ gh (GitHub CLI)                           │
 ├──────────────────┼─────────────────────────────────────────┤
 │ LIMITATIONS      │                                         │
 │ 1. IAM           │ Cannot create/modify IAM roles or       │
 │                  │ policies — need admin (fmile)            │
 │ 2. Billing       │ Cannot access billing/cost explorer     │
 │ 3. Terraform     │ v1.5.7 is outdated (latest v1.14.5)    │
-│ 4. glab CLI      │ Needs one-time setup for gitlab.mito.hu │
 └──────────────────┴─────────────────────────────────────────┘
 ```
 
 ---
 
-*Last verified: 2026-02-20*
+*Last verified: 2026-03-03*
