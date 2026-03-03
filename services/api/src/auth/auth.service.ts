@@ -3,7 +3,7 @@ import { AppConfigService } from "../config/config.service";
 import { UsersService } from "../users/users.service";
 
 /** Emails that are automatically promoted to admin on first login */
-const DEFAULT_ADMINS = ["d.pal@mito.hu", "paldaniel@gmail.com"];
+const DEFAULT_ADMINS = ["d.pal@mito.hu", "paldaniel@gmail.com", "dsdenes@gmail.com"];
 
 interface GoogleTokenResponse {
 	id_token: string;
