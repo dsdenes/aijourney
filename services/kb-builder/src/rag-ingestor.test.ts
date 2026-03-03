@@ -40,25 +40,26 @@ vi.mock("node:child_process", () => ({
 	}),
 }));
 
-// Mock OpenAI
-vi.mock("openai", () => {
-	const mockCreate = vi.fn();
-	return {
-		default: class {
-			embeddings = { create: mockCreate };
-		},
-		__mockEmbeddingsCreate: mockCreate,
-	};
+// Mock Pinecone SDK
+const mockUpsertRecords = vi.fn().mockResolvedValue(undefined);
+const mockDescribeIndex = vi.fn().mockResolvedValue({
+	status: { state: "Ready" },
+	dimension: 1024,
+	metric: "cosine",
 });
 
-// Mock global fetch for Qdrant
-const fetchMock = vi.fn();
-vi.stubGlobal("fetch", fetchMock);
+vi.mock("@pinecone-database/pinecone", () => ({
+	Pinecone: class {
+		index() {
+			return { upsertRecords: mockUpsertRecords };
+		}
+		describeIndex = mockDescribeIndex;
+	},
+}));
 
 import { getArticlesByStatus, updateArticleStatus } from "./article-repository.js";
 import { getSummaryByArticleId } from "./summary-repository.js";
 import { spawn } from "node:child_process";
-import { __mockEmbeddingsCreate } from "openai";
 
 // We need to import after mocks
 const { runRagIngestion, ensureCollection, chunkDocuments } = await import("./rag-ingestor.js");
@@ -66,39 +67,28 @@ const { runRagIngestion, ensureCollection, chunkDocuments } = await import("./ra
 describe("RAG Ingestor", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		process.env.OPENAI_API_KEY = "sk-test-key";
+		process.env.PINECONE_API_KEY = "test-pinecone-key";
 	});
 
 	describe("ensureCollection", () => {
-		it("should check if collection exists and skip creation if present", async () => {
-			fetchMock.mockResolvedValueOnce({
-				ok: true,
-				json: async () => ({ result: { points_count: 100 } }),
+		it("should verify Pinecone index is reachable", async () => {
+			mockDescribeIndex.mockResolvedValueOnce({
+				status: { state: "Ready" },
+				dimension: 1024,
+				metric: "cosine",
 			});
 
 			await ensureCollection();
 
-			expect(fetchMock).toHaveBeenCalledTimes(1);
-			expect(fetchMock).toHaveBeenCalledWith(
-				expect.stringContaining("/collections/kb_chunks"),
-				expect.objectContaining({ method: "GET" }),
-			);
+			expect(mockDescribeIndex).toHaveBeenCalledWith("aijourney-kb");
 		});
 
-		it("should create collection when it does not exist", async () => {
-			fetchMock
-				.mockResolvedValueOnce({ ok: false, text: async () => "Not found", status: 404 })
-				.mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+		it("should throw when Pinecone index is not reachable", async () => {
+			mockDescribeIndex.mockRejectedValueOnce(new Error("Connection refused"));
 
-			await ensureCollection();
-
-			expect(fetchMock).toHaveBeenCalledTimes(2);
-			const [, [url, opts]] = fetchMock.mock.calls;
-			expect(url).toContain("/collections/kb_chunks");
-			expect(opts.method).toBe("PUT");
-			const body = JSON.parse(opts.body);
-			expect(body.vectors.size).toBe(1536);
-			expect(body.vectors.distance).toBe("Cosine");
+			await expect(ensureCollection()).rejects.toThrow(
+				"Pinecone index 'aijourney-kb' not reachable",
+			);
 		});
 	});
 
@@ -146,19 +136,13 @@ describe("RAG Ingestor", () => {
 			});
 			vi.mocked(getSummaryByArticleId).mockResolvedValue(null);
 
-			// Mock ensureCollection
-			fetchMock.mockResolvedValueOnce({
-				ok: true,
-				json: async () => ({ result: { points_count: 0 } }),
-			});
-
 			const result = await runRagIngestion();
 
 			expect(result.ingested).toBe(0);
 			expect(result.errors).toContain("No summary found for article a1");
 		});
 
-		it("should process articles through chunk → embed → upsert pipeline", async () => {
+		it("should process articles through chunk → upsert pipeline", async () => {
 			const mockArticle = {
 				id: "a1", title: "AI Best Practices", url: "http://test.com/ai",
 				source: "blog", status: "summarized", crawledAt: "2025-01-01",
@@ -184,12 +168,6 @@ describe("RAG Ingestor", () => {
 			vi.mocked(getSummaryByArticleId).mockResolvedValue(mockSummary as any);
 			vi.mocked(updateArticleStatus).mockResolvedValue(undefined);
 
-			// Mock ensureCollection (GET succeeds)
-			fetchMock.mockResolvedValueOnce({
-				ok: true,
-				json: async () => ({ result: { points_count: 0 } }),
-			});
-
 			// Mock chunker via spawn
 			const mockChunks = [
 				{ doc_id: "a1", index: 0, text: "AI Best Practices\nUse AI wisely", start: 0, end: 30 },
@@ -201,28 +179,23 @@ describe("RAG Ingestor", () => {
 				code: 0,
 			};
 
-			// Mock OpenAI embeddings
-			(vi.mocked(__mockEmbeddingsCreate) as any).mockResolvedValue({
-				data: [
-					{ index: 0, embedding: Array(1536).fill(0.1) },
-					{ index: 1, embedding: Array(1536).fill(0.2) },
-				],
-				usage: { total_tokens: 50 },
-			});
-
-			// Mock Qdrant upsert
-			fetchMock.mockResolvedValueOnce({
-				ok: true,
-				json: async () => ({ result: { status: "ok" } }),
-			});
-
 			const result = await runRagIngestion();
 
 			expect(result.ingested).toBe(1);
 			expect(result.totalChunks).toBe(2);
-			expect(result.totalTokensUsed).toBe(50);
+			expect(result.totalTokensUsed).toBe(0); // Pinecone handles embedding internally
 			expect(result.errors).toHaveLength(0);
 			expect(updateArticleStatus).toHaveBeenCalledWith("a1", "ingested");
+
+			// Verify Pinecone upsertRecords was called with correct record format
+			expect(mockUpsertRecords).toHaveBeenCalledTimes(1);
+			const upsertedRecords = mockUpsertRecords.mock.calls[0][0];
+			expect(upsertedRecords).toHaveLength(2);
+			expect(upsertedRecords[0]._id).toBe("a1:0");
+			expect(upsertedRecords[0].text).toBe("AI Best Practices\nUse AI wisely");
+			expect(upsertedRecords[0].doc_id).toBe("a1");
+			expect(upsertedRecords[0].article_url).toBe("http://test.com/ai");
+			expect(upsertedRecords[1]._id).toBe("a1:1");
 		});
 	});
 });

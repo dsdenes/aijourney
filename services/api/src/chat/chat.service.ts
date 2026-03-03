@@ -216,7 +216,7 @@ ${c.donts.map((d) => `  ✗ ${d}`).join("\n")}`;
 	}
 
 	/**
-	 * Search the self-hosted Qdrant RAG for relevant chunks.
+	 * Search the Pinecone RAG for relevant chunks via kb-builder.
 	 */
 	private async searchRag(query: string): Promise<{
 		context: string;
@@ -297,7 +297,7 @@ ${chunk.text}`;
 			input: query.length > 200 ? query.slice(0, 200) + "…" : query,
 			model: CHAT_MODEL,
 			metadata: {
-				ragProvider: "self",
+				ragProvider: "pinecone",
 				historyLength: conversationHistory.length,
 			},
 		});
@@ -349,14 +349,14 @@ ${chunk.text}`;
 		let sources: { title: string; url: string; relevance: string }[];
 		let embeddingTokens = 0;
 
-		technicalSteps.push("RAG provider: Self-hosted Qdrant (vector search)");
+		technicalSteps.push("RAG provider: Pinecone (vector search with integrated embedding)");
 
-		// Semantic search via Qdrant
+		// Semantic search via Pinecone
 		this.logger.log(
-			`Using self-hosted RAG (Qdrant) for query: "${query.slice(0, 60)}"`,
+			`Using Pinecone RAG for query: "${query.slice(0, 60)}"`,
 		);
 		technicalSteps.push(
-			"Generating query embedding via OpenAI text-embedding-3-small",
+			"Querying Pinecone with integrated multilingual-e5-large embedding",
 		);
 		const ragResult = await this.searchRag(query);
 		context = ragResult.context;
@@ -369,7 +369,7 @@ ${chunk.text}`;
 
 		if (!context || context.includes("No relevant information")) {
 			technicalSteps.push(
-				"Qdrant returned no relevant chunks — falling back to keyword search over KB summaries",
+				"Pinecone returned no relevant chunks — falling back to keyword search over KB summaries",
 			);
 			const fallback = await this.keywordSearch(query);
 			context = fallback.context;
@@ -379,7 +379,7 @@ ${chunk.text}`;
 			);
 		} else {
 			technicalSteps.push(
-				`Qdrant returned ${sources.length} relevant document chunks`,
+				`Pinecone returned ${sources.length} relevant document chunks`,
 			);
 		}
 
@@ -405,7 +405,7 @@ ${chunk.text}`;
 		messages.push({ role: "user", content: query });
 
 		this.logger.log(
-			`Chat query: "${query.slice(0, 60)}" with ${sources.length} sources [qdrant]`,
+			`Chat query: "${query.slice(0, 60)}" with ${sources.length} sources [pinecone]`,
 		);
 
 		// Rate limit: estimate tokens from message payload + max completion
@@ -438,7 +438,7 @@ ${chunk.text}`;
 		}
 
 		this.logger.log(
-			`Chat response: ${tokensUsed} tokens (${promptTokens} in / ${completionTokens} out), ${sources.length} sources [qdrant]`,
+			`Chat response: ${tokensUsed} tokens (${promptTokens} in / ${completionTokens} out), ${sources.length} sources [pinecone]`,
 		);
 
 		technicalSteps.push(`Called OpenAI model: ${CHAT_MODEL}`);

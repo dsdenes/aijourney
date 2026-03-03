@@ -143,7 +143,7 @@ app.post("/ingest", async (_req, res) => {
 		// Auto-trigger pipeline after crawl completes
 		log(
 			"info",
-			"Crawl finished — starting pipeline (quality → summarize → Qdrant RAG ingest)",
+			"Crawl finished — starting pipeline (quality → summarize → Pinecone RAG ingest)",
 		);
 		await runPipeline();
 	})();
@@ -212,12 +212,12 @@ app.post("/pipeline", async (_req, res) => {
 		log("info", `Backfilled crawledAt for ${backfilled} articles`);
 	}
 
-	log("info", "Pipeline triggered manually", { ragProvider: "self" });
+	log("info", "Pipeline triggered manually", { ragProvider: "pinecone" });
 	void runPipeline();
 
 	res.json({
 		status: "accepted",
-		message: "Pipeline started (quality → summarize → Qdrant RAG)",
+		message: "Pipeline started (quality → summarize → Pinecone RAG)",
 	});
 });
 
@@ -267,7 +267,7 @@ app.get("/summaries", async (_req, res) => {
 
 // --------------- RAG Query ---------------
 
-/** Semantic search over the Qdrant knowledge base */
+/** Semantic search over the Pinecone knowledge base */
 app.post("/rag/query", async (req, res) => {
 	const { query, topK = 8, scoreThreshold = 0.3 } = req.body;
 	if (!query || typeof query !== "string") {
@@ -315,7 +315,7 @@ app.delete("/articles/:id", async (req, res) => {
 			return;
 		}
 
-		// Delete vectors from Qdrant
+		// Delete vectors from Pinecone
 		const vectorsDeleted = await deleteVectorsByArticleId(id);
 
 		// Delete summary from MongoDB
@@ -371,7 +371,7 @@ app.post("/articles/reset-summaries", async (_req, res) => {
 			summariesDeleted++;
 		}
 
-		// Delete all vectors from Qdrant
+		// Delete all vectors from Pinecone
 		for (const article of allArticles) {
 			if (article.status === "summarized" || article.status === "ingested") {
 				const deleted = await deleteVectorsByArticleId(article.id);

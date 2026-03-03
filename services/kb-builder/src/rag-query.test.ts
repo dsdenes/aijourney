@@ -5,42 +5,36 @@ vi.mock("./log-stream.js", () => ({
 	log: vi.fn(),
 }));
 
-// Mock OpenAI
-const mockEmbeddingsCreate = vi.fn();
-vi.mock("openai", () => ({
-	default: class {
-		embeddings = { create: mockEmbeddingsCreate };
+// Mock Pinecone SDK
+const mockSearchRecords = vi.fn();
+const mockDescribeIndex = vi.fn();
+
+vi.mock("@pinecone-database/pinecone", () => ({
+	Pinecone: class {
+		index() {
+			return { searchRecords: mockSearchRecords };
+		}
+		describeIndex = mockDescribeIndex;
 	},
 }));
-
-// Mock global fetch for Qdrant
-const fetchMock = vi.fn();
-vi.stubGlobal("fetch", fetchMock);
 
 const { searchKnowledgeBase, isRagAvailable } = await import("./rag-query.js");
 
 describe("RAG Query", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		process.env.OPENAI_API_KEY = "sk-test-key";
+		process.env.PINECONE_API_KEY = "test-pinecone-key";
 	});
 
 	describe("searchKnowledgeBase", () => {
-		it("should embed query and search Qdrant", async () => {
-			const queryVector = Array(1536).fill(0.5);
-			mockEmbeddingsCreate.mockResolvedValue({
-				data: [{ index: 0, embedding: queryVector }],
-				usage: { total_tokens: 10 },
-			});
-
-			fetchMock.mockResolvedValueOnce({
-				ok: true,
-				json: async () => ({
-					result: [
+		it("should search Pinecone with integrated embedding", async () => {
+			mockSearchRecords.mockResolvedValueOnce({
+				result: {
+					hits: [
 						{
-							id: "uuid-1",
-							score: 0.85,
-							payload: {
+							_id: "a1:0",
+							_score: 0.85,
+							fields: {
 								text: "AI is transforming the workplace",
 								doc_id: "a1",
 								chunk_index: 0,
@@ -53,9 +47,9 @@ describe("RAG Query", () => {
 							},
 						},
 						{
-							id: "uuid-2",
-							score: 0.72,
-							payload: {
+							_id: "a2:1",
+							_score: 0.72,
+							fields: {
 								text: "Machine learning requires good data",
 								doc_id: "a2",
 								chunk_index: 1,
@@ -68,86 +62,100 @@ describe("RAG Query", () => {
 							},
 						},
 					],
-				}),
+				},
 			});
 
 			const result = await searchKnowledgeBase("How to use AI at work?");
 
 			expect(result.chunks).toHaveLength(2);
-			expect(result.chunks[0].score).toBe(0.85);
-			expect(result.chunks[0].text).toBe("AI is transforming the workplace");
-			expect(result.chunks[0].metadata.tags).toEqual(["ai", "workplace"]);
-			expect(result.tokensUsed).toBe(10);
+			expect(result.chunks[0]!.score).toBe(0.85);
+			expect(result.chunks[0]!.text).toBe("AI is transforming the workplace");
+			expect(result.chunks[0]!.metadata.tags).toEqual(["ai", "workplace"]);
+			expect(result.tokensUsed).toBe(0); // Pinecone handles embedding internally
 
-			// Verify Qdrant was called with the embedding
-			expect(fetchMock).toHaveBeenCalledWith(
-				expect.stringContaining("/collections/kb_chunks/points/search"),
-				expect.objectContaining({ method: "POST" }),
-			);
-			const qdrantBody = JSON.parse(fetchMock.mock.calls[0][1].body);
-			expect(qdrantBody.vector).toEqual(queryVector);
-			expect(qdrantBody.limit).toBe(8);
+			// Verify Pinecone searchRecords was called with text input
+			expect(mockSearchRecords).toHaveBeenCalledWith({
+				query: {
+					topK: 8,
+					inputs: { text: "How to use AI at work?" },
+				},
+				fields: [
+					"text",
+					"doc_id",
+					"chunk_index",
+					"article_url",
+					"article_title",
+					"article_source",
+					"summary_title",
+					"tags",
+					"difficulty",
+				],
+			});
 		});
 
-		it("should return empty chunks when Qdrant returns no results", async () => {
-			mockEmbeddingsCreate.mockResolvedValue({
-				data: [{ index: 0, embedding: Array(1536).fill(0) }],
-				usage: { total_tokens: 5 },
-			});
-
-			fetchMock.mockResolvedValueOnce({
-				ok: true,
-				json: async () => ({ result: [] }),
+		it("should return empty chunks when Pinecone returns no results", async () => {
+			mockSearchRecords.mockResolvedValueOnce({
+				result: { hits: [] },
 			});
 
 			const result = await searchKnowledgeBase("obscure topic");
 
 			expect(result.chunks).toHaveLength(0);
-			expect(result.tokensUsed).toBe(5);
+			expect(result.tokensUsed).toBe(0);
 		});
 
-		it("should respect topK and scoreThreshold parameters", async () => {
-			mockEmbeddingsCreate.mockResolvedValue({
-				data: [{ index: 0, embedding: Array(1536).fill(0) }],
-				usage: { total_tokens: 5 },
+		it("should filter results below scoreThreshold", async () => {
+			mockSearchRecords.mockResolvedValueOnce({
+				result: {
+					hits: [
+						{ _id: "a1:0", _score: 0.8, fields: { text: "Good match", doc_id: "a1", chunk_index: 0, article_url: "", article_title: "", article_source: "", summary_title: "", tags: [], difficulty: "" } },
+						{ _id: "a2:0", _score: 0.2, fields: { text: "Poor match", doc_id: "a2", chunk_index: 0, article_url: "", article_title: "", article_source: "", summary_title: "", tags: [], difficulty: "" } },
+					],
+				},
 			});
 
-			fetchMock.mockResolvedValueOnce({
-				ok: true,
-				json: async () => ({ result: [] }),
+			const result = await searchKnowledgeBase("test", 3, 0.5);
+
+			expect(result.chunks).toHaveLength(1);
+			expect(result.chunks[0]!.text).toBe("Good match");
+		});
+
+		it("should respect topK parameter", async () => {
+			mockSearchRecords.mockResolvedValueOnce({
+				result: { hits: [] },
 			});
 
 			await searchKnowledgeBase("test", 3, 0.5);
 
-			const qdrantBody = JSON.parse(fetchMock.mock.calls[0][1].body);
-			expect(qdrantBody.limit).toBe(3);
-			expect(qdrantBody.score_threshold).toBe(0.5);
+			expect(mockSearchRecords).toHaveBeenCalledWith(
+				expect.objectContaining({
+					query: expect.objectContaining({ topK: 3 }),
+				}),
+			);
 		});
 	});
 
 	describe("isRagAvailable", () => {
-		it("should return true when collection has points", async () => {
-			fetchMock.mockResolvedValueOnce({
-				ok: true,
-				json: async () => ({ result: { points_count: 150 } }),
+		it("should return true when Pinecone index is Ready", async () => {
+			mockDescribeIndex.mockResolvedValueOnce({
+				status: { state: "Ready" },
 			});
 
 			const available = await isRagAvailable();
 			expect(available).toBe(true);
 		});
 
-		it("should return false when collection is empty", async () => {
-			fetchMock.mockResolvedValueOnce({
-				ok: true,
-				json: async () => ({ result: { points_count: 0 } }),
+		it("should return false when Pinecone index is not Ready", async () => {
+			mockDescribeIndex.mockResolvedValueOnce({
+				status: { state: "Initializing" },
 			});
 
 			const available = await isRagAvailable();
 			expect(available).toBe(false);
 		});
 
-		it("should return false when Qdrant is unreachable", async () => {
-			fetchMock.mockRejectedValueOnce(new Error("Connection refused"));
+		it("should return false when Pinecone is unreachable", async () => {
+			mockDescribeIndex.mockRejectedValueOnce(new Error("Connection refused"));
 
 			const available = await isRagAvailable();
 			expect(available).toBe(false);

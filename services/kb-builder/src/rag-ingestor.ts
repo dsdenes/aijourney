@@ -1,19 +1,18 @@
 /**
- * Self-hosted RAG ingestor — replaces Bedrock KB with:
+ * RAG ingestor — uses Pinecone with integrated embedding:
  *   1. Rust chunker for paragraph-aware text splitting
- *   2. OpenAI text-embedding-3-small for embeddings
- *   3. Qdrant for vector storage
+ *   2. Pinecone serverless index with multilingual-e5-large for embedding + vector storage
  *
- * Each "summarized" article gets its formatted summary text chunked,
- * embedded, and upserted into Qdrant with rich metadata.
+ * Each "summarized" article gets its formatted summary text chunked
+ * and upserted into Pinecone with rich metadata.
+ * Pinecone handles embedding internally — no separate OpenAI embedding calls needed.
  */
 
 import { type ChildProcess, spawn } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Article, Summary } from "@aijourney/shared";
-import { getRateLimiter } from "@aijourney/shared";
-import OpenAI from "openai";
+import { Pinecone } from "@pinecone-database/pinecone";
 import {
 	getArticlesByStatus,
 	updateArticleStatus,
@@ -23,13 +22,11 @@ import { getSummaryByArticleId } from "./summary-repository.js";
 
 // ── Config ──
 
-const QDRANT_URL = process.env.QDRANT_URL || "http://localhost:6333";
-const QDRANT_COLLECTION = process.env.QDRANT_COLLECTION || "kb_chunks";
-const EMBEDDING_MODEL = "text-embedding-3-small";
-const EMBEDDING_DIMENSIONS = 1536;
+const PINECONE_API_KEY = process.env.PINECONE_API_KEY || "";
+const PINECONE_INDEX_NAME = process.env.PINECONE_INDEX_NAME || "aijourney-kb";
 
-/** Maximum chunks to embed in a single OpenAI batch call */
-const EMBEDDING_BATCH_SIZE = 50;
+/** Maximum records to upsert in a single Pinecone batch call */
+const UPSERT_BATCH_SIZE = 100;
 
 // Resolve chunker binary relative to this source file
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -62,52 +59,36 @@ export interface RagIngestionResult {
 	errors: string[];
 }
 
-// ── OpenAI client ──
+// ── Pinecone client ──
 
-let openaiClient: OpenAI | null = null;
+let pineconeClient: Pinecone | null = null;
 
-function getOpenAI(): OpenAI {
-	if (!openaiClient) {
-		const apiKey = process.env.OPENAI_API_KEY;
-		if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
-		openaiClient = new OpenAI({ apiKey });
+function getPinecone(): Pinecone {
+	if (!pineconeClient) {
+		const apiKey = process.env.PINECONE_API_KEY || "";
+		if (!apiKey) throw new Error("PINECONE_API_KEY is not set");
+		pineconeClient = new Pinecone({ apiKey });
 	}
-	return openaiClient;
+	return pineconeClient;
 }
 
-// ── Qdrant helpers ──
-
-async function qdrantRequest(
-	path: string,
-	method: string = "GET",
-	body?: unknown,
-): Promise<unknown> {
-	const res = await fetch(`${QDRANT_URL}${path}`, {
-		method,
-		headers: { "Content-Type": "application/json" },
-		...(body !== undefined && { body: JSON.stringify(body) }),
-	});
-	if (!res.ok) {
-		const text = await res.text();
-		throw new Error(`Qdrant ${method} ${path} failed (${res.status}): ${text}`);
-	}
-	return res.json();
+function getIndex() {
+	return getPinecone().index(PINECONE_INDEX_NAME);
 }
 
-/** Ensure the Qdrant collection exists with the right vector config. */
+/** Ensure the Pinecone index is reachable — logs stats. */
 export async function ensureCollection(): Promise<void> {
 	try {
-		await qdrantRequest(`/collections/${QDRANT_COLLECTION}`);
-		log("debug", `Qdrant collection '${QDRANT_COLLECTION}' already exists`);
-	} catch {
-		log("info", `Creating Qdrant collection '${QDRANT_COLLECTION}'`);
-		await qdrantRequest(`/collections/${QDRANT_COLLECTION}`, "PUT", {
-			vectors: {
-				size: EMBEDDING_DIMENSIONS,
-				distance: "Cosine",
-			},
+		const pc = getPinecone();
+		const description = await pc.describeIndex(PINECONE_INDEX_NAME);
+		log("debug", `Pinecone index '${PINECONE_INDEX_NAME}' status: ${description.status?.state}`, {
+			dimension: description.dimension,
+			metric: description.metric,
 		});
-		log("info", `Qdrant collection '${QDRANT_COLLECTION}' created`);
+	} catch (err) {
+		throw new Error(
+			`Pinecone index '${PINECONE_INDEX_NAME}' not reachable: ${err instanceof Error ? err.message : String(err)}`,
+		);
 	}
 }
 
@@ -168,57 +149,6 @@ export async function chunkDocuments(
 	});
 }
 
-// ── Embeddings ──
-
-/** Rate limiter for the embedding model */
-const embeddingRateLimiter = getRateLimiter(EMBEDDING_MODEL, {
-	logger: (msg) => log("warn", msg),
-});
-
-/** Embed an array of texts using OpenAI text-embedding-3-small. */
-async function embedTexts(
-	texts: string[],
-): Promise<{ embeddings: number[][]; tokensUsed: number }> {
-	if (texts.length === 0) return { embeddings: [], tokensUsed: 0 };
-
-	const openai = getOpenAI();
-	let allEmbeddings: number[][] = [];
-	let totalTokens = 0;
-
-	// Process in batches
-	for (let i = 0; i < texts.length; i += EMBEDDING_BATCH_SIZE) {
-		const batch = texts.slice(i, i + EMBEDDING_BATCH_SIZE);
-
-		// Estimate tokens: ~4 chars per token across all batch texts
-		const estimatedTokens = Math.ceil(
-			batch.reduce((sum, t) => sum + t.length, 0) / 4,
-		);
-		await embeddingRateLimiter.waitForCapacity(estimatedTokens);
-		embeddingRateLimiter.recordRequest(estimatedTokens);
-
-		const response = await openai.embeddings.create({
-			model: EMBEDDING_MODEL,
-			input: batch,
-		});
-
-		const actualTokens = response.usage?.total_tokens ?? 0;
-		if (actualTokens > 0) {
-			embeddingRateLimiter.recordUsage(
-				Math.max(0, actualTokens - estimatedTokens),
-			);
-		}
-
-		const batchEmbeddings = response.data
-			.sort((a, b) => a.index - b.index)
-			.map((d) => d.embedding);
-
-		allEmbeddings = allEmbeddings.concat(batchEmbeddings);
-		totalTokens += actualTokens;
-	}
-
-	return { embeddings: allEmbeddings, tokensUsed: totalTokens };
-}
-
 // ── Document formatting ──
 
 /** Format a summary + article into a text document suitable for chunking. */
@@ -261,9 +191,8 @@ function formatDocumentText(article: Article, summary: Summary): string {
 // ── Main ingestion function ──
 
 /**
- * Run self-hosted RAG ingestion for all articles with "summarized" or "ingested" status.
- * (Articles may already be "ingested" via S3/Bedrock but not yet in Qdrant.)
- * Chunks → embeds → upserts into Qdrant → updates status to "ingested".
+ * Run RAG ingestion for all articles with "summarized" or "ingested" status.
+ * Chunks → upserts into Pinecone (which embeds internally via multilingual-e5-large).
  */
 export async function runRagIngestion(): Promise<RagIngestionResult> {
 	const summarizedArticles = await getArticlesByStatus("summarized");
@@ -282,8 +211,7 @@ export async function runRagIngestion(): Promise<RagIngestionResult> {
 		`RAG ingestion: processing ${articles.length} summarized articles`,
 		{
 			count: articles.length,
-			qdrantUrl: QDRANT_URL,
-			collection: QDRANT_COLLECTION,
+			pineconeIndex: PINECONE_INDEX_NAME,
 		},
 	);
 
@@ -292,7 +220,7 @@ export async function runRagIngestion(): Promise<RagIngestionResult> {
 		return result;
 	}
 
-	// Ensure collection exists
+	// Ensure index is reachable
 	await ensureCollection();
 
 	// Step 1: Prepare documents for chunking
@@ -344,78 +272,49 @@ export async function runRagIngestion(): Promise<RagIngestionResult> {
 		chunks: chunks.length,
 	});
 
-	// Step 3: Embed all chunks
-	log(
-		"info",
-		`Embedding ${chunks.length} chunks via OpenAI ${EMBEDDING_MODEL}`,
-	);
-	const chunkTexts = chunks.map((c) => c.text);
-	let embeddings: number[][];
-	let embeddingTokens: number;
-	try {
-		const embResult = await embedTexts(chunkTexts);
-		embeddings = embResult.embeddings;
-		embeddingTokens = embResult.tokensUsed;
-	} catch (err) {
-		const msg = `Embedding failed: ${err instanceof Error ? err.message : String(err)}`;
-		result.errors.push(msg);
-		log("error", msg);
-		return result;
-	}
+	// Step 3: Upsert into Pinecone (embedding handled internally by Pinecone)
+	log("info", `Upserting ${chunks.length} records into Pinecone`);
+	const index = getIndex();
 
-	result.totalTokensUsed = embeddingTokens;
-	log("info", `Embedded ${chunks.length} chunks (${embeddingTokens} tokens)`, {
-		chunks: chunks.length,
-		tokensUsed: embeddingTokens,
-	});
-
-	// Step 4: Upsert into Qdrant
-	log("info", `Upserting ${chunks.length} vectors into Qdrant`);
-	const points = chunks.map((chunk, i) => {
+	const records = chunks.map((chunk) => {
 		const pair = articleSummaryMap.get(chunk.doc_id);
 		const article = pair?.article;
 		const summary = pair?.summary;
 
 		return {
-			id: hashToUuid(chunk.doc_id, chunk.index),
-			vector: embeddings[i],
-			payload: {
-				doc_id: chunk.doc_id,
-				chunk_index: chunk.index,
-				text: chunk.text,
-				char_start: chunk.start,
-				char_end: chunk.end,
-				// Article metadata
-				article_url: article?.url || "",
-				article_title: article?.title || "",
-				article_source: article?.source || "",
-				// Summary metadata
-				summary_title: summary?.content.title || "",
-				tags: summary?.content.tags || [],
-				difficulty: summary?.content.difficulty || "",
-				summary_id: summary?.id || "",
-			},
+			_id: `${chunk.doc_id}:${chunk.index}`,
+			text: chunk.text,
+			doc_id: chunk.doc_id,
+			chunk_index: chunk.index,
+			char_start: chunk.start,
+			char_end: chunk.end,
+			article_url: article?.url || "",
+			article_title: article?.title || "",
+			article_source: article?.source || "",
+			summary_title: summary?.content.title || "",
+			tags: summary?.content.tags || [],
+			difficulty: summary?.content.difficulty || "",
+			summary_id: summary?.id || "",
 		};
 	});
 
-	// Upsert in batches of 100
-	const UPSERT_BATCH = 100;
-	for (let i = 0; i < points.length; i += UPSERT_BATCH) {
-		const batch = points.slice(i, i + UPSERT_BATCH);
+	// Upsert in batches
+	for (let i = 0; i < records.length; i += UPSERT_BATCH_SIZE) {
+		const batch = records.slice(i, i + UPSERT_BATCH_SIZE);
 		try {
-			await qdrantRequest(`/collections/${QDRANT_COLLECTION}/points`, "PUT", {
-				points: batch,
-			});
+			await index.upsertRecords(batch);
 		} catch (err) {
-			const msg = `Qdrant upsert failed (batch ${Math.floor(i / UPSERT_BATCH)}): ${err instanceof Error ? err.message : String(err)}`;
+			const msg = `Pinecone upsert failed (batch ${Math.floor(i / UPSERT_BATCH_SIZE)}): ${err instanceof Error ? err.message : String(err)}`;
 			result.errors.push(msg);
 			log("error", msg);
 		}
 	}
 
 	result.totalChunks = chunks.length;
+	// No external embedding tokens used — Pinecone handles embedding internally
+	result.totalTokensUsed = 0;
 
-	// Step 5: Update article statuses
+	// Step 4: Update article statuses
 	const ingestedDocIds = new Set(chunks.map((c) => c.doc_id));
 	for (const docId of ingestedDocIds) {
 		try {
@@ -430,11 +329,10 @@ export async function runRagIngestion(): Promise<RagIngestionResult> {
 
 	log(
 		"info",
-		`RAG ingestion complete: ${result.ingested} articles → ${result.totalChunks} chunks, ${result.totalTokensUsed} embedding tokens, ${result.errors.length} errors`,
+		`RAG ingestion complete: ${result.ingested} articles → ${result.totalChunks} chunks, ${result.errors.length} errors`,
 		{
 			ingested: result.ingested,
 			chunks: result.totalChunks,
-			tokensUsed: result.totalTokensUsed,
 			errors: result.errors.length,
 		},
 	);
@@ -444,93 +342,54 @@ export async function runRagIngestion(): Promise<RagIngestionResult> {
 
 // ── Utilities ──
 
-/** Generate a deterministic UUID v5-like string from doc_id + chunk index. */
-function hashToUuid(docId: string, chunkIndex: number): string {
-	// Simple deterministic hash → UUID-like format for Qdrant point IDs
-	const str = `${docId}:${chunkIndex}`;
-	let hash = 0;
-	for (let i = 0; i < str.length; i++) {
-		const char = str.charCodeAt(i);
-		hash = ((hash << 5) - hash + char) | 0;
-	}
-	// Convert to a UUID-like string (Qdrant accepts UUIDs or u64)
-	const hex = Math.abs(hash).toString(16).padStart(8, "0");
-	const hex2 = Math.abs(hash * 31)
-		.toString(16)
-		.padStart(8, "0");
-	const hex3 = Math.abs(hash * 997)
-		.toString(16)
-		.padStart(8, "0");
-	const hex4 = Math.abs(hash * 7919)
-		.toString(16)
-		.padStart(8, "0");
-	return `${hex}-${hex2.slice(0, 4)}-4${hex2.slice(5, 8)}-a${hex3.slice(1, 4)}-${hex4.slice(0, 8)}${hex.slice(0, 4)}`;
-}
-
 /**
- * Delete all Qdrant vectors associated with a given article (doc_id).
- * Uses Qdrant's points/delete with a filter on the doc_id payload field.
+ * Delete all Pinecone records associated with a given article (doc_id).
+ * Uses Pinecone's deleteMany with a filter on the doc_id metadata field.
  */
 export async function deleteVectorsByArticleId(
 	articleId: string,
 ): Promise<number> {
 	try {
-		// First, count existing points for this article
-		const scrollResult = (await qdrantRequest(
-			`/collections/${QDRANT_COLLECTION}/points/scroll`,
-			"POST",
-			{
-				filter: {
-					must: [{ key: "doc_id", match: { value: articleId } }],
-				},
-				limit: 1000,
-				with_payload: false,
-				with_vector: false,
-			},
-		)) as { result: { points: Array<{ id: string }> } };
+		const index = getIndex();
+		// Pinecone integrated model indexes use `searchRecords` to find, `deleteMany` to remove
+		// We delete by listing matching IDs then deleting them
+		const results = await index.searchRecords({
+			query: { topK: 1000, filter: { doc_id: { $eq: articleId } }, inputs: { text: "." } },
+			fields: [],
+		});
 
-		const count = scrollResult.result?.points?.length ?? 0;
-
-		if (count === 0) {
-			log("debug", `No Qdrant vectors found for article ${articleId}`);
+		const hits = results.result?.hits ?? [];
+		if (hits.length === 0) {
+			log("debug", `No Pinecone records found for article ${articleId}`);
 			return 0;
 		}
 
-		// Delete by filter
-		await qdrantRequest(
-			`/collections/${QDRANT_COLLECTION}/points/delete`,
-			"POST",
-			{
-				filter: {
-					must: [{ key: "doc_id", match: { value: articleId } }],
-				},
-			},
-		);
+		const ids = hits.map((h: { _id: string }) => h._id);
+		await index.deleteMany(ids);
 
-		log("info", `Deleted ${count} Qdrant vectors for article ${articleId}`);
-		return count;
+		log("info", `Deleted ${ids.length} Pinecone records for article ${articleId}`);
+		return ids.length;
 	} catch (err) {
 		log(
 			"warn",
-			`Failed to delete Qdrant vectors for ${articleId}: ${err instanceof Error ? err.message : String(err)}`,
+			`Failed to delete Pinecone records for ${articleId}: ${err instanceof Error ? err.message : String(err)}`,
 		);
 		return 0;
 	}
 }
 
 /**
- * Delete all vectors in the collection. USE WITH CAUTION.
+ * Delete all records in the Pinecone index namespace. USE WITH CAUTION.
  */
 export async function deleteAllVectors(): Promise<void> {
 	try {
-		await qdrantRequest(`/collections/${QDRANT_COLLECTION}`, "DELETE");
-		log("info", `Deleted Qdrant collection '${QDRANT_COLLECTION}'`);
-		// Re-create empty collection
-		await ensureCollection();
+		const index = getIndex();
+		await index.namespace("").deleteAll();
+		log("info", `Deleted all records in Pinecone index '${PINECONE_INDEX_NAME}'`);
 	} catch (err) {
 		log(
 			"warn",
-			`Failed to delete Qdrant collection: ${err instanceof Error ? err.message : String(err)}`,
+			`Failed to delete all Pinecone records: ${err instanceof Error ? err.message : String(err)}`,
 		);
 	}
 }

@@ -67,13 +67,13 @@ export async function runPipeline(): Promise<PipelineProgress> {
 	const startTime = Date.now();
 	const agentRun = await startAgentRun({
 		agent: "pipeline",
-		input: "Full pipeline run (provider: qdrant)",
-		metadata: { ragProvider: "self" },
+		input: "Full pipeline run (provider: pinecone)",
+		metadata: { ragProvider: "pinecone" },
 	});
 
 	log(
 		"info",
-		"Pipeline started: quality filter → summarization → Qdrant RAG ingestion",
+		"Pipeline started: quality filter → summarization → Pinecone RAG ingestion",
 	);
 
 	try {
@@ -112,9 +112,9 @@ export async function runPipeline(): Promise<PipelineProgress> {
 			};
 		}
 
-		// Stage 3: Qdrant RAG Ingestion
+		// Stage 3: Pinecone RAG Ingestion
 		// Include both "summarized" and "ingested" articles — the latter may have been
-		// processed in a previous Bedrock run but not yet indexed in Qdrant.
+		// processed in a previous run but not yet indexed in Pinecone.
 		const summarizedArticles = await getArticlesByStatus("summarized");
 		const ingestedArticles = await getArticlesByStatus("ingested");
 		const articlesForIngestion = [...summarizedArticles, ...ingestedArticles];
@@ -130,7 +130,7 @@ export async function runPipeline(): Promise<PipelineProgress> {
 			pipelineProgress.stages.ingestion.status = "running";
 			log(
 				"info",
-				`─── Stage 3/3: RAG Ingestion (Qdrant) — ${articlesForIngestion.length} articles ───`,
+				`─── Stage 3/3: RAG Ingestion (Pinecone) — ${articlesForIngestion.length} articles ───`,
 			);
 
 			const ragResult = await runRagIngestion();

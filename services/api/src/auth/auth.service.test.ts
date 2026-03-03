@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { AuthService } from "./auth.service";
 import type { AppConfigService } from "../config/config.service";
 import type { UsersService } from "../users/users.service";
+import { AuthService } from "./auth.service";
 
 describe("AuthService", () => {
 	const mockConfigService = {

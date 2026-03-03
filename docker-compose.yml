@@ -28,19 +28,6 @@ services:
       timeout: 3s
       retries: 5
 
-  qdrant:
-    image: qdrant/qdrant:latest
-    ports:
-      - "6333:6333"   # REST API
-      - "6334:6334"   # gRPC
-    volumes:
-      - qdrant_data:/qdrant/storage
-    healthcheck:
-      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/6333' 2>/dev/null || exit 1"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
   # ---------- Application services ----------
   api:
     build:
@@ -87,6 +74,8 @@ services:
       NODE_ENV: development
       KB_BUILDER_PORT: "3002"
       MONGODB_URI: mongodb://mongodb:27017
+      PINECONE_API_KEY: "${PINECONE_API_KEY:-}"
+      PINECONE_INDEX_NAME: "${PINECONE_INDEX_NAME:-aijourney-kb}"
 
   web:
     build:
@@ -102,4 +91,3 @@ services:
 volumes:
   mongo_data:
   redis_data:
-  qdrant_data:
