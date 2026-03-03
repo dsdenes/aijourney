@@ -27,10 +27,7 @@ import {
 	getLogBuffer,
 	log,
 } from "./log-stream.js";
-import {
-	getPipelineProgress,
-	runPipeline,
-} from "./pipeline.js";
+import { getPipelineProgress, runPipeline } from "./pipeline.js";
 import { deleteVectorsByArticleId } from "./rag-ingestor.js";
 import { isRagAvailable, searchKnowledgeBase } from "./rag-query.js";
 import {

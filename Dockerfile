@@ -53,6 +53,8 @@ CMD ["node", "services/kb-builder/dist/index.js"]
 
 # ---- Web: build SvelteKit SPA ----
 FROM shared-build AS web-build
+ARG VITE_GOOGLE_CLIENT_ID=""
+ENV VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}
 COPY apps/web/ apps/web/
 RUN pnpm --filter @aijourney/web build
 

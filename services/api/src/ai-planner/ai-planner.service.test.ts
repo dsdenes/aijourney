@@ -15,18 +15,6 @@ vi.mock("openai", () => {
 	};
 });
 
-// Mock Bedrock
-vi.mock("@aws-sdk/client-bedrock-runtime", () => {
-	return {
-		BedrockRuntimeClient: class MockBedrockClient {
-			send = vi.fn();
-		},
-		InvokeModelCommand: class MockInvokeModelCommand {
-			constructor(public input: unknown) {}
-		},
-	};
-});
-
 describe("AiPlannerService", () => {
 	let service: AiPlannerService;
 	const mockConfig = {
@@ -157,16 +145,18 @@ describe("AiPlannerService", () => {
 	});
 
 	describe("generateStrategy", () => {
-		it("should fall back to OpenAI when Bedrock fails", async () => {
+		it("should generate strategy via OpenAI", async () => {
 			const mockStrategy = {
 				title: "AI-Powered Customer Support",
 				summary: "Use ChatGPT to build a customer support chatbot.",
+				tool: "ChatGPT",
 				steps: [
 					{
 						order: 1,
 						title: "Define FAQ",
 						description: "Gather common questions.",
 						aiRole: "AI categorizes questions.",
+						prompt: "You are a customer support agent for ABC Corp...",
 					},
 				],
 				examplePrompt: "You are a customer support agent for ABC Corp...",
@@ -180,15 +170,6 @@ describe("AiPlannerService", () => {
 				tips: ["Start small", "Test frequently", "Iterate"],
 			};
 
-			// Bedrock will fail (mock send throws)
-			const bedrock = (
-				service as unknown as { getBedrock: () => unknown }
-			).getBedrock() as {
-				send: ReturnType<typeof vi.fn>;
-			};
-			bedrock.send.mockRejectedValueOnce(new Error("Bedrock unavailable"));
-
-			// OpenAI fallback should work
 			const openai = (
 				service as unknown as { getOpenAI: () => unknown }
 			).getOpenAI() as {
@@ -217,8 +198,7 @@ describe("AiPlannerService", () => {
 
 			expect(result.title).toBe("AI-Powered Customer Support");
 			expect(result.steps).toHaveLength(1);
-			expect(result.examplePrompt).toBeTruthy();
-			expect(result.recommendedTools).toHaveLength(1);
+			expect(result.tool).toBe("ChatGPT");
 		});
 	});
 });

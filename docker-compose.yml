@@ -57,7 +57,6 @@ services:
       NODE_ENV: development
       PORT: "3000"
       MONGODB_URI: mongodb://mongodb:27017
-      AWS_REGION: eu-central-1
       REDIS_URL: redis://redis:6379
       APP_URL: http://localhost:5173
       API_URL: http://localhost:3000
@@ -88,12 +87,13 @@ services:
       NODE_ENV: development
       KB_BUILDER_PORT: "3002"
       MONGODB_URI: mongodb://mongodb:27017
-      AWS_REGION: eu-central-1
 
   web:
     build:
       context: .
       target: web
+      args:
+        VITE_GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID:-}"
     ports:
       - "5173:80"
     depends_on:

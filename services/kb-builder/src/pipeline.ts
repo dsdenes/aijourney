@@ -1,9 +1,13 @@
-import { runQualityFilter, type QualityResult } from "./quality-filter.js";
-import { runSummarization, type SummarizationResult } from "./summarizer.js";
-import { runRagIngestion, type RagIngestionResult } from "./rag-ingestor.js";
+import {
+	completeAgentRun,
+	failAgentRun,
+	startAgentRun,
+} from "./agent-run-logger.js";
 import { getArticlesByStatus } from "./article-repository.js";
 import { log } from "./log-stream.js";
-import { startAgentRun, completeAgentRun, failAgentRun } from "./agent-run-logger.js";
+import { type QualityResult, runQualityFilter } from "./quality-filter.js";
+import { type RagIngestionResult, runRagIngestion } from "./rag-ingestor.js";
+import { runSummarization, type SummarizationResult } from "./summarizer.js";
 
 export interface PipelineProgress {
 	status: "idle" | "running" | "completed" | "failed";
@@ -67,7 +71,10 @@ export async function runPipeline(): Promise<PipelineProgress> {
 		metadata: { ragProvider: "self" },
 	});
 
-	log("info", "Pipeline started: quality filter → summarization → Qdrant RAG ingestion");
+	log(
+		"info",
+		"Pipeline started: quality filter → summarization → Qdrant RAG ingestion",
+	);
 
 	try {
 		// Stage 1: Quality Filter
@@ -86,11 +93,17 @@ export async function runPipeline(): Promise<PipelineProgress> {
 		const qualityPassedArticles = await getArticlesByStatus("quality_passed");
 		if (qualityPassedArticles.length === 0) {
 			pipelineProgress.stages.summarization.status = "skipped";
-			log("info", "─── Stage 2/3: Summarization — SKIPPED (no quality_passed articles) ───");
+			log(
+				"info",
+				"─── Stage 2/3: Summarization — SKIPPED (no quality_passed articles) ───",
+			);
 		} else {
 			pipelineProgress.currentStage = "summarization";
 			pipelineProgress.stages.summarization.status = "running";
-			log("info", `─── Stage 2/3: Summarization (OpenAI) — ${qualityPassedArticles.length} articles ───`);
+			log(
+				"info",
+				`─── Stage 2/3: Summarization (OpenAI) — ${qualityPassedArticles.length} articles ───`,
+			);
 
 			const summarizationResult = await runSummarization();
 			pipelineProgress.stages.summarization = {
@@ -108,11 +121,17 @@ export async function runPipeline(): Promise<PipelineProgress> {
 
 		if (articlesForIngestion.length === 0) {
 			pipelineProgress.stages.ingestion.status = "skipped";
-			log("info", "─── Stage 3/3: Ingestion — SKIPPED (no articles to ingest) ───");
+			log(
+				"info",
+				"─── Stage 3/3: Ingestion — SKIPPED (no articles to ingest) ───",
+			);
 		} else {
 			pipelineProgress.currentStage = "ingestion";
 			pipelineProgress.stages.ingestion.status = "running";
-			log("info", `─── Stage 3/3: RAG Ingestion (Qdrant) — ${articlesForIngestion.length} articles ───`);
+			log(
+				"info",
+				`─── Stage 3/3: RAG Ingestion (Qdrant) — ${articlesForIngestion.length} articles ───`,
+			);
 
 			const ragResult = await runRagIngestion();
 			pipelineProgress.stages.ingestion = {
@@ -151,7 +170,10 @@ export async function runPipeline(): Promise<PipelineProgress> {
 		pipelineProgress.status = "failed";
 		pipelineProgress.completedAt = new Date().toISOString();
 		pipelineProgress.error = msg;
-		log("error", `Pipeline failed at stage '${pipelineProgress.currentStage}': ${msg}`);
+		log(
+			"error",
+			`Pipeline failed at stage '${pipelineProgress.currentStage}': ${msg}`,
+		);
 		await failAgentRun(agentRun.id, msg, Date.now() - startTime);
 	}
 

@@ -1,7 +1,4 @@
-const COGNITO_DOMAIN = import.meta.env.VITE_COGNITO_DOMAIN as
-	| string
-	| undefined;
-const COGNITO_CLIENT_ID = import.meta.env.VITE_COGNITO_CLIENT_ID as
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as
 	| string
 	| undefined;
 const API_BASE = import.meta.env.VITE_API_URL || "/api";
@@ -41,14 +38,14 @@ function createAuth() {
 		},
 
 		login() {
-			if (COGNITO_DOMAIN && COGNITO_CLIENT_ID) {
+			if (GOOGLE_CLIENT_ID) {
 				const redirectUri = encodeURIComponent(
 					window.location.origin + "/auth/callback",
 				);
-				window.location.href = `${COGNITO_DOMAIN}/login?client_id=${COGNITO_CLIENT_ID}&response_type=code&scope=openid+email+profile&redirect_uri=${redirectUri}`;
+				window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&response_type=code&scope=openid+email+profile&redirect_uri=${redirectUri}&access_type=offline&prompt=consent`;
 			} else {
 				console.error(
-					"Cognito is not configured. Set VITE_COGNITO_DOMAIN and VITE_COGNITO_CLIENT_ID in .env",
+					"Google OAuth is not configured. Set VITE_GOOGLE_CLIENT_ID in build environment.",
 				);
 			}
 		},
@@ -90,12 +87,7 @@ function createAuth() {
 		logout() {
 			user = null;
 			localStorage.removeItem("auth_user");
-
-			// If Cognito is configured, redirect to Cognito logout
-			if (COGNITO_DOMAIN && COGNITO_CLIENT_ID) {
-				const logoutUri = encodeURIComponent(window.location.origin);
-				window.location.href = `${COGNITO_DOMAIN}/logout?client_id=${COGNITO_CLIENT_ID}&logout_uri=${logoutUri}`;
-			}
+			// Google OAuth doesn't have a logout endpoint — just clear local state
 		},
 
 		setUser(newUser: AuthUser) {

@@ -20,25 +20,15 @@ jobs:
 
       - name: Write .env file
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
-          COGNITO_CLIENT_ID: ${{ secrets.COGNITO_CLIENT_ID }}
-          COGNITO_CLIENT_SECRET: ${{ secrets.COGNITO_CLIENT_SECRET }}
-          COGNITO_DOMAIN: ${{ secrets.COGNITO_DOMAIN }}
-          COGNITO_ISSUER: ${{ secrets.COGNITO_ISSUER }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
         run: |
           cd $DEPLOY_PATH
           cat > .env <<EOF
-          AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-          AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
           OPENAI_API_KEY=${OPENAI_API_KEY}
-          COGNITO_USER_POOL_ID=${COGNITO_USER_POOL_ID}
-          COGNITO_CLIENT_ID=${COGNITO_CLIENT_ID}
-          COGNITO_CLIENT_SECRET=${COGNITO_CLIENT_SECRET}
-          COGNITO_DOMAIN=${COGNITO_DOMAIN}
-          COGNITO_ISSUER=${COGNITO_ISSUER}
+          GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+          GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
           EOF
 
       - name: Build Docker images

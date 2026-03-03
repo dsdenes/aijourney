@@ -19,18 +19,12 @@ services:
       NODE_ENV: production
       PORT: "3000"
       MONGODB_URI: mongodb://mongodb:27017
-      AWS_REGION: eu-central-1
-      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
-      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
       REDIS_URL: redis://redis:6379
       APP_URL: "https://ai.1p.hu"
       API_URL: "https://ai.1p.hu/api"
       ALLOWED_EMAIL_DOMAIN: mito.hu
-      COGNITO_USER_POOL_ID: "${COGNITO_USER_POOL_ID}"
-      COGNITO_CLIENT_ID: "${COGNITO_CLIENT_ID}"
-      COGNITO_CLIENT_SECRET: "${COGNITO_CLIENT_SECRET}"
-      COGNITO_DOMAIN: "${COGNITO_DOMAIN}"
-      COGNITO_ISSUER: "${COGNITO_ISSUER}"
+      GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID}"
+      GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET}"
       OPENAI_API_KEY: "${OPENAI_API_KEY}"
       KB_BUILDER_URL: "http://kb-builder:3002"
       QDRANT_URL: "http://qdrant:6333"
@@ -41,6 +35,8 @@ services:
     build:
       context: .
       target: web
+      args:
+        VITE_GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID}"
     restart: unless-stopped
     ports:
       - "5173:80"
@@ -56,9 +52,6 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: production
-      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
-      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
-      AWS_REGION: eu-central-1
       REDIS_URL: redis://redis:6379
       OPENAI_API_KEY: "${OPENAI_API_KEY}"
       QDRANT_URL: "http://qdrant:6333"
@@ -75,9 +68,6 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: production
-      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
-      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
-      AWS_REGION: eu-central-1
       OPENAI_API_KEY: "${OPENAI_API_KEY}"
       KB_BUILDER_PORT: "3002"
       MONGODB_URI: mongodb://mongodb:27017

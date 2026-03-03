@@ -1,8 +1,24 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { AuthService } from "./auth.service";
+import type { AppConfigService } from "../config/config.service";
+import type { UsersService } from "../users/users.service";
 
 describe("AuthService", () => {
-	const service = new AuthService();
+	const mockConfigService = {
+		config: {
+			GOOGLE_CLIENT_ID: "test-client-id",
+			GOOGLE_CLIENT_SECRET: "test-secret",
+			ALLOWED_EMAIL_DOMAIN: "mito.hu",
+		},
+	} as unknown as AppConfigService;
+
+	const mockUsersService = {
+		getByEmail: vi.fn(),
+		create: vi.fn(),
+		update: vi.fn(),
+	} as unknown as UsersService;
+
+	const service = new AuthService(mockConfigService, mockUsersService);
 
 	describe("validateUser", () => {
 		it("should return userId and email from payload", async () => {

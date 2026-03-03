@@ -8,14 +8,12 @@ describe("AppConfigService", () => {
 
 		// Set minimal env
 		process.env.NODE_ENV = "test";
-		process.env.AWS_REGION = "eu-central-1";
 		process.env.REDIS_URL = "redis://localhost:6379";
 
 		const configService = new AppConfigService();
 
 		expect(configService.config.NODE_ENV).toBe("test");
 		expect(configService.config.PORT).toBe(3000);
-		expect(configService.config.AWS_REGION).toBe("eu-central-1");
 		expect(configService.config.REDIS_URL).toBe("redis://localhost:6379");
 		expect(configService.config.ALLOWED_EMAIL_DOMAIN).toBe("mito.hu");
 

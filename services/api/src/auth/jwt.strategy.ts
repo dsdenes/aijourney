@@ -10,6 +10,9 @@ import { AppConfigService } from "../config/config.service";
 import { UsersService } from "../users/users.service";
 import { AuthService } from "./auth.service";
 
+const GOOGLE_ISSUER = "https://accounts.google.com";
+const GOOGLE_JWKS_URI = "https://www.googleapis.com/oauth2/v3/certs";
+
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, "jwt") {
 	private readonly logger = new Logger(JwtStrategy.name);
@@ -19,21 +22,21 @@ export class JwtStrategy extends PassportStrategy(Strategy, "jwt") {
 		@Inject(AuthService) private readonly authService: AuthService,
 		@Inject(UsersService) private readonly usersService: UsersService,
 	) {
-		const cognitoIssuer = configService.config.COGNITO_ISSUER;
+		const googleClientId = configService.config.GOOGLE_CLIENT_ID;
 
 		const opts: StrategyOptionsWithoutRequest = {
 			jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
 			ignoreExpiration: configService.isDevelopment,
-			// In dev mode without Cognito, accept any algorithm
-			...(cognitoIssuer
+			...(googleClientId
 				? {
-						issuer: cognitoIssuer,
+						issuer: GOOGLE_ISSUER,
+						audience: googleClientId,
 						algorithms: ["RS256"],
 						secretOrKeyProvider: jwksRsa.passportJwtSecret({
 							cache: true,
 							rateLimit: true,
 							jwksRequestsPerMinute: 5,
-							jwksUri: `${cognitoIssuer}/.well-known/jwks.json`,
+							jwksUri: GOOGLE_JWKS_URI,
 						}),
 					}
 				: {
@@ -47,9 +50,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, "jwt") {
 	async validate(
 		payload: Record<string, unknown>,
 	): Promise<{ userId: string; email: string; role: string }> {
-		const email = (payload["email"] ||
-			payload["cognito:username"] ||
-			"dev@mito.hu") as string;
+		const email = (payload["email"] || "dev@mito.hu") as string;
 		const domain = this.configService.config.ALLOWED_EMAIL_DOMAIN;
 
 		if (domain && !email.endsWith(`@${domain}`)) {

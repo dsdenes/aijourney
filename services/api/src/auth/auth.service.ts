@@ -5,7 +5,7 @@ import { UsersService } from "../users/users.service";
 /** Emails that are automatically promoted to admin on first login */
 const DEFAULT_ADMINS = ["d.pal@mito.hu"];
 
-interface CognitoTokenResponse {
+interface GoogleTokenResponse {
 	id_token: string;
 	access_token: string;
 	refresh_token?: string;
@@ -13,12 +13,13 @@ interface CognitoTokenResponse {
 	token_type: string;
 }
 
-interface TokenPayload {
+interface GoogleIdTokenPayload {
 	sub: string;
 	email: string;
+	email_verified?: boolean;
 	name?: string;
-	"cognito:username"?: string;
-	"custom:role"?: string;
+	picture?: string;
+	hd?: string; // hosted domain (Google Workspace)
 }
 
 @Injectable()
@@ -31,7 +32,7 @@ export class AuthService {
 	) {}
 
 	/**
-	 * Exchange an OAuth authorization code for Cognito tokens.
+	 * Exchange a Google OAuth authorization code for tokens.
 	 */
 	async exchangeCodeForTokens(
 		code: string,
@@ -43,59 +44,56 @@ export class AuthService {
 		expiresIn: number;
 		user: { userId: string; email: string; name: string; role: string; onboardingComplete: boolean };
 	}> {
-		const { COGNITO_DOMAIN, COGNITO_CLIENT_ID, COGNITO_CLIENT_SECRET } =
+		const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET } =
 			this.configService.config;
 
-		if (!COGNITO_DOMAIN || !COGNITO_CLIENT_ID) {
-			throw new UnauthorizedException("Cognito is not configured");
+		if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
+			throw new UnauthorizedException("Google OAuth is not configured");
 		}
 
-		const tokenUrl = `${COGNITO_DOMAIN}/oauth2/token`;
+		const tokenUrl = "https://oauth2.googleapis.com/token";
 
 		const params = new URLSearchParams({
 			grant_type: "authorization_code",
-			client_id: COGNITO_CLIENT_ID,
+			client_id: GOOGLE_CLIENT_ID,
+			client_secret: GOOGLE_CLIENT_SECRET,
 			code,
 			redirect_uri: redirectUri,
 		});
 
-		const headers: Record<string, string> = {
-			"Content-Type": "application/x-www-form-urlencoded",
-		};
-
-		// If client secret is set, use Basic auth
-		if (COGNITO_CLIENT_SECRET) {
-			const basic = Buffer.from(
-				`${COGNITO_CLIENT_ID}:${COGNITO_CLIENT_SECRET}`,
-			).toString("base64");
-			headers["Authorization"] = `Basic ${basic}`;
-		}
-
-		this.logger.debug(`Exchanging code at ${tokenUrl}`);
+		this.logger.debug("Exchanging Google auth code for tokens");
 
 		const response = await fetch(tokenUrl, {
 			method: "POST",
-			headers,
+			headers: {
+				"Content-Type": "application/x-www-form-urlencoded",
+			},
 			body: params.toString(),
 		});
 
 		if (!response.ok) {
 			const errorBody = await response.text();
 			this.logger.error(
-				`Token exchange failed: ${response.status} ${errorBody}`,
+				`Google token exchange failed: ${response.status} ${errorBody}`,
 			);
 			throw new UnauthorizedException(
 				`Token exchange failed: ${response.status}`,
 			);
 		}
 
-		const tokens = (await response.json()) as CognitoTokenResponse;
+		const tokens = (await response.json()) as GoogleTokenResponse;
 
-		// Decode the ID token payload (no verification needed here — jwt.strategy handles that)
+		// Decode the ID token payload
 		const payload = this.decodeJwtPayload(tokens.id_token);
-		const email = payload.email || payload["cognito:username"] || "";
+		const email = payload.email || "";
 		const name = payload.name || email;
 		const sub = payload.sub;
+
+		// Verify email domain
+		const domain = this.configService.config.ALLOWED_EMAIL_DOMAIN;
+		if (domain && !email.endsWith(`@${domain}`)) {
+			throw new UnauthorizedException(`Email domain must be @${domain}`);
+		}
 
 		// Upsert user in database
 		const { user, role } = await this.upsertUser(sub, email, name);
@@ -166,7 +164,7 @@ export class AuthService {
 		};
 	}
 
-	private decodeJwtPayload(jwt: string): TokenPayload {
+	private decodeJwtPayload(jwt: string): GoogleIdTokenPayload {
 		const parts = jwt.split(".");
 		if (parts.length !== 3) {
 			throw new UnauthorizedException("Invalid JWT format");

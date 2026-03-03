@@ -14,7 +14,6 @@
 	},
 	"dependencies": {
 		"@aijourney/shared": "workspace:*",
-		"@aws-sdk/client-bedrock-runtime": "^3.1000.0",
 		"@nestjs/bullmq": "^11.0.0",
 		"@nestjs/common": "^11.0.0",
 		"@nestjs/core": "^11.0.0",
