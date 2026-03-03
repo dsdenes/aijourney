@@ -1,5 +1,5 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
 import { EventEmitter } from "node:events";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock dependencies
 vi.mock("./article-repository.js", () => ({
@@ -17,7 +17,9 @@ vi.mock("./log-stream.js", () => ({
 
 // Helper to create a mock spawn child process
 let mockSpawnResult: { stdout: string; stderr: string; code: number } = {
-	stdout: "[]", stderr: "", code: 0,
+	stdout: "[]",
+	stderr: "",
+	code: 0,
 };
 
 vi.mock("node:child_process", () => ({
@@ -57,12 +59,17 @@ vi.mock("@pinecone-database/pinecone", () => ({
 	},
 }));
 
-import { getArticlesByStatus, updateArticleStatus } from "./article-repository.js";
-import { getSummaryByArticleId } from "./summary-repository.js";
 import { spawn } from "node:child_process";
+import {
+	getArticlesByStatus,
+	updateArticleStatus,
+} from "./article-repository.js";
+import { getSummaryByArticleId } from "./summary-repository.js";
 
 // We need to import after mocks
-const { runRagIngestion, ensureCollection, chunkDocuments } = await import("./rag-ingestor.js");
+const { runRagIngestion, ensureCollection, chunkDocuments } = await import(
+	"./rag-ingestor.js"
+);
 
 describe("RAG Ingestor", () => {
 	beforeEach(() => {
@@ -129,9 +136,16 @@ describe("RAG Ingestor", () => {
 
 		it("should skip articles without summaries", async () => {
 			vi.mocked(getArticlesByStatus).mockImplementation(async (status) => {
-				if (status === "summarized") return [
-					{ id: "a1", title: "Test Article", url: "http://test.com", source: "test", status: "summarized" } as any,
-				];
+				if (status === "summarized")
+					return [
+						{
+							id: "a1",
+							title: "Test Article",
+							url: "http://test.com",
+							source: "test",
+							status: "summarized",
+						} as any,
+					];
 				return [];
 			});
 			vi.mocked(getSummaryByArticleId).mockResolvedValue(null);
@@ -144,11 +158,18 @@ describe("RAG Ingestor", () => {
 
 		it("should process articles through chunk → upsert pipeline", async () => {
 			const mockArticle = {
-				id: "a1", title: "AI Best Practices", url: "http://test.com/ai",
-				source: "blog", status: "summarized", crawledAt: "2025-01-01",
+				id: "a1",
+				title: "AI Best Practices",
+				url: "http://test.com/ai",
+				source: "blog",
+				status: "summarized",
+				crawledAt: "2025-01-01",
 			};
 			const mockSummary = {
-				id: "s1", articleId: "a1", model: "gpt-5-mini", createdAt: "2025-01-01",
+				id: "s1",
+				articleId: "a1",
+				model: "gpt-5-mini",
+				createdAt: "2025-01-01",
 				content: {
 					title: "AI Best Practices",
 					keyPoints: ["Use AI wisely"],
@@ -170,8 +191,20 @@ describe("RAG Ingestor", () => {
 
 			// Mock chunker via spawn
 			const mockChunks = [
-				{ doc_id: "a1", index: 0, text: "AI Best Practices\nUse AI wisely", start: 0, end: 30 },
-				{ doc_id: "a1", index: 1, text: "Test outputs\nDon't trust blindly", start: 20, end: 52 },
+				{
+					doc_id: "a1",
+					index: 0,
+					text: "AI Best Practices\nUse AI wisely",
+					start: 0,
+					end: 30,
+				},
+				{
+					doc_id: "a1",
+					index: 1,
+					text: "Test outputs\nDon't trust blindly",
+					start: 20,
+					end: 52,
+				},
 			];
 			mockSpawnResult = {
 				stdout: JSON.stringify(mockChunks),

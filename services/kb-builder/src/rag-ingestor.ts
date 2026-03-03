@@ -81,10 +81,14 @@ export async function ensureCollection(): Promise<void> {
 	try {
 		const pc = getPinecone();
 		const description = await pc.describeIndex(PINECONE_INDEX_NAME);
-		log("debug", `Pinecone index '${PINECONE_INDEX_NAME}' status: ${description.status?.state}`, {
-			dimension: description.dimension,
-			metric: description.metric,
-		});
+		log(
+			"debug",
+			`Pinecone index '${PINECONE_INDEX_NAME}' status: ${description.status?.state}`,
+			{
+				dimension: description.dimension,
+				metric: description.metric,
+			},
+		);
 	} catch (err) {
 		throw new Error(
 			`Pinecone index '${PINECONE_INDEX_NAME}' not reachable: ${err instanceof Error ? err.message : String(err)}`,
@@ -354,7 +358,11 @@ export async function deleteVectorsByArticleId(
 		// Pinecone integrated model indexes use `searchRecords` to find, `deleteMany` to remove
 		// We delete by listing matching IDs then deleting them
 		const results = await index.searchRecords({
-			query: { topK: 1000, filter: { doc_id: { $eq: articleId } }, inputs: { text: "." } },
+			query: {
+				topK: 1000,
+				filter: { doc_id: { $eq: articleId } },
+				inputs: { text: "." },
+			},
 			fields: [],
 		});
 
@@ -367,7 +375,10 @@ export async function deleteVectorsByArticleId(
 		const ids = hits.map((h) => h._id);
 		await index.deleteMany(ids);
 
-		log("info", `Deleted ${ids.length} Pinecone records for article ${articleId}`);
+		log(
+			"info",
+			`Deleted ${ids.length} Pinecone records for article ${articleId}`,
+		);
 		return ids.length;
 	} catch (err) {
 		log(
@@ -385,7 +396,10 @@ export async function deleteAllVectors(): Promise<void> {
 	try {
 		const index = getIndex();
 		await index.namespace("").deleteAll();
-		log("info", `Deleted all records in Pinecone index '${PINECONE_INDEX_NAME}'`);
+		log(
+			"info",
+			`Deleted all records in Pinecone index '${PINECONE_INDEX_NAME}'`,
+		);
 	} catch (err) {
 		log(
 			"warn",

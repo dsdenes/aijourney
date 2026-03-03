@@ -111,11 +111,15 @@ export async function searchKnowledgeBase(
 			};
 		});
 
-	log("debug", `RAG search: "${query.slice(0, 60)}" → ${chunks.length} chunks`, {
-		topK,
-		scoreThreshold,
-		resultsFound: chunks.length,
-	});
+	log(
+		"debug",
+		`RAG search: "${query.slice(0, 60)}" → ${chunks.length} chunks`,
+		{
+			topK,
+			scoreThreshold,
+			resultsFound: chunks.length,
+		},
+	);
 
 	// No external embedding tokens — Pinecone handles embedding internally
 	return { chunks, tokensUsed: 0 };

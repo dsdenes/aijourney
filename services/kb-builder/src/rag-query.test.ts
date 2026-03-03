@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock log-stream
 vi.mock("./log-stream.js", () => ({
@@ -108,8 +108,36 @@ describe("RAG Query", () => {
 			mockSearchRecords.mockResolvedValueOnce({
 				result: {
 					hits: [
-						{ _id: "a1:0", _score: 0.8, fields: { text: "Good match", doc_id: "a1", chunk_index: 0, article_url: "", article_title: "", article_source: "", summary_title: "", tags: [], difficulty: "" } },
-						{ _id: "a2:0", _score: 0.2, fields: { text: "Poor match", doc_id: "a2", chunk_index: 0, article_url: "", article_title: "", article_source: "", summary_title: "", tags: [], difficulty: "" } },
+						{
+							_id: "a1:0",
+							_score: 0.8,
+							fields: {
+								text: "Good match",
+								doc_id: "a1",
+								chunk_index: 0,
+								article_url: "",
+								article_title: "",
+								article_source: "",
+								summary_title: "",
+								tags: [],
+								difficulty: "",
+							},
+						},
+						{
+							_id: "a2:0",
+							_score: 0.2,
+							fields: {
+								text: "Poor match",
+								doc_id: "a2",
+								chunk_index: 0,
+								article_url: "",
+								article_title: "",
+								article_source: "",
+								summary_title: "",
+								tags: [],
+								difficulty: "",
+							},
+						},
 					],
 				},
 			});
