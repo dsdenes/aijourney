@@ -1,4 +1,3 @@
-import { EventEmitter } from "node:events";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock dependencies
@@ -13,33 +12,6 @@ vi.mock("./summary-repository.js", () => ({
 
 vi.mock("./log-stream.js", () => ({
 	log: vi.fn(),
-}));
-
-// Helper to create a mock spawn child process
-let mockSpawnResult: { stdout: string; stderr: string; code: number } = {
-	stdout: "[]",
-	stderr: "",
-	code: 0,
-};
-
-vi.mock("node:child_process", () => ({
-	spawn: vi.fn(() => {
-		const child = new EventEmitter() as any;
-		child.stdout = new EventEmitter();
-		child.stderr = new EventEmitter();
-		child.stdin = { write: vi.fn(), end: vi.fn() };
-
-		// Emit the data async to simulate real behavior
-		setTimeout(() => {
-			if (mockSpawnResult.stderr) {
-				child.stderr.emit("data", Buffer.from(mockSpawnResult.stderr));
-			}
-			child.stdout.emit("data", Buffer.from(mockSpawnResult.stdout));
-			child.emit("close", mockSpawnResult.code);
-		}, 0);
-
-		return child;
-	}),
 }));
 
 // Mock Pinecone SDK
@@ -59,7 +31,6 @@ vi.mock("@pinecone-database/pinecone", () => ({
 	},
 }));
 
-import { spawn } from "node:child_process";
 import {
 	getArticlesByStatus,
 	updateArticleStatus,
@@ -100,26 +71,34 @@ describe("RAG Ingestor", () => {
 	});
 
 	describe("chunkDocuments", () => {
-		it("should call spawn with JSON input and parse output", async () => {
-			const mockOutput = [
-				{ doc_id: "a1", index: 0, text: "Hello world", start: 0, end: 11 },
-			];
-			mockSpawnResult = {
-				stdout: JSON.stringify(mockOutput),
-				stderr: "",
-				code: 0,
-			};
-
-			const result = await chunkDocuments([
+		it("should chunk text into paragraph-aware overlapping pieces", () => {
+			const result = chunkDocuments([
 				{ id: "a1", text: "Hello world", chunk_size: 800, overlap: 150 },
 			]);
 
-			expect(result).toEqual(mockOutput);
-			expect(spawn).toHaveBeenCalledWith(
-				expect.stringContaining("chunker"),
-				[],
-				expect.any(Object),
-			);
+			expect(result).toHaveLength(1);
+			expect(result[0].doc_id).toBe("a1");
+			expect(result[0].text).toBe("Hello world");
+			expect(result[0].index).toBe(0);
+		});
+
+		it("should split long text into multiple chunks", () => {
+			const longText = Array.from({ length: 20 }, (_, i) => `Paragraph ${i + 1} with some content.`).join("\n\n");
+			const result = chunkDocuments([
+				{ id: "a1", text: longText, chunk_size: 200, overlap: 50 },
+			]);
+
+			expect(result.length).toBeGreaterThan(1);
+			for (const chunk of result) {
+				expect(chunk.doc_id).toBe("a1");
+			}
+		});
+
+		it("should handle empty text", () => {
+			const result = chunkDocuments([
+				{ id: "a1", text: "", chunk_size: 800, overlap: 150 },
+			]);
+			expect(result).toHaveLength(0);
 		});
 	});
 
@@ -189,33 +168,10 @@ describe("RAG Ingestor", () => {
 			vi.mocked(getSummaryByArticleId).mockResolvedValue(mockSummary as any);
 			vi.mocked(updateArticleStatus).mockResolvedValue(undefined);
 
-			// Mock chunker via spawn
-			const mockChunks = [
-				{
-					doc_id: "a1",
-					index: 0,
-					text: "AI Best Practices\nUse AI wisely",
-					start: 0,
-					end: 30,
-				},
-				{
-					doc_id: "a1",
-					index: 1,
-					text: "Test outputs\nDon't trust blindly",
-					start: 20,
-					end: 52,
-				},
-			];
-			mockSpawnResult = {
-				stdout: JSON.stringify(mockChunks),
-				stderr: "",
-				code: 0,
-			};
-
 			const result = await runRagIngestion();
 
 			expect(result.ingested).toBe(1);
-			expect(result.totalChunks).toBe(2);
+			expect(result.totalChunks).toBeGreaterThan(0);
 			expect(result.totalTokensUsed).toBe(0); // Pinecone handles embedding internally
 			expect(result.errors).toHaveLength(0);
 			expect(updateArticleStatus).toHaveBeenCalledWith("a1", "ingested");
@@ -224,12 +180,10 @@ describe("RAG Ingestor", () => {
 			expect(mockUpsertRecords).toHaveBeenCalledTimes(1);
 			const upsertArg = mockUpsertRecords.mock.calls[0][0];
 			const upsertedRecords = upsertArg.records;
-			expect(upsertedRecords).toHaveLength(2);
+			expect(upsertedRecords.length).toBeGreaterThan(0);
 			expect(upsertedRecords[0]._id).toBe("a1:0");
-			expect(upsertedRecords[0].text).toBe("AI Best Practices\nUse AI wisely");
 			expect(upsertedRecords[0].doc_id).toBe("a1");
 			expect(upsertedRecords[0].article_url).toBe("http://test.com/ai");
-			expect(upsertedRecords[1]._id).toBe("a1:1");
 		});
 	});
 });

@@ -230,12 +230,24 @@ app.get("/pipeline/progress", (_req, res) => {
 app.post("/pipeline/ingest", async (_req, res) => {
 	log("info", "Standalone Pinecone RAG ingestion triggered");
 	const { runRagIngestion } = await import("./rag-ingestor.js");
-	void runRagIngestion().then((result) => {
-		log("info", "Standalone ingestion completed", result as unknown as Record<string, unknown>);
-	}).catch((err: unknown) => {
-		log("error", `Standalone ingestion failed: ${err instanceof Error ? err.message : String(err)}`);
+	void runRagIngestion()
+		.then((result) => {
+			log(
+				"info",
+				"Standalone ingestion completed",
+				result as unknown as Record<string, unknown>,
+			);
+		})
+		.catch((err: unknown) => {
+			log(
+				"error",
+				`Standalone ingestion failed: ${err instanceof Error ? err.message : String(err)}`,
+			);
+		});
+	res.json({
+		status: "accepted",
+		message: "Pinecone RAG ingestion started for summarized articles",
 	});
-	res.json({ status: "accepted", message: "Pinecone RAG ingestion started for summarized articles" });
 });
 
 // --------------- Summaries ---------------

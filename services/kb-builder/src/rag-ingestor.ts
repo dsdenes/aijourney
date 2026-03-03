@@ -1,16 +1,13 @@
 /**
  * RAG ingestor — uses Pinecone with integrated embedding:
- *   1. Rust chunker for paragraph-aware text splitting
+ *   1. TypeScript paragraph-aware text chunker (no external binary needed)
  *   2. Pinecone serverless index with multilingual-e5-large for embedding + vector storage
  *
  * Each "summarized" article gets its formatted summary text chunked
  * and upserted into Pinecone with rich metadata.
- * Pinecone handles embedding internally — no separate OpenAI embedding calls needed.
+ * Pinecone handles both embedding and vector storage internally.
  */
 
-import { type ChildProcess, spawn } from "node:child_process";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import type { Article, Summary } from "@aijourney/shared";
 import { Pinecone } from "@pinecone-database/pinecone";
 import {
@@ -22,17 +19,10 @@ import { getSummaryByArticleId } from "./summary-repository.js";
 
 // ── Config ──
 
-const PINECONE_API_KEY = process.env.PINECONE_API_KEY || "";
 const PINECONE_INDEX_NAME = process.env.PINECONE_INDEX_NAME || "aijourney-kb";
 
 /** Maximum records to upsert in a single Pinecone batch call */
 const UPSERT_BATCH_SIZE = 100;
-
-// Resolve chunker binary relative to this source file
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const CHUNKER_BIN =
-	process.env.CHUNKER_BIN ||
-	resolve(__dirname, "../../..", "tools/chunker/target/release/chunker");
 
 // ── Types ──
 
@@ -96,61 +86,121 @@ export async function ensureCollection(): Promise<void> {
 	}
 }
 
-// ── Chunker ──
+// ── Chunker (pure TypeScript, paragraph-aware) ──
 
-/** Run the Rust chunker on a batch of documents using spawn for proper pipe handling. */
-export async function chunkDocuments(
-	inputs: ChunkInput[],
-): Promise<ChunkOutput[]> {
-	const inputJson = JSON.stringify(inputs);
-	return new Promise((resolve, reject) => {
-		const child: ChildProcess = spawn(CHUNKER_BIN, [], {
-			stdio: ["pipe", "pipe", "pipe"],
-		});
+/**
+ * Split text into (offset, paragraphText) pairs.
+ * A paragraph boundary is two or more consecutive newlines.
+ * Single newlines are converted to spaces within a paragraph.
+ */
+function splitParagraphs(text: string): Array<{ offset: number; text: string }> {
+	const paragraphs: Array<{ offset: number; text: string }> = [];
+	let currentStart: number | null = null;
+	let current = "";
+	let consecutiveNewlines = 0;
+	let charOffset = 0;
 
-		let stdout = "";
-		let stderr = "";
-
-		child.stdout!.on("data", (data: Buffer) => {
-			stdout += data.toString();
-		});
-
-		child.stderr!.on("data", (data: Buffer) => {
-			stderr += data.toString();
-		});
-
-		child.on("error", (err: Error) => {
-			reject(new Error(`Chunker spawn error: ${err.message}`));
-		});
-
-		child.on("close", (code: number | null) => {
-			if (stderr) {
-				log("warn", `Chunker stderr: ${stderr.slice(0, 200)}`);
+	for (const ch of text) {
+		if (ch === "\n") {
+			consecutiveNewlines++;
+		} else {
+			if (consecutiveNewlines >= 2) {
+				// Paragraph break
+				const trimmed = current.trim();
+				if (trimmed) {
+					paragraphs.push({ offset: currentStart ?? 0, text: trimmed });
+				}
+				current = "";
+				currentStart = charOffset;
+				consecutiveNewlines = 0;
+			} else if (consecutiveNewlines === 1) {
+				// Single newline → space
+				current += " ";
+				consecutiveNewlines = 0;
 			}
-			if (code !== 0) {
-				reject(
-					new Error(
-						`Chunker exited with code ${code}: ${stderr.slice(0, 500)}`,
-					),
-				);
-				return;
+			if (currentStart === null) {
+				currentStart = charOffset;
 			}
-			try {
-				const parsed = JSON.parse(stdout) as ChunkOutput[];
-				resolve(parsed);
-			} catch (err) {
-				reject(
-					new Error(
-						`Chunker output parse error: ${err instanceof Error ? err.message : String(err)}`,
-					),
-				);
+			current += ch;
+		}
+		charOffset += Buffer.byteLength(ch, "utf8");
+	}
+
+	// Flush last paragraph
+	const trimmed = current.trim();
+	if (trimmed) {
+		paragraphs.push({ offset: currentStart ?? 0, text: trimmed });
+	}
+
+	return paragraphs;
+}
+
+/**
+ * Paragraph-aware, overlapping text chunker.
+ * Greedily accumulates paragraphs up to `chunk_size` chars,
+ * then backs up by `overlap` chars worth of paragraphs for context continuity.
+ */
+function chunkText(input: ChunkInput): ChunkOutput[] {
+	const paragraphs = splitParagraphs(input.text);
+	if (paragraphs.length === 0) return [];
+
+	const chunks: ChunkOutput[] = [];
+	let i = 0;
+
+	while (i < paragraphs.length) {
+		let currentText = "";
+		const chunkStart = paragraphs[i]!.offset;
+		let chunkEnd = paragraphs[i]!.offset;
+		let j = i;
+
+		// Accumulate paragraphs up to chunk_size
+		while (j < paragraphs.length) {
+			const para = paragraphs[j]!.text;
+			const wouldBe = currentText === "" ? para.length : currentText.length + 2 + para.length;
+
+			if (currentText !== "" && wouldBe > input.chunk_size) {
+				break;
 			}
+
+			if (currentText !== "") {
+				currentText += "\n\n";
+			}
+			currentText += para;
+			chunkEnd = paragraphs[j]!.offset + paragraphs[j]!.text.length;
+			j++;
+		}
+
+		chunks.push({
+			doc_id: input.id,
+			index: chunks.length,
+			text: currentText,
+			start: chunkStart,
+			end: chunkEnd,
 		});
 
-		// Write input to stdin and close the pipe
-		child.stdin!.write(inputJson);
-		child.stdin!.end();
-	});
+		if (j >= paragraphs.length) break;
+
+		// Calculate overlap: back up enough paragraphs to cover `overlap` chars
+		let overlapChars = 0;
+		let back = j;
+		while (back > i + 1 && overlapChars < input.overlap) {
+			back--;
+			overlapChars += paragraphs[back]!.text.length;
+		}
+
+		i = back;
+	}
+
+	return chunks;
+}
+
+/** Chunk a batch of documents using paragraph-aware splitting. */
+export function chunkDocuments(inputs: ChunkInput[]): ChunkOutput[] {
+	const allChunks: ChunkOutput[] = [];
+	for (const input of inputs) {
+		allChunks.push(...chunkText(input));
+	}
+	return allChunks;
 }
 
 // ── Document formatting ──
@@ -259,11 +309,11 @@ export async function runRagIngestion(): Promise<RagIngestionResult> {
 		return result;
 	}
 
-	// Step 2: Chunk all documents via Rust binary
-	log("info", `Chunking ${chunkInputs.length} documents via Rust chunker`);
+	// Step 2: Chunk all documents via TypeScript paragraph-aware chunker
+	log("info", `Chunking ${chunkInputs.length} documents`);
 	let chunks: ChunkOutput[];
 	try {
-		chunks = await chunkDocuments(chunkInputs);
+		chunks = chunkDocuments(chunkInputs);
 	} catch (err) {
 		const msg = `Chunker failed: ${err instanceof Error ? err.message : String(err)}`;
 		result.errors.push(msg);
