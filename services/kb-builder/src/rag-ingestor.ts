@@ -21,8 +21,8 @@ import { getSummaryByArticleId } from "./summary-repository.js";
 
 const PINECONE_INDEX_NAME = process.env.PINECONE_INDEX_NAME || "aijourney-kb";
 
-/** Maximum records to upsert in a single Pinecone batch call */
-const UPSERT_BATCH_SIZE = 100;
+/** Maximum records to upsert in a single Pinecone batch call (Pinecone limit: 96 for integrated embedding) */
+const UPSERT_BATCH_SIZE = 96;
 
 // ── Types ──
 
