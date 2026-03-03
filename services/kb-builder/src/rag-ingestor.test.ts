@@ -189,7 +189,8 @@ describe("RAG Ingestor", () => {
 
 			// Verify Pinecone upsertRecords was called with correct record format
 			expect(mockUpsertRecords).toHaveBeenCalledTimes(1);
-			const upsertedRecords = mockUpsertRecords.mock.calls[0][0];
+			const upsertArg = mockUpsertRecords.mock.calls[0][0];
+			const upsertedRecords = upsertArg.records;
 			expect(upsertedRecords).toHaveLength(2);
 			expect(upsertedRecords[0]._id).toBe("a1:0");
 			expect(upsertedRecords[0].text).toBe("AI Best Practices\nUse AI wisely");

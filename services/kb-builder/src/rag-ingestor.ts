@@ -302,7 +302,7 @@ export async function runRagIngestion(): Promise<RagIngestionResult> {
 	for (let i = 0; i < records.length; i += UPSERT_BATCH_SIZE) {
 		const batch = records.slice(i, i + UPSERT_BATCH_SIZE);
 		try {
-			await index.upsertRecords(batch);
+			await index.upsertRecords({ records: batch });
 		} catch (err) {
 			const msg = `Pinecone upsert failed (batch ${Math.floor(i / UPSERT_BATCH_SIZE)}): ${err instanceof Error ? err.message : String(err)}`;
 			result.errors.push(msg);
@@ -364,7 +364,7 @@ export async function deleteVectorsByArticleId(
 			return 0;
 		}
 
-		const ids = hits.map((h: { _id: string }) => h._id);
+		const ids = hits.map((h) => h._id);
 		await index.deleteMany(ids);
 
 		log("info", `Deleted ${ids.length} Pinecone records for article ${articleId}`);

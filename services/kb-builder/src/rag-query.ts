@@ -92,21 +92,24 @@ export async function searchKnowledgeBase(
 
 	// Filter by score threshold and map results
 	const chunks: RagChunk[] = hits
-		.filter((hit: PineconeHit) => (hit._score ?? 0) >= scoreThreshold)
-		.map((hit: PineconeHit) => ({
-			text: String(hit.fields?.text || ""),
-			score: hit._score ?? 0,
-			metadata: {
-				doc_id: String(hit.fields?.doc_id || ""),
-				chunk_index: Number(hit.fields?.chunk_index || 0),
-				article_url: String(hit.fields?.article_url || ""),
-				article_title: String(hit.fields?.article_title || ""),
-				article_source: String(hit.fields?.article_source || ""),
-				summary_title: String(hit.fields?.summary_title || ""),
-				tags: (hit.fields?.tags as string[]) || [],
-				difficulty: String(hit.fields?.difficulty || ""),
-			},
-		}));
+		.filter((hit) => (hit._score ?? 0) >= scoreThreshold)
+		.map((hit) => {
+			const f = hit.fields as Record<string, unknown>;
+			return {
+				text: String(f.text || ""),
+				score: hit._score ?? 0,
+				metadata: {
+					doc_id: String(f.doc_id || ""),
+					chunk_index: Number(f.chunk_index || 0),
+					article_url: String(f.article_url || ""),
+					article_title: String(f.article_title || ""),
+					article_source: String(f.article_source || ""),
+					summary_title: String(f.summary_title || ""),
+					tags: (f.tags as string[]) || [],
+					difficulty: String(f.difficulty || ""),
+				},
+			};
+		});
 
 	log("debug", `RAG search: "${query.slice(0, 60)}" → ${chunks.length} chunks`, {
 		topK,
@@ -130,12 +133,4 @@ export async function isRagAvailable(): Promise<boolean> {
 	} catch {
 		return false;
 	}
-}
-
-// ── Internal types ──
-
-interface PineconeHit {
-	_id: string;
-	_score?: number;
-	fields?: Record<string, unknown>;
 }
