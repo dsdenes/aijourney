@@ -553,7 +553,9 @@ export function getEnabledSources(): CrawlSource[] {
 	return sources.filter((s) => s.enabled);
 }
 
-export function addSource(source: Omit<CrawlSource, "id" | "addedAt">): CrawlSource {
+export function addSource(
+	source: Omit<CrawlSource, "id" | "addedAt">,
+): CrawlSource {
 	const newSource: CrawlSource = {
 		...source,
 		id: source.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
@@ -570,7 +572,10 @@ export function removeSource(id: string): boolean {
 	return true;
 }
 
-export function updateSource(id: string, updates: Partial<Pick<CrawlSource, "enabled" | "maxPages" | "url" | "name">>): CrawlSource | null {
+export function updateSource(
+	id: string,
+	updates: Partial<Pick<CrawlSource, "enabled" | "maxPages" | "url" | "name">>,
+): CrawlSource | null {
 	const source = sources.find((s) => s.id === id);
 	if (!source) return null;
 	Object.assign(source, updates);

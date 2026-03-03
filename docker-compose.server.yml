@@ -33,7 +33,6 @@ services:
       COGNITO_ISSUER: "${COGNITO_ISSUER}"
       OPENAI_API_KEY: "${OPENAI_API_KEY}"
       KB_BUILDER_URL: "http://kb-builder:3002"
-      RAG_PROVIDER: "self"
       QDRANT_URL: "http://qdrant:6333"
       QDRANT_COLLECTION: "kb_chunks"
 

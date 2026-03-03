@@ -28,10 +28,7 @@ describe("RunsRepository", () => {
 		};
 
 		const module: TestingModule = await Test.createTestingModule({
-			providers: [
-				RunsRepository,
-				{ provide: MONGODB_DB, useValue: mockDb },
-			],
+			providers: [RunsRepository, { provide: MONGODB_DB, useValue: mockDb }],
 		}).compile();
 
 		repo = module.get<RunsRepository>(RunsRepository);
@@ -91,9 +88,7 @@ describe("RunsRepository", () => {
 	describe("listByStatus", () => {
 		it("should find by status sorted by createdAt desc", async () => {
 			const mockSort = vi.fn().mockReturnValue({
-				toArray: vi.fn().mockResolvedValue([
-					{ _id: "r1", status: "RUNNING" },
-				]),
+				toArray: vi.fn().mockResolvedValue([{ _id: "r1", status: "RUNNING" }]),
 			});
 			mockCollection.find.mockReturnValue({ sort: mockSort });
 
@@ -123,8 +118,7 @@ describe("RunsRepository", () => {
 		it("should include updatedAt timestamp", async () => {
 			await repo.updateStatus("r1", "RUNNING");
 
-			const setArg =
-				mockCollection.updateOne.mock.calls[0]![1].$set;
+			const setArg = mockCollection.updateOne.mock.calls[0]![1].$set;
 			expect(setArg.updatedAt).toBeDefined();
 		});
 	});

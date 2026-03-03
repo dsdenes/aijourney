@@ -1,6 +1,6 @@
 import "dotenv/config";
-import { initDb } from "./db.js";
 import { app } from "./app.js";
+import { initDb } from "./db.js";
 
 const PORT = Number(process.env.KB_BUILDER_PORT) || 3002;
 

@@ -71,8 +71,6 @@ export interface ChatResponse {
 	technicalSteps?: string[];
 }
 
-type RagProvider = "self" | "bedrock";
-
 const CHAT_MODEL = process.env.OPENAI_CHAT_MODEL || "gpt-5-mini";
 
 const SYSTEM_PROMPT = `You are an AI knowledge assistant for a workplace AI adoption platform at mito.hu. You help employees learn about AI tools, techniques, and best practices.
@@ -99,11 +97,6 @@ export class ChatService {
 		@Inject(AppConfigService) private readonly configService: AppConfigService,
 		@Inject(AgentRunsService) private readonly agentRunsService: AgentRunsService,
 	) {}
-
-	private getRagProvider(): RagProvider {
-		const val = (process.env.RAG_PROVIDER || "self").toLowerCase();
-		return val === "bedrock" ? "bedrock" : "self";
-	}
 
 	private getOpenAI(): OpenAI {
 		if (!this.openai) {
@@ -304,7 +297,7 @@ ${chunk.text}`;
 			input: query.length > 200 ? query.slice(0, 200) + "…" : query,
 			model: CHAT_MODEL,
 			metadata: {
-				ragProvider: this.getRagProvider(),
+				ragProvider: "self",
 				historyLength: conversationHistory.length,
 			},
 		});
@@ -350,62 +343,43 @@ ${chunk.text}`;
 		conversationHistory: ChatMessage[] = [],
 	): Promise<ChatResponse> {
 		const openai = this.getOpenAI();
-		const ragProvider = this.getRagProvider();
 		const technicalSteps: string[] = [];
 
 		let context: string;
 		let sources: { title: string; url: string; relevance: string }[];
 		let embeddingTokens = 0;
 
-		technicalSteps.push(
-			`RAG provider: ${ragProvider === "self" ? "Self-hosted Qdrant (vector search)" : "AWS Bedrock Knowledge Base"}`,
+		technicalSteps.push("RAG provider: Self-hosted Qdrant (vector search)");
+
+		// Semantic search via Qdrant
+		this.logger.log(
+			`Using self-hosted RAG (Qdrant) for query: "${query.slice(0, 60)}"`,
 		);
+		technicalSteps.push(
+			"Generating query embedding via OpenAI text-embedding-3-small",
+		);
+		const ragResult = await this.searchRag(query);
+		context = ragResult.context;
+		sources = ragResult.sources;
+		embeddingTokens = ragResult.embeddingTokens;
 
-		if (ragProvider === "self") {
-			// Semantic search via Qdrant
-			this.logger.log(
-				`Using self-hosted RAG (Qdrant) for query: "${query.slice(0, 60)}"`,
-			);
+		if (embeddingTokens > 0) {
+			technicalSteps.push(`Embedding used ${embeddingTokens} tokens`);
+		}
+
+		if (!context || context.includes("No relevant information")) {
 			technicalSteps.push(
-				"Generating query embedding via OpenAI text-embedding-3-small",
-			);
-			const ragResult = await this.searchRag(query);
-			context = ragResult.context;
-			sources = ragResult.sources;
-			embeddingTokens = ragResult.embeddingTokens;
-
-			if (embeddingTokens > 0) {
-				technicalSteps.push(`Embedding used ${embeddingTokens} tokens`);
-			}
-
-			if (!context || context.includes("No relevant information")) {
-				technicalSteps.push(
-					"Qdrant returned no relevant chunks — falling back to keyword search over KB summaries",
-				);
-				const fallback = await this.keywordSearch(query);
-				context = fallback.context;
-				sources = fallback.sources;
-				technicalSteps.push(
-					`Keyword search found ${sources.length} relevant sources`,
-				);
-			} else {
-				technicalSteps.push(
-					`Qdrant returned ${sources.length} relevant document chunks`,
-				);
-			}
-		} else {
-			// Legacy keyword-based search
-			this.logger.log(
-				`Using keyword search for query: "${query.slice(0, 60)}"`,
-			);
-			technicalSteps.push(
-				"Performing keyword-based search over Knowledge Base summaries",
+				"Qdrant returned no relevant chunks — falling back to keyword search over KB summaries",
 			);
 			const fallback = await this.keywordSearch(query);
 			context = fallback.context;
 			sources = fallback.sources;
 			technicalSteps.push(
-				`Found ${sources.length} relevant sources via keyword matching`,
+				`Keyword search found ${sources.length} relevant sources`,
+			);
+		} else {
+			technicalSteps.push(
+				`Qdrant returned ${sources.length} relevant document chunks`,
 			);
 		}
 
@@ -431,7 +405,7 @@ ${chunk.text}`;
 		messages.push({ role: "user", content: query });
 
 		this.logger.log(
-			`Chat query: "${query.slice(0, 60)}" with ${sources.length} sources [provider=${ragProvider}]`,
+			`Chat query: "${query.slice(0, 60)}" with ${sources.length} sources [qdrant]`,
 		);
 
 		// Rate limit: estimate tokens from message payload + max completion
@@ -464,7 +438,7 @@ ${chunk.text}`;
 		}
 
 		this.logger.log(
-			`Chat response: ${tokensUsed} tokens (${promptTokens} in / ${completionTokens} out), ${sources.length} sources [provider=${ragProvider}]`,
+			`Chat response: ${tokensUsed} tokens (${promptTokens} in / ${completionTokens} out), ${sources.length} sources [qdrant]`,
 		);
 
 		technicalSteps.push(`Called OpenAI model: ${CHAT_MODEL}`);

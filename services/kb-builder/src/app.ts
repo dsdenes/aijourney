@@ -1,19 +1,44 @@
 import express, { type Express } from "express";
 import {
-	getSources,
-	getEnabledSources,
+	backfillCrawledAt,
+	countArticles,
+	deleteArticle,
+	getAllArticles,
+	getArticleById,
+	getArticlesByStatus,
+	updateArticleStatus,
+} from "./article-repository.js";
+import {
+	checkBatchStatus,
+	getActiveBatches,
+	submitBatchSummarization,
+} from "./batch-summarizer.js";
+import {
 	addSource,
+	getEnabledSources,
+	getSources,
 	removeSource,
 	updateSource,
 } from "./crawl-sources.js";
 import { crawlSource, getProgress } from "./crawler.js";
-import { getAllArticles, countArticles, getArticlesByStatus, getArticleById, backfillCrawledAt, deleteArticle, updateArticleStatus } from "./article-repository.js";
-import { addSSEClient, getLogBuffer, clearLogBuffer, log } from "./log-stream.js";
-import { runPipeline, getPipelineProgress, getRagProvider } from "./pipeline.js";
-import { getAllSummaries, countSummaries, getSummaryByArticleId, deleteSummaryByArticleId } from "./summary-repository.js";
-import { searchKnowledgeBase, isRagAvailable } from "./rag-query.js";
+import {
+	addSSEClient,
+	clearLogBuffer,
+	getLogBuffer,
+	log,
+} from "./log-stream.js";
+import {
+	getPipelineProgress,
+	runPipeline,
+} from "./pipeline.js";
 import { deleteVectorsByArticleId } from "./rag-ingestor.js";
-import { submitBatchSummarization, checkBatchStatus, getActiveBatches } from "./batch-summarizer.js";
+import { isRagAvailable, searchKnowledgeBase } from "./rag-query.js";
+import {
+	countSummaries,
+	deleteSummaryByArticleId,
+	getAllSummaries,
+	getSummaryByArticleId,
+} from "./summary-repository.js";
 
 export const app: Express = express();
 
@@ -54,7 +79,9 @@ app.get("/sources", (_req, res) => {
 app.post("/sources", (req, res) => {
 	const { url, name, enabled = true, maxPages = 100 } = req.body;
 	if (!url || !name) {
-		res.status(400).json({ error: { code: "VALIDATION", message: "url and name are required" } });
+		res.status(400).json({
+			error: { code: "VALIDATION", message: "url and name are required" },
+		});
 		return;
 	}
 	const source = addSource({ url, name, enabled, maxPages });
@@ -64,7 +91,9 @@ app.post("/sources", (req, res) => {
 app.patch("/sources/:id", (req, res) => {
 	const updated = updateSource(req.params.id, req.body);
 	if (!updated) {
-		res.status(404).json({ error: { code: "NOT_FOUND", message: "Source not found" } });
+		res
+			.status(404)
+			.json({ error: { code: "NOT_FOUND", message: "Source not found" } });
 		return;
 	}
 	res.json({ data: updated });
@@ -73,7 +102,9 @@ app.patch("/sources/:id", (req, res) => {
 app.delete("/sources/:id", (req, res) => {
 	const removed = removeSource(req.params.id);
 	if (!removed) {
-		res.status(404).json({ error: { code: "NOT_FOUND", message: "Source not found" } });
+		res
+			.status(404)
+			.json({ error: { code: "NOT_FOUND", message: "Source not found" } });
 		return;
 	}
 	res.json({ data: { removed: true } });
@@ -85,7 +116,10 @@ app.post("/ingest", async (_req, res) => {
 	const progress = getProgress();
 	if (progress.status === "running") {
 		res.status(409).json({
-			error: { code: "ALREADY_RUNNING", message: "A crawl is already in progress" },
+			error: {
+				code: "ALREADY_RUNNING",
+				message: "A crawl is already in progress",
+			},
 		});
 		return;
 	}
@@ -93,7 +127,10 @@ app.post("/ingest", async (_req, res) => {
 	const sources = getEnabledSources();
 	if (sources.length === 0) {
 		res.status(400).json({
-			error: { code: "NO_SOURCES", message: "No enabled crawl sources configured" },
+			error: {
+				code: "NO_SOURCES",
+				message: "No enabled crawl sources configured",
+			},
 		});
 		return;
 	}
@@ -107,9 +144,11 @@ app.post("/ingest", async (_req, res) => {
 			await crawlSource(source);
 		}
 		// Auto-trigger pipeline after crawl completes
-		log("info", "Crawl finished — starting pipeline (quality → summarize → ingest)");
-		const skipIngestion = !process.env.KB_S3_BUCKET;
-		await runPipeline({ skipIngestion });
+		log(
+			"info",
+			"Crawl finished — starting pipeline (quality → summarize → Qdrant RAG ingest)",
+		);
+		await runPipeline();
 	})();
 
 	res.json({
@@ -162,7 +201,10 @@ app.post("/pipeline", async (_req, res) => {
 	const pipelineStatus = getPipelineProgress();
 	if (pipelineStatus.status === "running") {
 		res.status(409).json({
-			error: { code: "ALREADY_RUNNING", message: "Pipeline is already running" },
+			error: {
+				code: "ALREADY_RUNNING",
+				message: "Pipeline is already running",
+			},
 		});
 		return;
 	}
@@ -173,15 +215,12 @@ app.post("/pipeline", async (_req, res) => {
 		log("info", `Backfilled crawledAt for ${backfilled} articles`);
 	}
 
-	const skipIngestion = !process.env.KB_S3_BUCKET;
-	const ragProvider = getRagProvider();
-	log("info", "Pipeline triggered manually", { skipIngestion, ragProvider });
-	void runPipeline({ skipIngestion });
+	log("info", "Pipeline triggered manually", { ragProvider: "self" });
+	void runPipeline();
 
 	res.json({
 		status: "accepted",
-		message: `Pipeline started (quality → summarize → ${ragProvider === "self" ? "Qdrant RAG" : "S3/Bedrock"})`,
-		skipIngestion,
+		message: "Pipeline started (quality → summarize → Qdrant RAG)",
 	});
 });
 
@@ -196,16 +235,25 @@ app.get("/pipeline/progress", (_req, res) => {
 app.post("/summarize", async (req, res) => {
 	const limit = Number(req.body?.limit) || 0;
 
-	log("info", `Summarization triggered manually${limit > 0 ? ` (limit: ${limit})` : " (unlimited)"}`);
+	log(
+		"info",
+		`Summarization triggered manually${limit > 0 ? ` (limit: ${limit})` : " (unlimited)"}`,
+	);
 
 	// Run asynchronously so the HTTP request returns immediately
 	const { runSummarization } = await import("./summarizer.js");
 	runSummarization(limit)
 		.then((result) => {
-			log("info", `Summarization finished: ${result.summarized} done, ${result.skipped} skipped, ${result.errors.length} errors, ${result.totalTokensUsed} tokens`);
+			log(
+				"info",
+				`Summarization finished: ${result.summarized} done, ${result.skipped} skipped, ${result.errors.length} errors, ${result.totalTokensUsed} tokens`,
+			);
 		})
 		.catch((err) => {
-			log("error", `Summarization failed: ${err instanceof Error ? err.message : String(err)}`);
+			log(
+				"error",
+				`Summarization failed: ${err instanceof Error ? err.message : String(err)}`,
+			);
 		});
 
 	res.json({
@@ -236,9 +284,15 @@ app.post("/rag/query", async (req, res) => {
 		const result = await searchKnowledgeBase(query, topK, scoreThreshold);
 		res.json({ data: result });
 	} catch (err) {
-		log("error", `RAG query failed: ${err instanceof Error ? err.message : String(err)}`);
+		log(
+			"error",
+			`RAG query failed: ${err instanceof Error ? err.message : String(err)}`,
+		);
 		res.status(500).json({
-			error: { code: "RAG_QUERY_FAILED", message: err instanceof Error ? err.message : "Search failed" },
+			error: {
+				code: "RAG_QUERY_FAILED",
+				message: err instanceof Error ? err.message : "Search failed",
+			},
 		});
 	}
 });
@@ -246,8 +300,7 @@ app.post("/rag/query", async (req, res) => {
 /** Check if the RAG knowledge base is available and has data */
 app.get("/rag/status", async (_req, res) => {
 	const available = await isRagAvailable();
-	const provider = getRagProvider();
-	res.json({ data: { available, provider } });
+	res.json({ data: { available, provider: "self" } });
 });
 
 // --------------- Article Deletion ---------------
@@ -290,9 +343,15 @@ app.delete("/articles/:id", async (req, res) => {
 			},
 		});
 	} catch (err) {
-		log("error", `Failed to delete article ${id}: ${err instanceof Error ? err.message : String(err)}`);
+		log(
+			"error",
+			`Failed to delete article ${id}: ${err instanceof Error ? err.message : String(err)}`,
+		);
 		res.status(500).json({
-			error: { code: "DELETE_FAILED", message: err instanceof Error ? err.message : "Delete failed" },
+			error: {
+				code: "DELETE_FAILED",
+				message: err instanceof Error ? err.message : "Delete failed",
+			},
 		});
 	}
 });
@@ -331,7 +390,10 @@ app.post("/articles/reset-summaries", async (_req, res) => {
 			}
 		}
 
-		log("info", `Reset summaries: ${summariesDeleted} summaries deleted, ${vectorsDeleted} vectors deleted, ${articlesReset} articles reset to quality_passed`);
+		log(
+			"info",
+			`Reset summaries: ${summariesDeleted} summaries deleted, ${vectorsDeleted} vectors deleted, ${articlesReset} articles reset to quality_passed`,
+		);
 
 		res.json({
 			data: {
@@ -341,9 +403,15 @@ app.post("/articles/reset-summaries", async (_req, res) => {
 			},
 		});
 	} catch (err) {
-		log("error", `Failed to reset summaries: ${err instanceof Error ? err.message : String(err)}`);
+		log(
+			"error",
+			`Failed to reset summaries: ${err instanceof Error ? err.message : String(err)}`,
+		);
 		res.status(500).json({
-			error: { code: "RESET_FAILED", message: err instanceof Error ? err.message : "Reset failed" },
+			error: {
+				code: "RESET_FAILED",
+				message: err instanceof Error ? err.message : "Reset failed",
+			},
 		});
 	}
 });
@@ -355,7 +423,10 @@ app.post("/batch-summarize", async (req, res) => {
 	const mode = (req.body?.mode || "new") as "new" | "all" | "resummarize";
 	if (!["new", "all", "resummarize"].includes(mode)) {
 		res.status(400).json({
-			error: { code: "VALIDATION", message: "mode must be 'new', 'all', or 'resummarize'" },
+			error: {
+				code: "VALIDATION",
+				message: "mode must be 'new', 'all', or 'resummarize'",
+			},
 		});
 		return;
 	}
@@ -385,9 +456,15 @@ app.post("/batch-summarize", async (req, res) => {
 			},
 		});
 	} catch (err) {
-		log("error", `Batch summarization failed: ${err instanceof Error ? err.message : String(err)}`);
+		log(
+			"error",
+			`Batch summarization failed: ${err instanceof Error ? err.message : String(err)}`,
+		);
 		res.status(500).json({
-			error: { code: "BATCH_FAILED", message: err instanceof Error ? err.message : "Batch failed" },
+			error: {
+				code: "BATCH_FAILED",
+				message: err instanceof Error ? err.message : "Batch failed",
+			},
 		});
 	}
 });
@@ -399,7 +476,10 @@ app.get("/batch-summarize/:batchId", async (req, res) => {
 		res.json({ data: status });
 	} catch (err) {
 		res.status(500).json({
-			error: { code: "STATUS_FAILED", message: err instanceof Error ? err.message : "Status check failed" },
+			error: {
+				code: "STATUS_FAILED",
+				message: err instanceof Error ? err.message : "Status check failed",
+			},
 		});
 	}
 });

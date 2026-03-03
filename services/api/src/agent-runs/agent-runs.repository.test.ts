@@ -9,8 +9,15 @@ const mockFindOne = vi.fn().mockResolvedValue(null);
 const mockUpdateOne = vi.fn().mockResolvedValue({});
 const mockToArray = vi.fn().mockResolvedValue([]);
 const mockLimit = vi.fn().mockReturnValue({ toArray: mockToArray });
-const mockSort = vi.fn().mockReturnValue({ limit: vi.fn().mockReturnValue({ toArray: mockToArray }), toArray: mockToArray });
-const mockFind = vi.fn().mockReturnValue({ limit: mockLimit, sort: mockSort, toArray: mockToArray });
+const mockSort = vi
+	.fn()
+	.mockReturnValue({
+		limit: vi.fn().mockReturnValue({ toArray: mockToArray }),
+		toArray: mockToArray,
+	});
+const mockFind = vi
+	.fn()
+	.mockReturnValue({ limit: mockLimit, sort: mockSort, toArray: mockToArray });
 const mockCollection = {
 	insertOne: mockInsertOne,
 	findOne: mockFindOne,
@@ -26,8 +33,15 @@ describe("AgentRunsRepository", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks();
-		mockFind.mockReturnValue({ limit: mockLimit, sort: mockSort, toArray: mockToArray });
-		mockSort.mockReturnValue({ limit: vi.fn().mockReturnValue({ toArray: mockToArray }), toArray: mockToArray });
+		mockFind.mockReturnValue({
+			limit: mockLimit,
+			sort: mockSort,
+			toArray: mockToArray,
+		});
+		mockSort.mockReturnValue({
+			limit: vi.fn().mockReturnValue({ toArray: mockToArray }),
+			toArray: mockToArray,
+		});
 		mockLimit.mockReturnValue({ toArray: mockToArray });
 		mockToArray.mockResolvedValue([]);
 		// Directly instantiate the repo with our mock MongoDB Db
@@ -110,8 +124,7 @@ describe("AgentRunsRepository", () => {
 				output: "test",
 			} as any);
 
-			const setArg =
-				mockUpdateOne.mock.calls[0]![1].$set;
+			const setArg = mockUpdateOne.mock.calls[0]![1].$set;
 			expect(setArg.id).toBeUndefined();
 			expect(setArg.output).toBe("test");
 		});
@@ -147,8 +160,15 @@ describe("AgentRunsRepository", () => {
 
 	describe("listByAgent", () => {
 		it("should find by agent sorted by createdAt desc", async () => {
-			const mockLimitInner = vi.fn().mockReturnValue({ toArray: vi.fn().mockResolvedValue([{ _id: "1", agent: "chat" }]) });
-			mockSort.mockReturnValue({ limit: mockLimitInner, toArray: vi.fn().mockResolvedValue([]) });
+			const mockLimitInner = vi
+				.fn()
+				.mockReturnValue({
+					toArray: vi.fn().mockResolvedValue([{ _id: "1", agent: "chat" }]),
+				});
+			mockSort.mockReturnValue({
+				limit: mockLimitInner,
+				toArray: vi.fn().mockResolvedValue([]),
+			});
 			mockFind.mockReturnValue({ sort: mockSort });
 
 			const result = await repo.listByAgent("chat");
@@ -161,8 +181,15 @@ describe("AgentRunsRepository", () => {
 
 	describe("listByStatus", () => {
 		it("should find by status sorted by createdAt desc", async () => {
-			const mockLimitInner = vi.fn().mockReturnValue({ toArray: vi.fn().mockResolvedValue([{ _id: "1", status: "running" }]) });
-			mockSort.mockReturnValue({ limit: mockLimitInner, toArray: vi.fn().mockResolvedValue([]) });
+			const mockLimitInner = vi
+				.fn()
+				.mockReturnValue({
+					toArray: vi.fn().mockResolvedValue([{ _id: "1", status: "running" }]),
+				});
+			mockSort.mockReturnValue({
+				limit: mockLimitInner,
+				toArray: vi.fn().mockResolvedValue([]),
+			});
 			mockFind.mockReturnValue({ sort: mockSort });
 
 			const result = await repo.listByStatus("running");

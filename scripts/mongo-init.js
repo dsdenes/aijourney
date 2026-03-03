@@ -31,7 +31,10 @@ db.evidence.createIndex(
 
 // ── run_requests ──
 db.createCollection("run_requests");
-db.run_requests.createIndex({ userId: 1, status: 1 }, { name: "userId_status" });
+db.run_requests.createIndex(
+	{ userId: 1, status: 1 },
+	{ name: "userId_status" },
+);
 db.run_requests.createIndex(
 	{ status: 1, createdAt: -1 },
 	{ name: "status_createdAt_desc" },

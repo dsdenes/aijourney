@@ -36,9 +36,7 @@ async function main() {
 		.createIndex({ journeyId: 1, order: 1 }, { name: "journeyId_order" });
 	console.log("  ✓ steps");
 
-	await db
-		.collection("kpis")
-		.createIndex({ stepId: 1 }, { name: "stepId" });
+	await db.collection("kpis").createIndex({ stepId: 1 }, { name: "stepId" });
 	console.log("  ✓ kpis");
 
 	await db
@@ -70,10 +68,7 @@ async function main() {
 
 	await db
 		.collection("agent_runs")
-		.createIndex(
-			{ agent: 1, createdAt: -1 },
-			{ name: "agent_createdAt_desc" },
-		);
+		.createIndex({ agent: 1, createdAt: -1 }, { name: "agent_createdAt_desc" });
 	await db
 		.collection("agent_runs")
 		.createIndex(

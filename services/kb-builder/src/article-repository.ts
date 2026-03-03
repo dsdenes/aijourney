@@ -1,6 +1,6 @@
-import { generateId, nowISO } from "@aijourney/shared";
-import type { Article, ArticleStatus } from "@aijourney/shared";
 import { createHash } from "node:crypto";
+import type { Article, ArticleStatus } from "@aijourney/shared";
+import { generateId, nowISO } from "@aijourney/shared";
 import { getDb } from "./db.js";
 
 interface ArticleDoc {
@@ -53,10 +53,7 @@ export async function getAllArticles(): Promise<Article[]> {
 export async function getArticlesByStatus(
 	status: ArticleStatus,
 ): Promise<Article[]> {
-	const docs = await col()
-		.find({ status })
-		.sort({ fetchedAt: -1 })
-		.toArray();
+	const docs = await col().find({ status }).sort({ fetchedAt: -1 }).toArray();
 	return docs.map((d) => fromDoc(d));
 }
 

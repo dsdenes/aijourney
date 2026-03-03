@@ -6,7 +6,9 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 // This must be set up BEFORE importing app (which imports repositories)
 const mockToArray = vi.fn().mockResolvedValue([]);
 const mockSort = vi.fn().mockReturnValue({ toArray: mockToArray });
-const mockFind = vi.fn().mockReturnValue({ sort: mockSort, toArray: mockToArray });
+const mockFind = vi
+	.fn()
+	.mockReturnValue({ sort: mockSort, toArray: mockToArray });
 const mockFindOne = vi.fn().mockResolvedValue(null);
 const mockInsertOne = vi.fn().mockResolvedValue({});
 const mockUpdateOne = vi.fn().mockResolvedValue({});

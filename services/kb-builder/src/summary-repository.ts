@@ -1,5 +1,5 @@
-import { generateId, nowISO } from "@aijourney/shared";
 import type { Summary } from "@aijourney/shared";
+import { generateId, nowISO } from "@aijourney/shared";
 import { getDb } from "./db.js";
 
 interface SummaryDoc {

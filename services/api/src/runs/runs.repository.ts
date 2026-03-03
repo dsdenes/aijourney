@@ -1,6 +1,6 @@
 import type { RunRequest } from "@aijourney/shared";
-import type { Db } from "mongodb";
 import { Inject, Injectable } from "@nestjs/common";
+import type { Db } from "mongodb";
 import { MONGODB_DB } from "../mongodb/mongodb.module";
 
 interface RunDoc {

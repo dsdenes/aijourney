@@ -60,9 +60,7 @@ describe("AppConfigService", () => {
 		process.env.MONGODB_URI = "mongodb://myhost:27017";
 
 		const configService = new AppConfigService();
-		expect(configService.config.MONGODB_URI).toBe(
-			"mongodb://myhost:27017",
-		);
+		expect(configService.config.MONGODB_URI).toBe("mongodb://myhost:27017");
 
 		process.env = originalEnv;
 	});

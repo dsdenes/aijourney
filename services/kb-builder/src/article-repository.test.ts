@@ -8,7 +8,9 @@ const mockDeleteOne = vi.fn().mockResolvedValue({ deletedCount: 1 });
 const mockCountDocuments = vi.fn().mockResolvedValue(0);
 const mockToArray = vi.fn().mockResolvedValue([]);
 const mockSort = vi.fn().mockReturnValue({ toArray: mockToArray });
-const mockFind = vi.fn().mockReturnValue({ sort: mockSort, toArray: mockToArray });
+const mockFind = vi
+	.fn()
+	.mockReturnValue({ sort: mockSort, toArray: mockToArray });
 const mockCollection = {
 	insertOne: mockInsertOne,
 	findOne: mockFindOne,
@@ -116,7 +118,9 @@ describe("article-repository", () => {
 				id: "a1",
 				url: "https://example.com/article",
 			});
-			expect(mockFindOne).toHaveBeenCalledWith({ url: "https://example.com/article" });
+			expect(mockFindOne).toHaveBeenCalledWith({
+				url: "https://example.com/article",
+			});
 		});
 
 		it("should return null when not found", async () => {
@@ -150,9 +154,7 @@ describe("article-repository", () => {
 
 	describe("getArticlesByStatus", () => {
 		it("should query by status and sort by fetchedAt desc", async () => {
-			mockToArray.mockResolvedValue([
-				{ _id: "1", status: "fetched" },
-			]);
+			mockToArray.mockResolvedValue([{ _id: "1", status: "fetched" }]);
 			mockSort.mockReturnValue({ toArray: mockToArray });
 			mockFind.mockReturnValue({ sort: mockSort });
 
@@ -220,8 +222,7 @@ describe("article-repository", () => {
 				qualityScore: 0.85,
 			});
 
-			const setArg =
-				mockUpdateOne.mock.calls[0]![1].$set;
+			const setArg = mockUpdateOne.mock.calls[0]![1].$set;
 			expect(setArg.qualityScore).toBe(0.85);
 		});
 	});

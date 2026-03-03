@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock all pipeline dependencies
 vi.mock("./quality-filter.js", () => ({
@@ -7,10 +7,6 @@ vi.mock("./quality-filter.js", () => ({
 
 vi.mock("./summarizer.js", () => ({
 	runSummarization: vi.fn(),
-}));
-
-vi.mock("./bedrock-ingestor.js", () => ({
-	runIngestion: vi.fn(),
 }));
 
 vi.mock("./rag-ingestor.js", () => ({
@@ -25,18 +21,15 @@ vi.mock("./log-stream.js", () => ({
 	log: vi.fn(),
 }));
 
-import { runPipeline, getPipelineProgress } from "./pipeline.js";
-import { runQualityFilter } from "./quality-filter.js";
-import { runSummarization } from "./summarizer.js";
-import { runIngestion } from "./bedrock-ingestor.js";
-import { runRagIngestion } from "./rag-ingestor.js";
 import { getArticlesByStatus } from "./article-repository.js";
+import { getPipelineProgress, runPipeline } from "./pipeline.js";
+import { runQualityFilter } from "./quality-filter.js";
+import { runRagIngestion } from "./rag-ingestor.js";
+import { runSummarization } from "./summarizer.js";
 
 describe("Pipeline", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		// Default to "self" RAG provider for tests
-		process.env.RAG_PROVIDER = "self";
 	});
 
 	describe("getPipelineProgress", () => {
@@ -89,7 +82,6 @@ describe("Pipeline", () => {
 			expect(result.stages.qualityFilter.result!.passed).toBe(10);
 			expect(result.stages.summarization.result!.summarized).toBe(10);
 			expect(runRagIngestion).toHaveBeenCalled();
-			expect(runIngestion).not.toHaveBeenCalled();
 			expect(result.startedAt).toBeDefined();
 			expect(result.completedAt).toBeDefined();
 		});
@@ -109,7 +101,6 @@ describe("Pipeline", () => {
 			expect(result.stages.summarization.status).toBe("skipped");
 			expect(result.stages.ingestion.status).toBe("skipped");
 			expect(runSummarization).not.toHaveBeenCalled();
-			expect(runIngestion).not.toHaveBeenCalled();
 		});
 
 		it("should run ingestion on previously summarized articles even when quality filter passes 0", async () => {
@@ -165,70 +156,6 @@ describe("Pipeline", () => {
 
 			expect(result.status).toBe("completed");
 			expect(result.stages.ingestion.status).toBe("skipped");
-			expect(runIngestion).not.toHaveBeenCalled();
-			expect(runRagIngestion).not.toHaveBeenCalled();
-		});
-
-		it("should skip ingestion when skipIngestion option is true and provider is bedrock", async () => {
-			process.env.RAG_PROVIDER = "bedrock";
-			vi.mocked(runQualityFilter).mockResolvedValue({
-				passed: 5,
-				failed: 0,
-				errors: [],
-			});
-			vi.mocked(getArticlesByStatus).mockImplementation(async (status) => {
-				if (status === "quality_passed") return Array(5).fill({ id: "a1" });
-				if (status === "summarized") return Array(5).fill({ id: "a1" });
-				return [];
-			});
-			vi.mocked(runSummarization).mockResolvedValue({
-				summarized: 5,
-				skipped: 0,
-				errors: [],
-				totalTokensUsed: 2500,
-				totalPromptTokens: 0,
-				totalCompletionTokens: 0,
-			});
-
-			const result = await runPipeline({ skipIngestion: true });
-
-			expect(result.status).toBe("completed");
-			expect(result.stages.ingestion.status).toBe("skipped");
-			expect(runIngestion).not.toHaveBeenCalled();
-			expect(runRagIngestion).not.toHaveBeenCalled();
-		});
-
-		it("should use Bedrock ingestion when RAG_PROVIDER=bedrock", async () => {
-			process.env.RAG_PROVIDER = "bedrock";
-			vi.mocked(runQualityFilter).mockResolvedValue({
-				passed: 5,
-				failed: 0,
-				errors: [],
-			});
-			vi.mocked(getArticlesByStatus).mockImplementation(async (status) => {
-				if (status === "quality_passed") return Array(5).fill({ id: "a1" });
-				if (status === "summarized") return Array(5).fill({ id: "a1" });
-				return [];
-			});
-			vi.mocked(runSummarization).mockResolvedValue({
-				summarized: 5,
-				skipped: 0,
-				errors: [],
-				totalTokensUsed: 2500,
-				totalPromptTokens: 0,
-				totalCompletionTokens: 0,
-			});
-			vi.mocked(runIngestion).mockResolvedValue({
-				ingested: 5,
-				skipped: 0,
-				errors: [],
-			});
-
-			const result = await runPipeline();
-
-			expect(result.status).toBe("completed");
-			expect(result.stages.ingestion.status).toBe("completed");
-			expect(runIngestion).toHaveBeenCalled();
 			expect(runRagIngestion).not.toHaveBeenCalled();
 		});
 

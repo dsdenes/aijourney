@@ -1,5 +1,5 @@
-import type { Db } from "mongodb";
 import { Inject, Injectable, Logger } from "@nestjs/common";
+import type { Db } from "mongodb";
 import { MONGODB_DB } from "../mongodb/mongodb.module";
 
 @Injectable()
@@ -20,9 +20,7 @@ export class HealthService {
 			checks["mongodb"] = "disconnected";
 		}
 
-		const allHealthy = Object.values(checks).every(
-			(v) => v === "connected",
-		);
+		const allHealthy = Object.values(checks).every((v) => v === "connected");
 
 		return {
 			status: allHealthy ? "ok" : "degraded",

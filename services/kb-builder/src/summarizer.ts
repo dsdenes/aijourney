@@ -1,14 +1,18 @@
-import OpenAI from "openai";
 import type { Article, SummaryContent } from "@aijourney/shared";
 import { getRateLimiter } from "@aijourney/shared";
+import OpenAI from "openai";
 import {
-	getArticlesByStatus,
+	completeAgentRun,
+	failAgentRun,
+	startAgentRun,
+} from "./agent-run-logger.js";
+import {
 	getArticleById,
+	getArticlesByStatus,
 	updateArticleStatus,
 } from "./article-repository.js";
-import { saveSummary, getSummaryByArticleId } from "./summary-repository.js";
 import { log } from "./log-stream.js";
-import { startAgentRun, completeAgentRun, failAgentRun } from "./agent-run-logger.js";
+import { getSummaryByArticleId, saveSummary } from "./summary-repository.js";
 
 const OPENAI_MODEL = process.env.OPENAI_SUMMARIZATION_MODEL || "gpt-5-mini";
 const PROMPT_VERSION = "v1";
@@ -32,7 +36,9 @@ function getOpenAI(): OpenAI {
 	if (!openaiClient) {
 		const apiKey = process.env.OPENAI_API_KEY;
 		if (!apiKey) {
-			throw new SummarizerConfigError("OPENAI_API_KEY environment variable is not set");
+			throw new SummarizerConfigError(
+				"OPENAI_API_KEY environment variable is not set",
+			);
 		}
 		openaiClient = new OpenAI({ apiKey });
 	}
@@ -107,14 +113,30 @@ export interface SummarizationResult {
  * Determine if an error is transient and worth retrying.
  */
 function isRetryableError(err: unknown): boolean {
-	if (err instanceof SummarizationError && err.message.includes("Empty response")) return true;
+	if (
+		err instanceof SummarizationError &&
+		err.message.includes("Empty response")
+	)
+		return true;
 	if (err instanceof Error) {
 		const msg = err.message.toLowerCase();
 		// OpenAI rate limits, server errors, timeouts, connection resets
 		if (msg.includes("429") || msg.includes("rate limit")) return true;
-		if (msg.includes("500") || msg.includes("502") || msg.includes("503") || msg.includes("504")) return true;
-		if (msg.includes("timeout") || msg.includes("econnreset") || msg.includes("econnrefused")) return true;
-		if (msg.includes("server error") || msg.includes("internal error")) return true;
+		if (
+			msg.includes("500") ||
+			msg.includes("502") ||
+			msg.includes("503") ||
+			msg.includes("504")
+		)
+			return true;
+		if (
+			msg.includes("timeout") ||
+			msg.includes("econnreset") ||
+			msg.includes("econnrefused")
+		)
+			return true;
+		if (msg.includes("server error") || msg.includes("internal error"))
+			return true;
 	}
 	return false;
 }
@@ -133,14 +155,19 @@ async function callOpenAIWithRetry(
 	let lastError: unknown;
 
 	// Estimate tokens: ~4 chars per token for English, system+user prompts
-	const estimatedTokens = Math.ceil((systemPrompt.length + userPrompt.length) / 4) + 2000;
+	const estimatedTokens =
+		Math.ceil((systemPrompt.length + userPrompt.length) / 4) + 2000;
 
 	for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
 		try {
 			// Wait for rate limiter capacity before making the call
 			const waited = await rateLimiter.waitForCapacity(estimatedTokens);
 			if (waited > 0) {
-				log("info", `Rate limiter waited ${waited}ms before OpenAI call for ${articleId}`, { articleId, waited });
+				log(
+					"info",
+					`Rate limiter waited ${waited}ms before OpenAI call for ${articleId}`,
+					{ articleId, waited },
+				);
 			}
 			rateLimiter.recordRequest(estimatedTokens);
 
@@ -163,10 +190,17 @@ async function callOpenAIWithRetry(
 
 			// Check for empty response — treat as retryable
 			if (!completion.choices[0]?.message?.content) {
-				const emptyErr = new SummarizationError(articleId, "Empty response from OpenAI");
+				const emptyErr = new SummarizationError(
+					articleId,
+					"Empty response from OpenAI",
+				);
 				if (attempt < MAX_RETRIES) {
-					const backoff = INITIAL_BACKOFF_MS * Math.pow(2, attempt - 1);
-					log("warn", `Empty OpenAI response for ${articleId}, retrying in ${backoff}ms (attempt ${attempt}/${MAX_RETRIES})`, { articleId, attempt });
+					const backoff = INITIAL_BACKOFF_MS * 2 ** (attempt - 1);
+					log(
+						"warn",
+						`Empty OpenAI response for ${articleId}, retrying in ${backoff}ms (attempt ${attempt}/${MAX_RETRIES})`,
+						{ articleId, attempt },
+					);
 					await new Promise((r) => setTimeout(r, backoff));
 					lastError = emptyErr;
 					continue;
@@ -175,15 +209,23 @@ async function callOpenAIWithRetry(
 			}
 
 			if (attempt > 1) {
-				log("info", `OpenAI call succeeded on retry attempt ${attempt} for ${articleId}`, { articleId, attempt });
+				log(
+					"info",
+					`OpenAI call succeeded on retry attempt ${attempt} for ${articleId}`,
+					{ articleId, attempt },
+				);
 			}
 
 			return completion;
 		} catch (err) {
 			lastError = err;
 			if (attempt < MAX_RETRIES && isRetryableError(err)) {
-				const backoff = INITIAL_BACKOFF_MS * Math.pow(2, attempt - 1);
-				log("warn", `OpenAI call failed for ${articleId} (attempt ${attempt}/${MAX_RETRIES}), retrying in ${backoff}ms: ${err instanceof Error ? err.message : String(err)}`, { articleId, attempt });
+				const backoff = INITIAL_BACKOFF_MS * 2 ** (attempt - 1);
+				log(
+					"warn",
+					`OpenAI call failed for ${articleId} (attempt ${attempt}/${MAX_RETRIES}), retrying in ${backoff}ms: ${err instanceof Error ? err.message : String(err)}`,
+					{ articleId, attempt },
+				);
 				await new Promise((r) => setTimeout(r, backoff));
 				continue;
 			}
@@ -202,7 +244,11 @@ async function callOpenAIWithRetry(
 async function summarizeArticle(
 	article: Article,
 	articleText: string,
-): Promise<{ tokensUsed: number; promptTokens: number; completionTokens: number }> {
+): Promise<{
+	tokensUsed: number;
+	promptTokens: number;
+	completionTokens: number;
+}> {
 	const startTime = Date.now();
 
 	// Build full input for agent run logging (mirrors what summarizeArticleInternal constructs)
@@ -256,7 +302,13 @@ async function summarizeArticle(
 async function summarizeArticleInternal(
 	article: Article,
 	articleText: string,
-): Promise<{ tokensUsed: number; promptTokens: number; completionTokens: number; fullInput: string; fullOutput: string }> {
+): Promise<{
+	tokensUsed: number;
+	promptTokens: number;
+	completionTokens: number;
+	fullInput: string;
+	fullOutput: string;
+}> {
 	const openai = getOpenAI();
 
 	// Truncate very long articles
@@ -273,11 +325,20 @@ async function summarizeArticleInternal(
 		textLength: text.length,
 	});
 
-	const completion = await callOpenAIWithRetry(openai, OPENAI_MODEL, SYSTEM_PROMPT, userPrompt, article.id);
+	const completion = await callOpenAIWithRetry(
+		openai,
+		OPENAI_MODEL,
+		SYSTEM_PROMPT,
+		userPrompt,
+		article.id,
+	);
 
 	const choice = completion.choices[0];
 	if (!choice?.message?.content) {
-		throw new SummarizationError(article.id, "Empty response from OpenAI after all retries");
+		throw new SummarizationError(
+			article.id,
+			"Empty response from OpenAI after all retries",
+		);
 	}
 
 	const tokensUsed = completion.usage?.total_tokens ?? 0;
@@ -326,15 +387,19 @@ async function summarizeArticleInternal(
 	// Update article status
 	await updateArticleStatus(article.id, "summarized");
 
-	log("info", `Summarized: ${parsed.title} (${tokensUsed} tokens [${promptTokens} in / ${completionTokens} out])`, {
-		articleId: article.id,
-		summaryId: summary.id,
-		tokensUsed,
-		promptTokens,
-		completionTokens,
-		tags: parsed.tags,
-		difficulty: parsed.difficulty,
-	});
+	log(
+		"info",
+		`Summarized: ${parsed.title} (${tokensUsed} tokens [${promptTokens} in / ${completionTokens} out])`,
+		{
+			articleId: article.id,
+			summaryId: summary.id,
+			tokensUsed,
+			promptTokens,
+			completionTokens,
+			tags: parsed.tags,
+			difficulty: parsed.difficulty,
+		},
+	);
 
 	return { tokensUsed, promptTokens, completionTokens, fullInput, fullOutput };
 }
@@ -344,7 +409,9 @@ async function summarizeArticleInternal(
  * Calls OpenAI for each article and stores structured summaries.
  * @param limit Max number of articles to summarize (0 = unlimited)
  */
-export async function runSummarization(limit = 0): Promise<SummarizationResult> {
+export async function runSummarization(
+	limit = 0,
+): Promise<SummarizationResult> {
 	let articles = await getArticlesByStatus("quality_passed");
 	if (limit > 0) {
 		articles = articles.slice(0, limit);
@@ -358,10 +425,14 @@ export async function runSummarization(limit = 0): Promise<SummarizationResult> 
 		totalCompletionTokens: 0,
 	};
 
-	log("info", `Summarization: processing ${articles.length} quality-passed articles`, {
-		count: articles.length,
-		model: OPENAI_MODEL,
-	});
+	log(
+		"info",
+		`Summarization: processing ${articles.length} quality-passed articles`,
+		{
+			count: articles.length,
+			model: OPENAI_MODEL,
+		},
+	);
 
 	if (articles.length === 0) {
 		log("info", "Summarization: no articles to process");
@@ -385,9 +456,13 @@ export async function runSummarization(limit = 0): Promise<SummarizationResult> 
 			if (existingSummary) {
 				result.skipped++;
 				await updateArticleStatus(article.id, "summarized");
-				log("debug", `Skip (already summarized): ${article.title.slice(0, 60)}`, {
-					articleId: article.id,
-				});
+				log(
+					"debug",
+					`Skip (already summarized): ${article.title.slice(0, 60)}`,
+					{
+						articleId: article.id,
+					},
+				);
 				continue;
 			}
 
@@ -403,12 +478,15 @@ export async function runSummarization(limit = 0): Promise<SummarizationResult> 
 			const { extractArticleText } = await import("./crawler.js");
 			const text = await extractArticleText(article.url);
 			if (!text || text.length < 100) {
-				result.errors.push(`Article ${article.id}: insufficient text for summarization`);
+				result.errors.push(
+					`Article ${article.id}: insufficient text for summarization`,
+				);
 				await updateArticleStatus(article.id, "quality_failed");
 				continue;
 			}
 
-			const { tokensUsed, promptTokens, completionTokens } = await summarizeArticle(article, text);
+			const { tokensUsed, promptTokens, completionTokens } =
+				await summarizeArticle(article, text);
 			result.summarized++;
 			result.totalTokensUsed += tokensUsed;
 			result.totalPromptTokens += promptTokens;
@@ -422,12 +500,16 @@ export async function runSummarization(limit = 0): Promise<SummarizationResult> 
 		}
 	}
 
-	log("info", `Summarization complete: ${result.summarized} summarized, ${result.skipped} skipped, ${result.errors.length} errors, ${result.totalTokensUsed} total tokens`, {
-		summarized: result.summarized,
-		skipped: result.skipped,
-		errors: result.errors.length,
-		totalTokensUsed: result.totalTokensUsed,
-	});
+	log(
+		"info",
+		`Summarization complete: ${result.summarized} summarized, ${result.skipped} skipped, ${result.errors.length} errors, ${result.totalTokensUsed} total tokens`,
+		{
+			summarized: result.summarized,
+			skipped: result.skipped,
+			errors: result.errors.length,
+			totalTokensUsed: result.totalTokensUsed,
+		},
+	);
 
 	return result;
 }

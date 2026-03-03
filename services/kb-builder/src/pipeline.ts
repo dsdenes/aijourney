@@ -1,31 +1,17 @@
 import { runQualityFilter, type QualityResult } from "./quality-filter.js";
 import { runSummarization, type SummarizationResult } from "./summarizer.js";
-import { runIngestion, type IngestionResult } from "./bedrock-ingestor.js";
 import { runRagIngestion, type RagIngestionResult } from "./rag-ingestor.js";
 import { getArticlesByStatus } from "./article-repository.js";
 import { log } from "./log-stream.js";
 import { startAgentRun, completeAgentRun, failAgentRun } from "./agent-run-logger.js";
 
-/**
- * RAG_PROVIDER controls which ingestion backend is used:
- *   - "self"    → Rust chunker + OpenAI embeddings + Qdrant (default)
- *   - "bedrock" → S3 upload for AWS Bedrock Knowledge Bases
- */
-export type RagProvider = "self" | "bedrock";
-
-export function getRagProvider(): RagProvider {
-	const val = (process.env.RAG_PROVIDER || "self").toLowerCase();
-	return val === "bedrock" ? "bedrock" : "self";
-}
-
 export interface PipelineProgress {
 	status: "idle" | "running" | "completed" | "failed";
 	currentStage: string;
-	ragProvider: RagProvider;
 	stages: {
 		qualityFilter: { status: string; result?: QualityResult };
 		summarization: { status: string; result?: SummarizationResult };
-		ingestion: { status: string; result?: IngestionResult | RagIngestionResult };
+		ingestion: { status: string; result?: RagIngestionResult };
 	};
 	startedAt: string | null;
 	completedAt: string | null;
@@ -38,7 +24,6 @@ function createEmptyPipelineProgress(): PipelineProgress {
 	return {
 		status: "idle",
 		currentStage: "",
-		ragProvider: getRagProvider(),
 		stages: {
 			qualityFilter: { status: "pending" },
 			summarization: { status: "pending" },
@@ -62,12 +47,8 @@ export function getPipelineProgress(): PipelineProgress {
  * Each stage is idempotent: it reads articles by their current status
  * and only processes those in the expected state.
  *
- * Options:
- *   - skipIngestion: skip the S3/Bedrock stage (e.g., no bucket configured)
  */
-export async function runPipeline(options?: {
-	skipIngestion?: boolean;
-}): Promise<PipelineProgress> {
+export async function runPipeline(): Promise<PipelineProgress> {
 	if (pipelineProgress.status === "running") {
 		log("warn", "Pipeline already running, skipping");
 		return pipelineProgress;
@@ -82,13 +63,11 @@ export async function runPipeline(options?: {
 	const startTime = Date.now();
 	const agentRun = await startAgentRun({
 		agent: "pipeline",
-		input: `Full pipeline run (provider: ${getRagProvider()}, skipIngestion: ${options?.skipIngestion ?? false})`,
-		metadata: { ragProvider: getRagProvider(), skipIngestion: options?.skipIngestion ?? false },
+		input: "Full pipeline run (provider: qdrant)",
+		metadata: { ragProvider: "self" },
 	});
 
-	log("info", "Pipeline started: quality filter → summarization → ingestion", {
-		skipIngestion: options?.skipIngestion ?? false,
-	});
+	log("info", "Pipeline started: quality filter → summarization → Qdrant RAG ingestion");
 
 	try {
 		// Stage 1: Quality Filter
@@ -120,26 +99,17 @@ export async function runPipeline(options?: {
 			};
 		}
 
-		// Stage 3: Ingestion
-		// Check for summarized articles (may exist from a previous run).
-		// For self-hosted RAG, also include "ingested" articles (they may have
-		// been uploaded to S3/Bedrock but not yet indexed in Qdrant).
+		// Stage 3: Qdrant RAG Ingestion
+		// Include both "summarized" and "ingested" articles — the latter may have been
+		// processed in a previous Bedrock run but not yet indexed in Qdrant.
 		const summarizedArticles = await getArticlesByStatus("summarized");
-		const ragProvider = getRagProvider();
-		let articlesForIngestion = summarizedArticles;
-		if (ragProvider === "self") {
-			const ingestedArticles = await getArticlesByStatus("ingested");
-			articlesForIngestion = [...summarizedArticles, ...ingestedArticles];
-		}
+		const ingestedArticles = await getArticlesByStatus("ingested");
+		const articlesForIngestion = [...summarizedArticles, ...ingestedArticles];
 
-		if (ragProvider === "bedrock" && options?.skipIngestion) {
-			pipelineProgress.stages.ingestion.status = "skipped";
-			log("info", "─── Stage 3/3: Ingestion — SKIPPED (no S3 bucket configured) ───");
-		} else if (articlesForIngestion.length === 0) {
+		if (articlesForIngestion.length === 0) {
 			pipelineProgress.stages.ingestion.status = "skipped";
 			log("info", "─── Stage 3/3: Ingestion — SKIPPED (no articles to ingest) ───");
-		} else if (ragProvider === "self") {
-			// Self-hosted RAG: Rust chunker → OpenAI embeddings → Qdrant
+		} else {
 			pipelineProgress.currentStage = "ingestion";
 			pipelineProgress.stages.ingestion.status = "running";
 			log("info", `─── Stage 3/3: RAG Ingestion (Qdrant) — ${articlesForIngestion.length} articles ───`);
@@ -148,17 +118,6 @@ export async function runPipeline(options?: {
 			pipelineProgress.stages.ingestion = {
 				status: "completed",
 				result: ragResult,
-			};
-		} else {
-			// Bedrock: upload to S3
-			pipelineProgress.currentStage = "ingestion";
-			pipelineProgress.stages.ingestion.status = "running";
-			log("info", `─── Stage 3/3: Ingestion (S3 → Bedrock KB) — ${articlesForIngestion.length} articles ───`);
-
-			const ingestionResult = await runIngestion();
-			pipelineProgress.stages.ingestion = {
-				status: "completed",
-				result: ingestionResult,
 			};
 		}
 

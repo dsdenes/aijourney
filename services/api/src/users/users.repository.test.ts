@@ -24,10 +24,7 @@ describe("UsersRepository", () => {
 		};
 
 		const module: TestingModule = await Test.createTestingModule({
-			providers: [
-				UsersRepository,
-				{ provide: MONGODB_DB, useValue: mockDb },
-			],
+			providers: [UsersRepository, { provide: MONGODB_DB, useValue: mockDb }],
 		}).compile();
 
 		repo = module.get<UsersRepository>(UsersRepository);
@@ -130,12 +127,10 @@ describe("UsersRepository", () => {
 	describe("listAll", () => {
 		it("should find with limit", async () => {
 			const mockLimit = vi.fn().mockReturnValue({
-				toArray: vi
-					.fn()
-					.mockResolvedValue([
-						{ _id: "u1", email: "a@mito.hu" },
-						{ _id: "u2", email: "b@mito.hu" },
-					]),
+				toArray: vi.fn().mockResolvedValue([
+					{ _id: "u1", email: "a@mito.hu" },
+					{ _id: "u2", email: "b@mito.hu" },
+				]),
 			});
 			mockCollection.find.mockReturnValue({ limit: mockLimit });
 

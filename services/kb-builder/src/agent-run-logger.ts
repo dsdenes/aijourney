@@ -1,5 +1,5 @@
-import { generateId, nowISO } from "@aijourney/shared";
 import type { AgentRun, AgentRunStatus, AgentType } from "@aijourney/shared";
+import { generateId, nowISO } from "@aijourney/shared";
 import { getDb } from "./db.js";
 import { log } from "./log-stream.js";
 
@@ -68,8 +68,7 @@ export async function completeAgentRun(
 	try {
 		// Fetch existing to merge metadata
 		const existing = await col().findOne({ _id: id });
-		const existingMeta =
-			(existing?.metadata as Record<string, unknown>) || {};
+		const existingMeta = (existing?.metadata as Record<string, unknown>) || {};
 		const mergedMetadata = { ...existingMeta, ...(result.metadata || {}) };
 
 		const updates: Record<string, unknown> = {
