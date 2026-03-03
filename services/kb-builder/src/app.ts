@@ -226,6 +226,18 @@ app.get("/pipeline/progress", (_req, res) => {
 	res.json({ data: getPipelineProgress() });
 });
 
+/** Trigger Pinecone RAG ingestion independently (for already-summarized articles) */
+app.post("/pipeline/ingest", async (_req, res) => {
+	log("info", "Standalone Pinecone RAG ingestion triggered");
+	const { runRagIngestion } = await import("./rag-ingestor.js");
+	void runRagIngestion().then((result) => {
+		log("info", "Standalone ingestion completed", result);
+	}).catch((err) => {
+		log("error", `Standalone ingestion failed: ${err instanceof Error ? err.message : String(err)}`);
+	});
+	res.json({ status: "accepted", message: "Pinecone RAG ingestion started for summarized articles" });
+});
+
 // --------------- Summaries ---------------
 
 /** Trigger summarization directly (with optional limit) */
