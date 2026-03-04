@@ -49,6 +49,15 @@ export type {
 	KpiMeasurement,
 } from "./types/evidence.js";
 export type {
+	MemoryCategory,
+	MemoryExtraction,
+	MemoryExtractionJob,
+	MemoryFact,
+	MemoryQueueStats,
+	MemorySource,
+	MemoryStats,
+} from "./types/memory.js";
+export type {
 	Journey,
 	JourneyGeneratedBy,
 	JourneyMetadata,

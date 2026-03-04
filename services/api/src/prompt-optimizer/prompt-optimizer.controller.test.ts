@@ -1,7 +1,12 @@
 import { Test, type TestingModule } from "@nestjs/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryService } from "../memory/memory.service";
 import { PromptOptimizerController } from "./prompt-optimizer.controller";
 import { PromptOptimizerService } from "./prompt-optimizer.service";
+
+const mockMemoryService = {
+	enqueueExtraction: vi.fn().mockResolvedValue(undefined),
+};
 
 describe("PromptOptimizerController", () => {
 	let controller: PromptOptimizerController;
@@ -45,7 +50,10 @@ describe("PromptOptimizerController", () => {
 
 		const module: TestingModule = await Test.createTestingModule({
 			controllers: [PromptOptimizerController],
-			providers: [{ provide: PromptOptimizerService, useValue: mockService }],
+			providers: [
+				{ provide: PromptOptimizerService, useValue: mockService },
+				{ provide: MemoryService, useValue: mockMemoryService },
+			],
 		}).compile();
 
 		controller = module.get<PromptOptimizerController>(

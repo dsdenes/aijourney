@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api } from '$lib/api';
+  import { auth } from '$lib/stores/auth.svelte';
   import ProgressBar from '$lib/components/ProgressBar.svelte';
   import { addElapsedTime, getAverageTime } from '$lib/stores/elapsed-times';
   import type { TimingKey } from '$lib/stores/elapsed-times';
@@ -76,7 +77,7 @@
         score: number;
         scoreExplanation: string;
         goals: { id: number; label: string; description: string }[];
-      }>('/prompt-optimizer/analyze', { prompt: prompt.trim() }, 'optimizer:analyze');
+      }>('/prompt-optimizer/analyze', { prompt: prompt.trim(), userId: auth.user?.userId }, 'optimizer:analyze');
 
       loadingDone = true;
       if (res.data) {
@@ -112,6 +113,7 @@
       }>('/prompt-optimizer/optimize', {
         prompt: prompt.trim(),
         goal: selectedGoal,
+        userId: auth.user?.userId,
       }, 'optimizer:optimize');
 
       loadingDone = true;

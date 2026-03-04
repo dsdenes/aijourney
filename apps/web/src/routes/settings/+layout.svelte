@@ -14,6 +14,7 @@
     { label: 'KB Builder', href: '/settings/kb-builder', icon: '🏗️' },
     { label: 'KB Chat', href: '/settings/kb-chat', icon: '💬' },
     { label: 'Workers', href: '/settings/workers', icon: '⚙️' },
+    { label: 'Memory', href: '/settings/memory', icon: '🧠' },
   ];
 
   function isActive(href: string): boolean {

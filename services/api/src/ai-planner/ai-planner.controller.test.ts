@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { MemoryService } from "../memory/memory.service";
 import { AiPlannerController } from "./ai-planner.controller";
 import type { AiPlannerService } from "./ai-planner.service";
 
@@ -9,9 +10,13 @@ describe("AiPlannerController", () => {
 		generateStrategy: vi.fn(),
 	} as unknown as AiPlannerService;
 
+	const mockMemoryService = {
+		enqueueExtraction: vi.fn().mockResolvedValue(undefined),
+	} as unknown as MemoryService;
+
 	beforeEach(() => {
 		vi.clearAllMocks();
-		controller = new AiPlannerController(mockService);
+		controller = new AiPlannerController(mockService, mockMemoryService);
 	});
 
 	describe("POST /ai-planner/questions", () => {

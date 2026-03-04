@@ -1,6 +1,7 @@
 import type { PlannerAnswer, PlannerRound } from "@aijourney/shared";
 import { Body, Controller, Inject, Post } from "@nestjs/common";
 import { ApiBody, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { MemoryService } from "../memory/memory.service";
 import { AiPlannerService } from "./ai-planner.service";
 
 @ApiTags("ai-planner")
@@ -9,6 +10,8 @@ export class AiPlannerController {
 	constructor(
 		@Inject(AiPlannerService)
 		private readonly service: AiPlannerService,
+		@Inject(MemoryService)
+		private readonly memoryService: MemoryService,
 	) {}
 
 	@Post("questions")
@@ -104,7 +107,7 @@ export class AiPlannerController {
 		},
 	})
 	async generateStrategy(
-		@Body() body: { goal: string; answers: PlannerAnswer[]; feedback?: string },
+		@Body() body: { goal: string; answers: PlannerAnswer[]; feedback?: string; userId?: string },
 	) {
 		if (!body.goal?.trim()) {
 			return {
@@ -133,6 +136,14 @@ export class AiPlannerController {
 				body.answers,
 				body.feedback?.trim(),
 			);
+
+			// Fire-and-forget memory extraction
+			if (body.userId) {
+				const answeredYes = body.answers.filter(a => a.answer).map(a => a.question);
+				const memoryInput = `Goal: ${body.goal.trim()}\nKey answers: ${answeredYes.join("; ")}${body.feedback ? `\nFeedback: ${body.feedback}` : ""}`;
+				this.memoryService.enqueueExtraction(body.userId, "ai-planner", memoryInput).catch(() => {});
+			}
+
 			return { data: strategy };
 		} catch (err) {
 			const message =

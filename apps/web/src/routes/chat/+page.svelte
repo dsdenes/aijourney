@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api } from '$lib/api';
+  import { auth } from '$lib/stores/auth.svelte';
   import { marked } from 'marked';
   import { tick } from 'svelte';
 
@@ -64,6 +65,7 @@
       const res = await api.post<ChatResponseData>('/chat', {
         query: userMessage,
         history,
+        userId: auth.user?.userId,
       });
       if (res.error) throw new Error(res.error.message);
       const chatData = res.data;

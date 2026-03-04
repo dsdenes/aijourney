@@ -30,6 +30,10 @@ export interface PlannerStrategyStep {
 	inputArtifacts: string;
 	outputArtifacts: string;
 	prompt: string;
+	/** Recommended ChatGPT model and settings for this step */
+	recommendedModel?: string;
+	/** Why this model/setting is recommended */
+	modelReason?: string;
 }
 
 /** Round number: 1, 2, or 3 */

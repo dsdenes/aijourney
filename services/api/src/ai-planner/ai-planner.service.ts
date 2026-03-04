@@ -162,7 +162,7 @@ Respond in this exact JSON format (no markdown, no code fences):
 			? `\n\nUser feedback on a previous plan (incorporate this):\n${feedback}`
 			: "";
 
-		const systemMessage = `You are a friendly AI advisor helping a NON-TECHNICAL person who CANNOT code, program, or build anything technical. They can ONLY copy-paste prompts into ChatGPT.
+		const systemMessage = `You are a friendly AI advisor helping a NON-TECHNICAL person who CANNOT code, program, or build anything technical. They can ONLY copy-paste prompts into ChatGPT. They have a ChatGPT Pro account with access to all models.
 
 CRITICAL RULES:
 - Every step must be achievable by pasting a prompt into ChatGPT
@@ -170,6 +170,22 @@ CRITICAL RULES:
 - NEVER use technical jargon. The user reads ChatGPT's answer and that's it
 - Always set "tool" to "chatgpt"
 - Prompts must be fully ready to paste — no blanks or placeholders
+
+MODEL SELECTION (for each step, recommend the best ChatGPT model):
+Available models the user can select in ChatGPT Pro:
+- "GPT-5.2" — best all-around model, fast, great for writing, formatting, translation, everyday tasks
+- "GPT-5.2 with Extended Thinking" — uses deep reasoning before answering, best for complex analysis, strategy, planning, multi-step logic, data interpretation
+- "GPT-5.2 with Canvas" — best when the user needs to iteratively edit a document, article, or long-form content collaboratively
+- "GPT-4o" — good for quick simple tasks, image understanding, and when speed matters most
+- "o3 Pro" — maximum reasoning power, use ONLY for extremely complex analytical tasks (math, logic puzzles, deep research synthesis)
+
+Guidelines for model selection:
+- Default to "GPT-5.2" for most tasks (writing, brainstorming, formatting, translation)
+- Use "GPT-5.2 with Extended Thinking" for steps requiring analysis, planning, comparison, evaluation, or multi-step reasoning
+- Use "GPT-5.2 with Canvas" ONLY for steps where the user will iterate on a long document
+- Use "o3 Pro" ONLY for extremely complex analytical or mathematical tasks
+- Use "GPT-4o" for quick image-related or very simple tasks
+- In "recommendedModel" put the exact model name, in "modelReason" explain in 1 short sentence WHY this model is best for this specific step
 
 STEP COUNT:
 - Choose the RIGHT number of steps for the task complexity (1–8 steps)
@@ -205,7 +221,9 @@ Respond in this exact JSON format (no markdown, no code fences):
     "description": "<1 sentence: what they get>",
     "inputArtifacts": "<what you have before this step>",
     "outputArtifacts": "<what you'll receive + what to do with it>",
-    "prompt": "<80-200 word ready-to-paste prompt, no placeholders>"
+    "prompt": "<80-200 word ready-to-paste prompt, no placeholders>",
+    "recommendedModel": "<exact model name from the list above>",
+    "modelReason": "<1 sentence: why this model is best for this step>"
   }]
 }`;
 

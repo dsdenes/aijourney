@@ -1,7 +1,12 @@
 import { Test, type TestingModule } from "@nestjs/testing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryService } from "../memory/memory.service";
 import { ChatController } from "./chat.controller";
 import { ChatService } from "./chat.service";
+
+const mockMemoryService = {
+	enqueueExtraction: vi.fn().mockResolvedValue(undefined),
+};
 
 describe("ChatController", () => {
 	let controller: ChatController;
@@ -14,7 +19,10 @@ describe("ChatController", () => {
 
 		const module: TestingModule = await Test.createTestingModule({
 			controllers: [ChatController],
-			providers: [{ provide: ChatService, useValue: service }],
+			providers: [
+				{ provide: ChatService, useValue: service },
+				{ provide: MemoryService, useValue: mockMemoryService },
+			],
 		}).compile();
 
 		controller = module.get<ChatController>(ChatController);

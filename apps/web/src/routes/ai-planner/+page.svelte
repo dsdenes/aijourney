@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api } from '$lib/api';
+  import { auth } from '$lib/stores/auth.svelte';
   import ProgressBar from '$lib/components/ProgressBar.svelte';
   import { addElapsedTime, getAverageTime } from '$lib/stores/elapsed-times';
   import type { TimingKey } from '$lib/stores/elapsed-times';
@@ -23,6 +24,8 @@
     inputArtifacts?: string;
     outputArtifacts?: string;
     prompt: string;
+    recommendedModel?: string;
+    modelReason?: string;
   }
 
   interface Strategy {
@@ -114,6 +117,7 @@
         goal: goal.trim(),
         answers: getAllAnswers(),
         feedback: feedback.trim(),
+        userId: auth.user?.userId,
       }, 'planner:strategy');
 
       loadingDone = true;
@@ -276,6 +280,7 @@
       const res = await timedPost<Strategy>('/ai-planner/strategy', {
         goal: goal.trim(),
         answers: getAllAnswers(),
+        userId: auth.user?.userId,
       }, 'planner:strategy');
 
       loadingDone = true;
@@ -567,6 +572,12 @@
               <div class="flex-1">
                 <h4 class="font-semibold text-text">{stepItem.title}</h4>
                 <p class="mt-0.5 text-sm text-text-muted">{stepItem.description}</p>
+                {#if stepItem.recommendedModel}
+                  <div class="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+                    <span>🤖</span>
+                    <span>{stepItem.recommendedModel}</span>
+                  </div>
+                {/if}
               </div>
               <span class="mt-1 shrink-0 text-xs text-text-faint transition-transform {openStepIndex === i ? 'rotate-180' : ''}">
                 ▼
@@ -574,6 +585,18 @@
             </button>
             {#if openStepIndex === i}
               <div class="border-t border-border bg-surface-dark p-4">
+                <!-- Model recommendation -->
+                {#if stepItem.recommendedModel}
+                  <div class="mb-3 rounded-lg bg-primary/5 p-3 ring-1 ring-primary/20">
+                    <div class="flex items-center gap-2">
+                      <span class="text-sm">🤖</span>
+                      <span class="text-sm font-semibold text-primary">{stepItem.recommendedModel}</span>
+                    </div>
+                    {#if stepItem.modelReason}
+                      <p class="mt-1 text-xs text-text-muted">{stepItem.modelReason}</p>
+                    {/if}
+                  </div>
+                {/if}
                 <!-- Artifacts info -->
                 {#if stepItem.inputArtifacts || stepItem.outputArtifacts}
                   <div class="mb-3 grid gap-2 sm:grid-cols-2">

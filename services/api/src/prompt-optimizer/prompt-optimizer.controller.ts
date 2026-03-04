@@ -1,5 +1,6 @@
 import { Body, Controller, Inject, Post } from "@nestjs/common";
 import { ApiBody, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { MemoryService } from "../memory/memory.service";
 import { PromptOptimizerService } from "./prompt-optimizer.service";
 
 @ApiTags("prompt-optimizer")
@@ -8,6 +9,8 @@ export class PromptOptimizerController {
 	constructor(
 		@Inject(PromptOptimizerService)
 		private readonly service: PromptOptimizerService,
+		@Inject(MemoryService)
+		private readonly memoryService: MemoryService,
 	) {}
 
 	@Post("analyze")
@@ -19,8 +22,14 @@ export class PromptOptimizerController {
 			required: ["prompt"],
 		},
 	})
-	async analyze(@Body() body: { prompt: string }) {
+	async analyze(@Body() body: { prompt: string; userId?: string }) {
 		const result = await this.service.analyzePrompt(body.prompt);
+
+		// Fire-and-forget memory extraction
+		if (body.userId) {
+			this.memoryService.enqueueExtraction(body.userId, "prompt-optimizer", body.prompt.trim()).catch(() => {});
+		}
+
 		return { data: result };
 	}
 
@@ -36,8 +45,15 @@ export class PromptOptimizerController {
 			required: ["prompt", "goal"],
 		},
 	})
-	async optimize(@Body() body: { prompt: string; goal: string }) {
+	async optimize(@Body() body: { prompt: string; goal: string; userId?: string }) {
 		const result = await this.service.optimizePrompt(body.prompt, body.goal);
+
+		// Fire-and-forget memory extraction (include goal for context)
+		if (body.userId) {
+			const memoryInput = `Prompt: ${body.prompt.trim()}\nGoal: ${body.goal.trim()}`;
+			this.memoryService.enqueueExtraction(body.userId, "prompt-optimizer", memoryInput).catch(() => {});
+		}
+
 		return { data: result };
 	}
 }
