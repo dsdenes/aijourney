@@ -26,7 +26,7 @@ import { log } from "./log-stream.js";
 import { startAgentRun, completeAgentRun, failAgentRun } from "./agent-run-logger.js";
 import { extractArticleText } from "./crawler.js";
 
-const OPENAI_MODEL = process.env.OPENAI_SUMMARIZATION_MODEL || "gpt-5-mini";
+const OPENAI_MODEL = process.env.OPENAI_SUMMARIZATION_MODEL || "gpt-5-nano";
 const PROMPT_VERSION = "v2-batch";
 
 /** Maximum article text length (characters) sent to OpenAI */

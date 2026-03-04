@@ -14,7 +14,7 @@ import {
 import { log } from "./log-stream.js";
 import { getSummaryByArticleId, saveSummary } from "./summary-repository.js";
 
-const OPENAI_MODEL = process.env.OPENAI_SUMMARIZATION_MODEL || "gpt-5-mini";
+const OPENAI_MODEL = process.env.OPENAI_SUMMARIZATION_MODEL || "gpt-5-nano";
 const PROMPT_VERSION = "v1";
 
 /** Maximum article text length (characters) sent to OpenAI */
