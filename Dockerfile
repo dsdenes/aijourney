@@ -44,8 +44,16 @@ COPY services/worker/ services/worker/
 RUN pnpm --filter @aijourney/worker build
 CMD ["node", "services/worker/dist/index.js"]
 
+# ---- Rust chunker: compile the binary for Alpine ----
+FROM rust:alpine AS chunker-builder
+RUN apk add --no-cache musl-dev
+WORKDIR /build
+COPY tools/chunker/ .
+RUN cargo build --release
+
 # ---- KB Builder: Express knowledge base pipeline ----
 FROM shared-build AS kb-builder
+COPY --from=chunker-builder /build/target/release/chunker /app/tools/chunker/target/release/chunker
 COPY services/kb-builder/ services/kb-builder/
 RUN pnpm --filter @aijourney/kb-builder build
 EXPOSE 3002

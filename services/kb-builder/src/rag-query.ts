@@ -1,17 +1,19 @@
 /**
- * RAG query module — retrieves relevant chunks from Pinecone using
- * integrated embedding (multilingual-e5-large).
+ * RAG query module — embeds query via OpenAI text-embedding-3-small,
+ * then retrieves relevant chunks from Pinecone using standard vector search.
  *
  * Used by the chat service via the kb-builder HTTP API.
  */
 
 import { Pinecone } from "@pinecone-database/pinecone";
+import OpenAI from "openai";
 import { log } from "./log-stream.js";
 
 // ── Config ──
 
-const PINECONE_API_KEY = process.env.PINECONE_API_KEY || "";
 const PINECONE_INDEX_NAME = process.env.PINECONE_INDEX_NAME || "aijourney-kb";
+const EMBEDDING_MODEL = "text-embedding-3-small";
+const EMBEDDING_DIMENSION = 1536;
 
 // ── Types ──
 
@@ -52,11 +54,35 @@ function getIndex() {
 	return getPinecone().index(PINECONE_INDEX_NAME);
 }
 
+// ── OpenAI client ──
+
+let openaiClient: OpenAI | null = null;
+
+function getOpenAI(): OpenAI {
+	if (!openaiClient) {
+		const apiKey = process.env.OPENAI_API_KEY || "";
+		if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
+		openaiClient = new OpenAI({ apiKey });
+	}
+	return openaiClient;
+}
+
+/** Embed a single text for query purposes. */
+async function embedQuery(text: string): Promise<number[]> {
+	const openai = getOpenAI();
+	const response = await openai.embeddings.create({
+		model: EMBEDDING_MODEL,
+		input: text,
+		dimensions: EMBEDDING_DIMENSION,
+	});
+	return response.data[0]!.embedding;
+}
+
 // ── Search ──
 
 /**
  * Search the Pinecone knowledge base for chunks relevant to a query.
- * Pinecone handles embedding internally via multilingual-e5-large.
+ * Embeds via OpenAI text-embedding-3-small, then queries Pinecone.
  *
  * @param query - User's search query / chat message
  * @param topK - Number of top chunks to retrieve (default: 8)
@@ -69,44 +95,35 @@ export async function searchKnowledgeBase(
 ): Promise<RagSearchResult> {
 	const index = getIndex();
 
-	// Pinecone integrated embedding — pass raw text, Pinecone embeds + searches
-	const response = await index.searchRecords({
-		query: {
-			topK,
-			inputs: { text: query },
-		},
-		fields: [
-			"text",
-			"doc_id",
-			"chunk_index",
-			"article_url",
-			"article_title",
-			"article_source",
-			"summary_title",
-			"tags",
-			"difficulty",
-		],
+	// Embed the query text via OpenAI
+	const queryVector = await embedQuery(query);
+
+	// Standard Pinecone vector query
+	const response = await index.query({
+		vector: queryVector,
+		topK,
+		includeMetadata: true,
 	});
 
-	const hits = response.result?.hits ?? [];
+	const matches = response.matches ?? [];
 
 	// Filter by score threshold and map results
-	const chunks: RagChunk[] = hits
-		.filter((hit) => (hit._score ?? 0) >= scoreThreshold)
-		.map((hit) => {
-			const f = hit.fields as Record<string, unknown>;
+	const chunks: RagChunk[] = matches
+		.filter((match) => (match.score ?? 0) >= scoreThreshold)
+		.map((match) => {
+			const m = (match.metadata ?? {}) as Record<string, unknown>;
 			return {
-				text: String(f.text || ""),
-				score: hit._score ?? 0,
+				text: String(m.text || ""),
+				score: match.score ?? 0,
 				metadata: {
-					doc_id: String(f.doc_id || ""),
-					chunk_index: Number(f.chunk_index || 0),
-					article_url: String(f.article_url || ""),
-					article_title: String(f.article_title || ""),
-					article_source: String(f.article_source || ""),
-					summary_title: String(f.summary_title || ""),
-					tags: (f.tags as string[]) || [],
-					difficulty: String(f.difficulty || ""),
+					doc_id: String(m.doc_id || ""),
+					chunk_index: Number(m.chunk_index || 0),
+					article_url: String(m.article_url || ""),
+					article_title: String(m.article_title || ""),
+					article_source: String(m.article_source || ""),
+					summary_title: String(m.summary_title || ""),
+					tags: (m.tags as string[]) || [],
+					difficulty: String(m.difficulty || ""),
 				},
 			};
 		});
@@ -121,7 +138,6 @@ export async function searchKnowledgeBase(
 		},
 	);
 
-	// No external embedding tokens — Pinecone handles embedding internally
 	return { chunks, tokensUsed: 0 };
 }
 
@@ -132,7 +148,6 @@ export async function isRagAvailable(): Promise<boolean> {
 	try {
 		const pc = getPinecone();
 		const description = await pc.describeIndex(PINECONE_INDEX_NAME);
-		// Check if the index is ready and reachable
 		return description.status?.state === "Ready";
 	} catch {
 		return false;
