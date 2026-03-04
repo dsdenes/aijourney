@@ -1,4 +1,15 @@
 services:
+  mongodb:
+    image: mongo:7
+    restart: always
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   redis:
     image: redis:7-alpine
     restart: always
@@ -20,16 +31,19 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      mongodb:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       PORT: "3000"
       REDIS_URL: redis://redis:6379
+      MONGODB_URI: "mongodb://mongodb:27017"
       APP_URL: "https://${CLOUDFRONT_DOMAIN}"
       API_URL: "https://${CLOUDFRONT_DOMAIN}/api"
       GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID}"
       GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET}"
       OPENAI_API_KEY: "${OPENAI_API_KEY}"
-      KB_BUILDER_URL: "http://localhost:3002"
+      KB_BUILDER_URL: "http://kb-builder:3002"
 
   worker:
     build:
@@ -49,12 +63,17 @@ services:
       context: .
       target: kb-builder
     restart: always
+    depends_on:
+      mongodb:
+        condition: service_healthy
     environment:
       NODE_ENV: production
+      MONGODB_URI: "mongodb://mongodb:27017"
       OPENAI_API_KEY: "${OPENAI_API_KEY}"
       KB_BUILDER_PORT: "3002"
       PINECONE_API_KEY: "${PINECONE_API_KEY}"
       PINECONE_INDEX_NAME: "${PINECONE_INDEX_NAME:-aijourney-kb}"
 
 volumes:
+  mongodb_data:
   redis_data:
