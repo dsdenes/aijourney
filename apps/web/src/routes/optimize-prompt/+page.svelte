@@ -1,5 +1,8 @@
 <script lang="ts">
   import { api } from '$lib/api';
+  import ProgressBar from '$lib/components/ProgressBar.svelte';
+  import { addElapsedTime, getAverageTime } from '$lib/stores/elapsed-times';
+  import type { TimingKey } from '$lib/stores/elapsed-times';
 
   type Step = 'input' | 'analyzing' | 'goals' | 'optimizing' | 'result';
 
@@ -21,6 +24,23 @@
   let changes = $state<string[]>([]);
   let newScore = $state(0);
   let copied = $state(false);
+
+  // Progress bar state
+  let loadingDone = $state(false);
+  let currentEstimateMs = $state(10000);
+
+  /** Helper: timed API call that records elapsed time */
+  async function timedPost<T>(path: string, body: unknown, key: TimingKey): Promise<{ data?: T; error?: { message: string } }> {
+    const start = Date.now();
+    try {
+      const res = await api.post<T>(path, body);
+      addElapsedTime(key, Date.now() - start);
+      return res;
+    } catch (err) {
+      addElapsedTime(key, Date.now() - start);
+      throw err;
+    }
+  }
 
   function getScoreColor(s: number) {
     if (s >= 75) return 'text-success';
@@ -47,15 +67,18 @@
   async function analyzePrompt() {
     if (!prompt.trim()) return;
     error = '';
+    loadingDone = false;
+    currentEstimateMs = getAverageTime('optimizer:analyze', 12000);
     step = 'analyzing';
 
     try {
-      const res = await api.post<{
+      const res = await timedPost<{
         score: number;
         scoreExplanation: string;
         goals: { id: number; label: string; description: string }[];
-      }>('/prompt-optimizer/analyze', { prompt: prompt.trim() });
+      }>('/prompt-optimizer/analyze', { prompt: prompt.trim() }, 'optimizer:analyze');
 
+      loadingDone = true;
       if (res.data) {
         score = res.data.score;
         scoreExplanation = res.data.scoreExplanation;
@@ -63,6 +86,7 @@
         step = 'goals';
       }
     } catch (err: unknown) {
+      loadingDone = true;
       error = err instanceof Error ? err.message : 'Analysis failed';
       step = 'input';
     }
@@ -76,18 +100,21 @@
 
   async function optimizeWithGoal() {
     error = '';
+    loadingDone = false;
+    currentEstimateMs = getAverageTime('optimizer:optimize', 15000);
     step = 'optimizing';
 
     try {
-      const res = await api.post<{
+      const res = await timedPost<{
         optimizedPrompt: string;
         changes: string[];
         newScore: number;
       }>('/prompt-optimizer/optimize', {
         prompt: prompt.trim(),
         goal: selectedGoal,
-      });
+      }, 'optimizer:optimize');
 
+      loadingDone = true;
       if (res.data) {
         optimizedPrompt = res.data.optimizedPrompt;
         changes = res.data.changes;
@@ -95,6 +122,7 @@
         step = 'result';
       }
     } catch (err: unknown) {
+      loadingDone = true;
       error = err instanceof Error ? err.message : 'Optimization failed';
       step = 'goals';
     }
@@ -203,6 +231,15 @@
           {/if}
         </button>
       </div>
+      {#if step === 'analyzing'}
+        <div class="mt-4">
+          <ProgressBar
+            estimatedMs={currentEstimateMs}
+            done={loadingDone}
+            label="Analyzing your prompt..."
+          />
+        </div>
+      {/if}
     </div>
   {/if}
 
@@ -271,10 +308,11 @@
         </div>
 
         {#if step === 'optimizing'}
-          <div class="mt-4 flex items-center gap-2 text-sm text-primary">
-            <span class="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"></span>
-            Optimizing your prompt...
-          </div>
+          <ProgressBar
+            estimatedMs={currentEstimateMs}
+            done={loadingDone}
+            label="Optimizing your prompt..."
+          />
         {/if}
       </div>
     {:else}

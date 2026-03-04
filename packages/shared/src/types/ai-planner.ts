@@ -16,6 +16,9 @@ export interface PlannerAnswer {
 export interface PlannerStrategy {
 	title: string;
 	summary: string;
+	startingState: string;
+	endResult: string;
+	nextSteps: string;
 	steps: PlannerStrategyStep[];
 	tool: "chatgpt";
 }
@@ -24,6 +27,8 @@ export interface PlannerStrategyStep {
 	order: number;
 	title: string;
 	description: string;
+	inputArtifacts: string;
+	outputArtifacts: string;
 	prompt: string;
 }
 

@@ -1,5 +1,8 @@
 <script lang="ts">
   import { api } from '$lib/api';
+  import ProgressBar from '$lib/components/ProgressBar.svelte';
+  import { addElapsedTime, getAverageTime } from '$lib/stores/elapsed-times';
+  import type { TimingKey } from '$lib/stores/elapsed-times';
 
   interface PlannerQuestion {
     id: number;
@@ -17,12 +20,17 @@
     order: number;
     title: string;
     description: string;
+    inputArtifacts?: string;
+    outputArtifacts?: string;
     prompt: string;
   }
 
   interface Strategy {
     title: string;
     summary: string;
+    startingState?: string;
+    endResult?: string;
+    nextSteps?: string;
     steps: StrategyStep[];
     tool: 'chatgpt';
   }
@@ -54,6 +62,10 @@
   // Highest completed step (1=goal submitted, 2=round1 done, 3=round2 done, 4=round3 done, 5=strategy done)
   let completedStep = $state(0);
 
+  // Progress bar state
+  let loadingDone = $state(false);
+  let currentEstimateMs = $state(15000);
+
   // Funny rotating progress messages
   const funnyMessages = [
     'Consulting the AI oracle...',
@@ -77,21 +89,6 @@
     'Untangling the spaghetti of possibilities...',
     'Searching for the meaning of AI-life...',
   ];
-  let funnyMessageIndex = $state(0);
-  let funnyInterval = $state<ReturnType<typeof setInterval> | null>(null);
-
-  $effect(() => {
-    if (step === 'loading-strategy') {
-      funnyMessageIndex = Math.floor(Math.random() * funnyMessages.length);
-      funnyInterval = setInterval(() => {
-        funnyMessageIndex = (funnyMessageIndex + 1) % funnyMessages.length;
-      }, 2500);
-    } else if (funnyInterval) {
-      clearInterval(funnyInterval);
-      funnyInterval = null;
-    }
-    return () => { if (funnyInterval) clearInterval(funnyInterval); };
-  });
   let copiedStepIndex = $state<number | null>(null);
   let feedback = $state('');
   let openStepIndex = $state<number | null>(null);
@@ -107,16 +104,19 @@
   async function regenerateStrategy() {
     if (!feedback.trim()) return;
     error = '';
+    loadingDone = false;
+    currentEstimateMs = getAverageTime('planner:strategy', 30000);
     step = 'loading-strategy';
     openStepIndex = null;
 
     try {
-      const res = await api.post<Strategy>('/ai-planner/strategy', {
+      const res = await timedPost<Strategy>('/ai-planner/strategy', {
         goal: goal.trim(),
         answers: getAllAnswers(),
         feedback: feedback.trim(),
-      });
+      }, 'planner:strategy');
 
+      loadingDone = true;
       if (res.data) {
         strategy = res.data;
         feedback = '';
@@ -126,6 +126,7 @@
         throw new Error(res.error.message);
       }
     } catch (err: unknown) {
+      loadingDone = true;
       error = err instanceof Error ? err.message : 'Failed to regenerate strategy';
       step = 'strategy';
     }
@@ -152,19 +153,35 @@
     return Object.values(selections).filter(Boolean).length;
   }
 
+  /** Helper: timed API call that records elapsed time */
+  async function timedPost<T>(path: string, body: unknown, key: TimingKey): Promise<{ data?: T; error?: { message: string } }> {
+    const start = Date.now();
+    try {
+      const res = await api.post<T>(path, body);
+      addElapsedTime(key, Date.now() - start);
+      return res;
+    } catch (err) {
+      addElapsedTime(key, Date.now() - start);
+      throw err;
+    }
+  }
+
   // Step 1 → Round 1
   async function submitGoal() {
     if (!goal.trim()) return;
     error = '';
+    loadingDone = false;
+    currentEstimateMs = getAverageTime('planner:questions', 12000);
     step = 'loading-q';
 
     try {
-      const res = await api.post<{ round: number; questions: PlannerQuestion[] }>('/ai-planner/questions', {
+      const res = await timedPost<{ round: number; questions: PlannerQuestion[] }>('/ai-planner/questions', {
         goal: goal.trim(),
         round: 1,
         previousAnswers: [],
-      });
+      }, 'planner:questions');
 
+      loadingDone = true;
       if (res.data) {
         round1Questions = res.data.questions;
         round1Selections = {};
@@ -175,6 +192,7 @@
         throw new Error(res.error.message);
       }
     } catch (err: unknown) {
+      loadingDone = true;
       error = err instanceof Error ? err.message : 'Failed to generate questions';
       step = 'input';
     }
@@ -183,15 +201,18 @@
   // Round 1 → Round 2
   async function submitRound1() {
     error = '';
+    loadingDone = false;
+    currentEstimateMs = getAverageTime('planner:questions', 12000);
     step = 'loading-q';
 
     try {
-      const res = await api.post<{ round: number; questions: PlannerQuestion[] }>('/ai-planner/questions', {
+      const res = await timedPost<{ round: number; questions: PlannerQuestion[] }>('/ai-planner/questions', {
         goal: goal.trim(),
         round: 2,
         previousAnswers: getAnswers(round1Questions, round1Selections, round1Context),
-      });
+      }, 'planner:questions');
 
+      loadingDone = true;
       if (res.data) {
         round2Questions = res.data.questions;
         round2Selections = {};
@@ -202,6 +223,7 @@
         throw new Error(res.error.message);
       }
     } catch (err: unknown) {
+      loadingDone = true;
       error = err instanceof Error ? err.message : 'Failed to generate questions';
       step = 'round1';
     }
@@ -210,6 +232,8 @@
   // Round 2 → Round 3
   async function submitRound2() {
     error = '';
+    loadingDone = false;
+    currentEstimateMs = getAverageTime('planner:questions', 12000);
     step = 'loading-q';
 
     try {
@@ -217,12 +241,13 @@
         ...getAnswers(round1Questions, round1Selections, round1Context),
         ...getAnswers(round2Questions, round2Selections, round2Context),
       ];
-      const res = await api.post<{ round: number; questions: PlannerQuestion[] }>('/ai-planner/questions', {
+      const res = await timedPost<{ round: number; questions: PlannerQuestion[] }>('/ai-planner/questions', {
         goal: goal.trim(),
         round: 3,
         previousAnswers: answers,
-      });
+      }, 'planner:questions');
 
+      loadingDone = true;
       if (res.data) {
         round3Questions = res.data.questions;
         round3Selections = {};
@@ -233,6 +258,7 @@
         throw new Error(res.error.message);
       }
     } catch (err: unknown) {
+      loadingDone = true;
       error = err instanceof Error ? err.message : 'Failed to generate questions';
       step = 'round2';
     }
@@ -241,15 +267,18 @@
   // Round 3 → Strategy
   async function submitRound3() {
     error = '';
+    loadingDone = false;
+    currentEstimateMs = getAverageTime('planner:strategy', 30000);
     step = 'loading-strategy';
     openStepIndex = null;
 
     try {
-      const res = await api.post<Strategy>('/ai-planner/strategy', {
+      const res = await timedPost<Strategy>('/ai-planner/strategy', {
         goal: goal.trim(),
         answers: getAllAnswers(),
-      });
+      }, 'planner:strategy');
 
+      loadingDone = true;
       if (res.data) {
         strategy = res.data;
         completedStep = 5;
@@ -258,6 +287,7 @@
         throw new Error(res.error.message);
       }
     } catch (err: unknown) {
+      loadingDone = true;
       error = err instanceof Error ? err.message : 'Failed to generate strategy';
       step = 'round3';
     }
@@ -364,15 +394,25 @@
           {/if}
         </button>
       </div>
+      {#if step === 'loading-q' && round1Questions.length === 0}
+        <div class="mt-4">
+          <ProgressBar
+            estimatedMs={currentEstimateMs}
+            done={loadingDone}
+            label="Analyzing your goal..."
+          />
+        </div>
+      {/if}
     </div>
   {/if}
 
   <!-- Loading questions (between rounds) -->
   {#if step === 'loading-q' && round1Questions.length > 0}
-    <div class="flex flex-col items-center justify-center py-16">
-      <div class="mb-4 h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-      <p class="text-sm font-medium text-text-muted">Preparing your next questions...</p>
-    </div>
+    <ProgressBar
+      estimatedMs={currentEstimateMs}
+      done={loadingDone}
+      label="Preparing your next questions..."
+    />
   {/if}
 
   <!-- ROUND 1/2/3: Question Selection -->
@@ -467,13 +507,12 @@
 
   <!-- Loading strategy -->
   {#if step === 'loading-strategy'}
-    <div class="flex flex-col items-center justify-center py-16">
-      <div class="mb-4 h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-      <p class="text-sm font-medium text-text-muted transition-opacity duration-300">
-        {funnyMessages[funnyMessageIndex]}
-      </p>
-      <p class="mt-1 text-xs text-text-faint">Hang tight, this takes a moment</p>
-    </div>
+    <ProgressBar
+      estimatedMs={currentEstimateMs}
+      done={loadingDone}
+      label="Building your personalized plan..."
+      messages={funnyMessages}
+    />
   {/if}
 
   <!-- STEP 5: Strategy Result -->
@@ -500,6 +539,12 @@
     <div class="mb-6 rounded-xl bg-gradient-to-r from-primary/10 to-success/10 p-6 ring-1 ring-primary/20">
       <h2 class="text-2xl font-bold text-text">{strategy.title}</h2>
       <p class="mt-2 text-sm text-text-muted">{strategy.summary}</p>
+      {#if strategy.startingState}
+        <div class="mt-3 rounded-lg bg-surface/60 p-3">
+          <span class="text-xs font-semibold uppercase text-text-faint">Starting point:</span>
+          <p class="mt-0.5 text-sm text-text-muted">{strategy.startingState}</p>
+        </div>
+      {/if}
       <div class="mt-3 inline-flex items-center gap-2 rounded-full bg-surface px-3 py-1 text-xs font-medium text-text-muted ring-1 ring-border">
         🟢 Use ChatGPT
         <a href="https://chat.openai.com" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline">Open ChatGPT →</a>
@@ -529,6 +574,23 @@
             </button>
             {#if openStepIndex === i}
               <div class="border-t border-border bg-surface-dark p-4">
+                <!-- Artifacts info -->
+                {#if stepItem.inputArtifacts || stepItem.outputArtifacts}
+                  <div class="mb-3 grid gap-2 sm:grid-cols-2">
+                    {#if stepItem.inputArtifacts}
+                      <div class="rounded-lg bg-surface/50 p-2.5">
+                        <span class="text-[10px] font-semibold uppercase text-text-faint">📥 You have</span>
+                        <p class="mt-0.5 text-xs text-text-muted">{stepItem.inputArtifacts}</p>
+                      </div>
+                    {/if}
+                    {#if stepItem.outputArtifacts}
+                      <div class="rounded-lg bg-success/5 p-2.5">
+                        <span class="text-[10px] font-semibold uppercase text-success/80">📤 You'll get</span>
+                        <p class="mt-0.5 text-xs text-text-muted">{stepItem.outputArtifacts}</p>
+                      </div>
+                    {/if}
+                  </div>
+                {/if}
                 <div class="mb-2 flex items-center justify-between">
                   <span class="text-xs font-semibold text-text-faint">📋 Copy and paste this into ChatGPT:</span>
                   <button
@@ -547,6 +609,24 @@
         {/each}
       </div>
     </div>
+
+    <!-- End Result & Next Steps -->
+    {#if strategy.endResult || strategy.nextSteps}
+      <div class="mb-6 rounded-xl bg-gradient-to-r from-success/5 to-primary/5 p-6 ring-1 ring-success/20">
+        {#if strategy.endResult}
+          <div class="mb-3">
+            <h3 class="text-sm font-semibold text-success">🎯 What you'll have at the end</h3>
+            <p class="mt-1 text-sm text-text-muted">{strategy.endResult}</p>
+          </div>
+        {/if}
+        {#if strategy.nextSteps}
+          <div>
+            <h3 class="text-sm font-semibold text-primary">🚀 Suggested next steps</h3>
+            <p class="mt-1 text-sm text-text-muted">{strategy.nextSteps}</p>
+          </div>
+        {/if}
+      </div>
+    {/if}
 
     <!-- Spec Summary -->
     <details class="mb-6 rounded-xl bg-surface p-6 ring-1 ring-border">
