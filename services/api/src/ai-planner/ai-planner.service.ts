@@ -5,31 +5,31 @@ import type {
 	PlannerStrategy,
 } from "@aijourney/shared";
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
 import { AppConfigService } from "../config/config.service";
 
-const QUESTIONS_MODEL = "gpt-5-mini";
-const STRATEGY_MODEL = "gpt-5-mini";
+const QUESTIONS_MODEL = "gemini-3.1-flash-lite-preview";
+const STRATEGY_MODEL = "gemini-3.1-flash-lite-preview";
 
 @Injectable()
 export class AiPlannerService {
 	private readonly logger = new Logger(AiPlannerService.name);
-	private openai: OpenAI | null = null;
+	private genai: GoogleGenAI | null = null;
 
 	constructor(
 		@Inject(AppConfigService)
 		private readonly configService: AppConfigService,
 	) {}
 
-	private getOpenAI(): OpenAI {
-		if (!this.openai) {
-			const apiKey = process.env.OPENAI_API_KEY;
+	private getGenAI(): GoogleGenAI {
+		if (!this.genai) {
+			const apiKey = process.env.GEMINI_API_KEY;
 			if (!apiKey) {
-				throw new Error("OPENAI_API_KEY environment variable is not set");
+				throw new Error("GEMINI_API_KEY environment variable is not set");
 			}
-			this.openai = new OpenAI({ apiKey });
+			this.genai = new GoogleGenAI({ apiKey });
 		}
-		return this.openai;
+		return this.genai;
 	}
 
 	/**
@@ -98,20 +98,17 @@ Respond in this exact JSON format (no markdown, no code fences):
 			`Generating round ${round} questions for goal: ${goal.substring(0, 80)}...`,
 		);
 
-		const response = await this.getOpenAI().chat.completions.create({
+		const response = await this.getGenAI().models.generateContent({
 			model: QUESTIONS_MODEL,
-			messages: [
-				{ role: "system", content: systemMessage },
-				{
-					role: "user",
-					content: `My project goal:\n\n${goal}`,
-				},
-			],
-			max_completion_tokens: 8000,
+			contents: [{ role: "user", parts: [{ text: `My project goal:\n\n${goal}` }] }],
+			config: {
+				systemInstruction: systemMessage,
+				maxOutputTokens: 8000,
+			},
 		});
 
-		const content = response.choices[0]?.message?.content?.trim();
-		if (!content) throw new Error("Empty response from OpenAI");
+		const content = response.text?.trim();
+		if (!content) throw new Error("Empty response from Gemini");
 
 		this.logger.debug(`Round ${round} response: ${content.substring(0, 200)}`);
 
@@ -168,20 +165,17 @@ Respond in this exact JSON format (no markdown, no code fences):
 			`Generating strategy for goal: ${goal.substring(0, 80)}...`,
 		);
 
-		const response = await this.getOpenAI().chat.completions.create({
+		const response = await this.getGenAI().models.generateContent({
 			model: STRATEGY_MODEL,
-			messages: [
-				{ role: "system", content: systemMessage },
-				{
-					role: "user",
-					content: `Project Goal:\n${goal}\n\nSpecification Answers:\n${specificationsText}${feedbackBlock}`,
-				},
-			],
-			max_completion_tokens: 16000,
+			contents: [{ role: "user", parts: [{ text: `Project Goal:\n${goal}\n\nSpecification Answers:\n${specificationsText}${feedbackBlock}` }] }],
+			config: {
+				systemInstruction: systemMessage,
+				maxOutputTokens: 16000,
+			},
 		});
 
-		const content = response.choices[0]?.message?.content?.trim();
-		if (!content) throw new Error("Empty response from OpenAI");
+		const content = response.text?.trim();
+		if (!content) throw new Error("Empty response from Gemini");
 
 		this.logger.debug(`Strategy response: ${content.substring(0, 200)}`);
 
@@ -191,7 +185,7 @@ Respond in this exact JSON format (no markdown, no code fences):
 		const strategy = JSON.parse(cleaned) as PlannerStrategy;
 
 		if (!strategy.title || !strategy.steps || !strategy.tool || !strategy.steps[0]?.prompt) {
-			throw new Error("Invalid strategy format returned from OpenAI");
+			throw new Error("Invalid strategy format returned from Gemini");
 		}
 
 		return strategy;

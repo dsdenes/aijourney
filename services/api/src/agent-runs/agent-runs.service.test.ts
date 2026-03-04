@@ -45,7 +45,7 @@ describe("AgentRunsService", () => {
 			const result = await service.startRun({
 				agent: "chat",
 				input: "What is AI?",
-				model: "gpt-5-mini",
+				model: "gemini-3.1-flash-lite-preview",
 			});
 
 			expect(result).toMatchObject({
@@ -53,7 +53,7 @@ describe("AgentRunsService", () => {
 				agent: "chat",
 				status: "running",
 				input: "What is AI?",
-				model: "gpt-5-mini",
+				model: "gemini-3.1-flash-lite-preview",
 				createdAt: "2026-01-15T10:00:00.000Z",
 			});
 			expect(mockRepo.create).toHaveBeenCalledOnce();

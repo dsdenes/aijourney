@@ -2,18 +2,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppConfigService } from "../config/config.service";
 import { AiPlannerService } from "./ai-planner.service";
 
-// Mock OpenAI
-vi.mock("openai", () => {
-	return {
-		default: class MockOpenAI {
-			chat = {
-				completions: {
-					create: vi.fn(),
-				},
-			};
-		},
-	};
-});
+// Mock @google/genai
+const mockGenerateContent = vi.fn();
+
+vi.mock("@google/genai", () => ({
+	GoogleGenAI: class MockGoogleGenAI {
+		models = {
+			generateContent: mockGenerateContent,
+		};
+	},
+}));
 
 describe("AiPlannerService", () => {
 	let service: AiPlannerService;
@@ -24,7 +22,8 @@ describe("AiPlannerService", () => {
 	} as unknown as AppConfigService;
 
 	beforeEach(() => {
-		process.env.OPENAI_API_KEY = "test-key";
+		vi.clearAllMocks();
+		process.env.GEMINI_API_KEY = "test-key";
 		service = new AiPlannerService(mockConfig);
 	});
 
@@ -39,20 +38,8 @@ describe("AiPlannerService", () => {
 				{ id: 6, question: "Do you already use AI tools?" },
 			];
 
-			// Access private field to set mock
-			const openai = (
-				service as unknown as { getOpenAI: () => unknown }
-			).getOpenAI() as {
-				chat: { completions: { create: ReturnType<typeof vi.fn> } };
-			};
-			openai.chat.completions.create.mockResolvedValueOnce({
-				choices: [
-					{
-						message: {
-							content: JSON.stringify(mockQuestions),
-						},
-					},
-				],
+			mockGenerateContent.mockResolvedValueOnce({
+				text: JSON.stringify(mockQuestions),
 			});
 
 			const result = await service.generateQuestions(
@@ -72,19 +59,8 @@ describe("AiPlannerService", () => {
 				question: `Follow-up question ${i + 1}?`,
 			}));
 
-			const openai = (
-				service as unknown as { getOpenAI: () => unknown }
-			).getOpenAI() as {
-				chat: { completions: { create: ReturnType<typeof vi.fn> } };
-			};
-			openai.chat.completions.create.mockResolvedValueOnce({
-				choices: [
-					{
-						message: {
-							content: JSON.stringify(mockQuestions),
-						},
-					},
-				],
+			mockGenerateContent.mockResolvedValueOnce({
+				text: JSON.stringify(mockQuestions),
 			});
 
 			const previousAnswers = [
@@ -100,22 +76,15 @@ describe("AiPlannerService", () => {
 
 			expect(result).toHaveLength(6);
 
-			// Verify previous answers were passed to OpenAI
-			const callArgs = openai.chat.completions.create.mock.calls[0]?.[0];
-			expect(callArgs.messages[0].content).toContain("Is this internal?");
-			expect(callArgs.messages[0].content).toContain("YES");
-			expect(callArgs.messages[0].content).toContain("NO");
+			// Verify previous answers were passed to Gemini in the system instruction
+			const callArgs = mockGenerateContent.mock.calls[0]?.[0];
+			expect(callArgs.config.systemInstruction).toContain("Is this internal?");
+			expect(callArgs.config.systemInstruction).toContain("YES");
+			expect(callArgs.config.systemInstruction).toContain("NO");
 		});
 
 		it("should throw on empty response", async () => {
-			const openai = (
-				service as unknown as { getOpenAI: () => unknown }
-			).getOpenAI() as {
-				chat: { completions: { create: ReturnType<typeof vi.fn> } };
-			};
-			openai.chat.completions.create.mockResolvedValueOnce({
-				choices: [{ message: { content: "" } }],
-			});
+			mockGenerateContent.mockResolvedValueOnce({ text: "" });
 
 			await expect(
 				service.generateQuestions("Build a chatbot", 1, []),
@@ -123,19 +92,8 @@ describe("AiPlannerService", () => {
 		});
 
 		it("should throw if response is not 6 questions", async () => {
-			const openai = (
-				service as unknown as { getOpenAI: () => unknown }
-			).getOpenAI() as {
-				chat: { completions: { create: ReturnType<typeof vi.fn> } };
-			};
-			openai.chat.completions.create.mockResolvedValueOnce({
-				choices: [
-					{
-						message: {
-							content: JSON.stringify([{ id: 1, question: "Only one?" }]),
-						},
-					},
-				],
+			mockGenerateContent.mockResolvedValueOnce({
+				text: JSON.stringify([{ id: 1, question: "Only one?" }]),
 			});
 
 			await expect(
@@ -145,44 +103,23 @@ describe("AiPlannerService", () => {
 	});
 
 	describe("generateStrategy", () => {
-		it("should generate strategy via OpenAI", async () => {
+		it("should generate strategy via Gemini", async () => {
 			const mockStrategy = {
 				title: "AI-Powered Customer Support",
 				summary: "Use ChatGPT to build a customer support chatbot.",
-				tool: "ChatGPT",
+				tool: "chatgpt",
 				steps: [
 					{
 						order: 1,
 						title: "Define FAQ",
 						description: "Gather common questions.",
-						aiRole: "AI categorizes questions.",
 						prompt: "You are a customer support agent for ABC Corp...",
 					},
 				],
-				examplePrompt: "You are a customer support agent for ABC Corp...",
-				recommendedTools: [
-					{
-						name: "ChatGPT",
-						description: "Primary conversational AI",
-						url: "https://chat.openai.com",
-					},
-				],
-				tips: ["Start small", "Test frequently", "Iterate"],
 			};
 
-			const openai = (
-				service as unknown as { getOpenAI: () => unknown }
-			).getOpenAI() as {
-				chat: { completions: { create: ReturnType<typeof vi.fn> } };
-			};
-			openai.chat.completions.create.mockResolvedValueOnce({
-				choices: [
-					{
-						message: {
-							content: JSON.stringify(mockStrategy),
-						},
-					},
-				],
+			mockGenerateContent.mockResolvedValueOnce({
+				text: JSON.stringify(mockStrategy),
 			});
 
 			const result = await service.generateStrategy(
@@ -198,7 +135,9 @@ describe("AiPlannerService", () => {
 
 			expect(result.title).toBe("AI-Powered Customer Support");
 			expect(result.steps).toHaveLength(1);
-			expect(result.tool).toBe("ChatGPT");
+			expect(result.tool).toBe("chatgpt");
 		});
 	});
 });
+
+

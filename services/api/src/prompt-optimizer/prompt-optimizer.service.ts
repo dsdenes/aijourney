@@ -1,22 +1,22 @@
 import { Injectable, Logger } from "@nestjs/common";
-import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
 import { PROMPTING_PRACTICES_CONTEXT } from "./prompting-practices-context";
 
-const MODEL = "gpt-5-mini";
+const MODEL = "gemini-3.1-flash-lite-preview";
 
 @Injectable()
 export class PromptOptimizerService {
 	private readonly logger = new Logger(PromptOptimizerService.name);
-	private openai: OpenAI;
+	private genai: GoogleGenAI;
 
 	constructor() {
-		const apiKey = process.env.OPENAI_API_KEY;
+		const apiKey = process.env.GEMINI_API_KEY;
 		if (!apiKey) {
 			this.logger.warn(
-				"OPENAI_API_KEY is not set — prompt optimizer will fail at runtime",
+				"GEMINI_API_KEY is not set — prompt optimizer will fail at runtime",
 			);
 		}
-		this.openai = new OpenAI({ apiKey: apiKey || "missing" });
+		this.genai = new GoogleGenAI({ apiKey: apiKey || "missing" });
 	}
 
 	/**
@@ -49,20 +49,17 @@ Respond in this exact JSON format (no markdown, no code fences):
 
 		this.logger.debug(`Analyzing prompt: ${prompt.substring(0, 80)}...`);
 
-		const response = await this.openai.chat.completions.create({
+		const response = await this.genai.models.generateContent({
 			model: MODEL,
-			messages: [
-				{ role: "system", content: systemMessage },
-				{
-					role: "user",
-					content: `Here is the prompt to analyze:\n\n${prompt}`,
-				},
-			],
-			max_completion_tokens: 8000,
+			contents: [{ role: "user", parts: [{ text: `Here is the prompt to analyze:\n\n${prompt}` }] }],
+			config: {
+				systemInstruction: systemMessage,
+				maxOutputTokens: 8000,
+			},
 		});
 
-		const content = response.choices[0]?.message?.content?.trim();
-		if (!content) throw new Error("Empty response from OpenAI");
+		const content = response.text?.trim();
+		if (!content) throw new Error("Empty response from Gemini");
 
 		this.logger.debug(`Analysis response: ${content.substring(0, 200)}`);
 
@@ -116,20 +113,17 @@ Respond in this exact JSON format (no markdown, no code fences):
 
 		this.logger.debug(`Optimizing prompt with goal: ${goal}`);
 
-		const response = await this.openai.chat.completions.create({
+		const response = await this.genai.models.generateContent({
 			model: MODEL,
-			messages: [
-				{ role: "system", content: systemMessage },
-				{
-					role: "user",
-					content: `Original prompt:\n"${originalPrompt}"\n\nChosen goal:\n"${goal}"\n\nPlease optimize this prompt for the stated goal.`,
-				},
-			],
-			max_completion_tokens: 8000,
+			contents: [{ role: "user", parts: [{ text: `Original prompt:\n"${originalPrompt}"\n\nChosen goal:\n"${goal}"\n\nPlease optimize this prompt for the stated goal.` }] }],
+			config: {
+				systemInstruction: systemMessage,
+				maxOutputTokens: 8000,
+			},
 		});
 
-		const content = response.choices[0]?.message?.content?.trim();
-		if (!content) throw new Error("Empty response from OpenAI");
+		const content = response.text?.trim();
+		if (!content) throw new Error("Empty response from Gemini");
 
 		this.logger.debug(`Optimization response: ${content.substring(0, 200)}`);
 

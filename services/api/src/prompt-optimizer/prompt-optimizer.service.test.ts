@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PromptOptimizerService } from "./prompt-optimizer.service";
 
-// Mock OpenAI
-const mockCreate = vi.fn();
+// Mock @google/genai
+const mockGenerateContent = vi.fn();
 
-vi.mock("openai", () => ({
-	default: class OpenAI {
-		chat = { completions: { create: mockCreate } };
+vi.mock("@google/genai", () => ({
+	GoogleGenAI: class MockGoogleGenAI {
+		models = { generateContent: mockGenerateContent };
 	},
 }));
 
@@ -15,12 +15,12 @@ describe("PromptOptimizerService", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks();
-		process.env.OPENAI_API_KEY = "test-key";
+		process.env.GEMINI_API_KEY = "test-key";
 		service = new PromptOptimizerService();
 	});
 
 	afterEach(() => {
-		delete process.env.OPENAI_API_KEY;
+		delete process.env.GEMINI_API_KEY;
 	});
 
 	describe("analyzePrompt", () => {
@@ -43,9 +43,7 @@ describe("PromptOptimizerService", () => {
 				],
 			};
 
-			mockCreate.mockResolvedValue({
-				choices: [{ message: { content: JSON.stringify(mockResponse) } }],
-			});
+			mockGenerateContent.mockResolvedValue({ text: JSON.stringify(mockResponse) });
 
 			const result = await service.analyzePrompt("Tell me about AI");
 
@@ -66,14 +64,8 @@ describe("PromptOptimizerService", () => {
 				],
 			};
 
-			mockCreate.mockResolvedValue({
-				choices: [
-					{
-						message: {
-							content: "```json\n" + JSON.stringify(mockResponse) + "\n```",
-						},
-					},
-				],
+			mockGenerateContent.mockResolvedValue({
+				text: "```json\n" + JSON.stringify(mockResponse) + "\n```",
 			});
 
 			const result = await service.analyzePrompt("Write code to sort an array");
@@ -82,71 +74,47 @@ describe("PromptOptimizerService", () => {
 			expect(result.goals).toHaveLength(3);
 		});
 
-		it("should throw on empty OpenAI response", async () => {
-			mockCreate.mockResolvedValue({
-				choices: [{ message: { content: "" } }],
-			});
+		it("should throw on empty Gemini response", async () => {
+			mockGenerateContent.mockResolvedValue({ text: "" });
 
 			await expect(service.analyzePrompt("test")).rejects.toThrow(
-				"Empty response from OpenAI",
+				"Empty response from Gemini",
 			);
 		});
 
 		it("should throw on invalid JSON response", async () => {
-			mockCreate.mockResolvedValue({
-				choices: [{ message: { content: "This is not JSON" } }],
-			});
+			mockGenerateContent.mockResolvedValue({ text: "This is not JSON" });
 
 			await expect(service.analyzePrompt("test")).rejects.toThrow(
 				"Failed to parse prompt analysis response",
 			);
 		});
 
-		it("should call OpenAI with correct model and temperature", async () => {
-			mockCreate.mockResolvedValue({
-				choices: [
-					{
-						message: {
-							content: JSON.stringify({
-								score: 10,
-								scoreExplanation: "x",
-								goals: [],
-							}),
-						},
-					},
-				],
+		it("should call Gemini with correct model and token limit", async () => {
+			mockGenerateContent.mockResolvedValue({
+				text: JSON.stringify({ score: 10, scoreExplanation: "x", goals: [] }),
 			});
 
 			await service.analyzePrompt("test prompt");
 
-			expect(mockCreate).toHaveBeenCalledWith(
+			expect(mockGenerateContent).toHaveBeenCalledWith(
 				expect.objectContaining({
-					model: "gpt-5-mini",
-					max_completion_tokens: 8000,
+					model: "gemini-3.1-flash-lite-preview",
+					config: expect.objectContaining({ maxOutputTokens: 8000 }),
 				}),
 			);
 		});
 
 		it("should include the prompt in the user message", async () => {
-			mockCreate.mockResolvedValue({
-				choices: [
-					{
-						message: {
-							content: JSON.stringify({
-								score: 10,
-								scoreExplanation: "x",
-								goals: [],
-							}),
-						},
-					},
-				],
+			mockGenerateContent.mockResolvedValue({
+				text: JSON.stringify({ score: 10, scoreExplanation: "x", goals: [] }),
 			});
 
 			await service.analyzePrompt("My specific prompt text");
 
-			const callArgs = mockCreate.mock.calls[0][0];
-			const userMsg = callArgs.messages.find((m: any) => m.role === "user");
-			expect(userMsg.content).toContain("My specific prompt text");
+			const callArgs = mockGenerateContent.mock.calls[0][0];
+			const userText = callArgs.contents[0].parts[0].text;
+			expect(userText).toContain("My specific prompt text");
 		});
 	});
 
@@ -158,9 +126,7 @@ describe("PromptOptimizerService", () => {
 				newScore: 88,
 			};
 
-			mockCreate.mockResolvedValue({
-				choices: [{ message: { content: JSON.stringify(mockResponse) } }],
-			});
+			mockGenerateContent.mockResolvedValue({ text: JSON.stringify(mockResponse) });
 
 			const result = await service.optimizePrompt(
 				"Analyze this data",
@@ -173,19 +139,15 @@ describe("PromptOptimizerService", () => {
 		});
 
 		it("should throw on empty response", async () => {
-			mockCreate.mockResolvedValue({
-				choices: [{ message: { content: null } }],
-			});
+			mockGenerateContent.mockResolvedValue({ text: null });
 
 			await expect(service.optimizePrompt("test", "goal")).rejects.toThrow(
-				"Empty response from OpenAI",
+				"Empty response from Gemini",
 			);
 		});
 
 		it("should throw on invalid JSON in optimization response", async () => {
-			mockCreate.mockResolvedValue({
-				choices: [{ message: { content: "not json" } }],
-			});
+			mockGenerateContent.mockResolvedValue({ text: "not json" });
 
 			await expect(service.optimizePrompt("test", "goal")).rejects.toThrow(
 				"Failed to parse prompt optimization response",
@@ -193,49 +155,29 @@ describe("PromptOptimizerService", () => {
 		});
 
 		it("should include original prompt and goal in the request", async () => {
-			mockCreate.mockResolvedValue({
-				choices: [
-					{
-						message: {
-							content: JSON.stringify({
-								optimizedPrompt: "x",
-								changes: [],
-								newScore: 90,
-							}),
-						},
-					},
-				],
+			mockGenerateContent.mockResolvedValue({
+				text: JSON.stringify({ optimizedPrompt: "x", changes: [], newScore: 90 }),
 			});
 
 			await service.optimizePrompt("Original prompt", "My chosen goal");
 
-			const callArgs = mockCreate.mock.calls[0][0];
-			const userMsg = callArgs.messages.find((m: any) => m.role === "user");
-			expect(userMsg.content).toContain("Original prompt");
-			expect(userMsg.content).toContain("My chosen goal");
+			const callArgs = mockGenerateContent.mock.calls[0][0];
+			const userText = callArgs.contents[0].parts[0].text;
+			expect(userText).toContain("Original prompt");
+			expect(userText).toContain("My chosen goal");
 		});
 
-		it("should use correct model and temperature for optimization", async () => {
-			mockCreate.mockResolvedValue({
-				choices: [
-					{
-						message: {
-							content: JSON.stringify({
-								optimizedPrompt: "x",
-								changes: [],
-								newScore: 90,
-							}),
-						},
-					},
-				],
+		it("should use correct model and token limit for optimization", async () => {
+			mockGenerateContent.mockResolvedValue({
+				text: JSON.stringify({ optimizedPrompt: "x", changes: [], newScore: 90 }),
 			});
 
 			await service.optimizePrompt("test", "goal");
 
-			expect(mockCreate).toHaveBeenCalledWith(
+			expect(mockGenerateContent).toHaveBeenCalledWith(
 				expect.objectContaining({
-					model: "gpt-5-mini",
-					max_completion_tokens: 8000,
+					model: "gemini-3.1-flash-lite-preview",
+					config: expect.objectContaining({ maxOutputTokens: 8000 }),
 				}),
 			);
 		});
@@ -247,12 +189,8 @@ describe("PromptOptimizerService", () => {
 				newScore: 75,
 			};
 
-			mockCreate.mockResolvedValue({
-				choices: [
-					{
-						message: { content: "```\n" + JSON.stringify(response) + "\n```" },
-					},
-				],
+			mockGenerateContent.mockResolvedValue({
+				text: "```\n" + JSON.stringify(response) + "\n```",
 			});
 
 			const result = await service.optimizePrompt("test", "goal");
@@ -261,3 +199,5 @@ describe("PromptOptimizerService", () => {
 		});
 	});
 });
+
+

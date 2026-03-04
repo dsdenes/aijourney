@@ -4,24 +4,21 @@ import { AgentRunsService } from "../agent-runs/agent-runs.service";
 import { AppConfigService } from "../config/config.service";
 import { ChatService } from "./chat.service";
 
-// Mock OpenAI module
-vi.mock("openai", () => {
-	const mockCreate = vi.fn().mockResolvedValue({
-		choices: [
-			{
-				message: {
-					content: "AI tools help improve productivity in many ways.",
-				},
-			},
-		],
-		usage: { total_tokens: 350 },
-	});
-	return {
-		default: class OpenAI {
-			chat = { completions: { create: mockCreate } };
-		},
-	};
+// Mock @google/genai
+const mockGenerateContent = vi.fn().mockResolvedValue({
+	text: "AI tools help improve productivity in many ways.",
+	usageMetadata: {
+		promptTokenCount: 150,
+		candidatesTokenCount: 200,
+		totalTokenCount: 350,
+	},
 });
+
+vi.mock("@google/genai", () => ({
+	GoogleGenAI: class MockGoogleGenAI {
+		models = { generateContent: mockGenerateContent };
+	},
+}));
 
 // Save/restore fetch
 let originalFetch: typeof globalThis.fetch;
@@ -52,7 +49,7 @@ const sampleSummary = {
 		roleRelevance: [{ role: "engineering", relevanceScore: 0.9 }],
 		citations: [{ text: "Be clear", sourceSection: "intro" }],
 	},
-	model: "gpt-5-mini",
+	model: "gemini-3.1-flash-lite-preview",
 	createdAt: "2026-01-01T00:00:00.000Z",
 };
 
@@ -69,7 +66,7 @@ describe("ChatService", () => {
 
 	beforeEach(async () => {
 		originalFetch = globalThis.fetch;
-		process.env.OPENAI_API_KEY = "test-key";
+		process.env.GEMINI_API_KEY = "test-key";
 
 		const module: TestingModule = await Test.createTestingModule({
 			providers: [
@@ -131,7 +128,7 @@ describe("ChatService", () => {
 			expect(result.sources).toEqual([]);
 		});
 
-		it("should pass conversation history to OpenAI", async () => {
+		it("should pass conversation history to Gemini", async () => {
 			mockFetch([sampleSummary], [sampleArticle]);
 
 			const history = [
@@ -172,8 +169,8 @@ describe("ChatService", () => {
 			expect(titles).toContain("Prompt Engineering Best Practices");
 		});
 
-		it("should throw if OPENAI_API_KEY is not set", async () => {
-			delete process.env.OPENAI_API_KEY;
+		it("should throw if GEMINI_API_KEY is not set", async () => {
+			delete process.env.GEMINI_API_KEY;
 			mockFetch([], []);
 
 			// Create a fresh service without the key
@@ -197,7 +194,7 @@ describe("ChatService", () => {
 
 			const freshService = module.get<ChatService>(ChatService);
 
-			await expect(freshService.chat("test")).rejects.toThrow("OPENAI_API_KEY");
+			await expect(freshService.chat("test")).rejects.toThrow("GEMINI_API_KEY");
 		});
 	});
 
@@ -216,13 +213,13 @@ describe("ChatService", () => {
 			expect(ragStep).toBeDefined();
 		});
 
-		it("should include OpenAI model name in technical steps", async () => {
+		it("should include Gemini model name in technical steps", async () => {
 			mockFetch([sampleSummary], [sampleArticle]);
 
 			const result = await service.chat("What is prompt engineering?");
 
 			const modelStep = result.technicalSteps!.find((s) =>
-				s.includes("OpenAI model"),
+				s.includes("Gemini"),
 			);
 			expect(modelStep).toBeDefined();
 		});
@@ -233,7 +230,7 @@ describe("ChatService", () => {
 			const result = await service.chat("Tell me about AI tools");
 
 			const tokenStep = result.technicalSteps!.find((s) =>
-				s.includes("tokens"),
+				s.toLowerCase().includes("tokens"),
 			);
 			expect(tokenStep).toBeDefined();
 		});

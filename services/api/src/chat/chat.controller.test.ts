@@ -26,8 +26,8 @@ describe("ChatController", () => {
 				answer: "AI helps with productivity.",
 				sources: [{ title: "Article 1", url: "https://example.com", relevance: "tools" }],
 				tokensUsed: 200,
-				model: "gpt-5-mini",
-			});
+			model: "gemini-3.1-flash-lite-preview",
+		});
 
 			const result = await controller.chat({
 				query: "Tell me about AI",
@@ -39,7 +39,7 @@ describe("ChatController", () => {
 					answer: "AI helps with productivity.",
 					sources: [{ title: "Article 1", url: "https://example.com", relevance: "tools" }],
 					tokensUsed: 200,
-					model: "gpt-5-mini",
+					model: "gemini-3.1-flash-lite-preview",
 				},
 			});
 			expect(service.chat).toHaveBeenCalledWith("Tell me about AI", []);
@@ -67,8 +67,8 @@ describe("ChatController", () => {
 				answer: "response",
 				sources: [],
 				tokensUsed: 50,
-				model: "gpt-5-mini",
-			});
+model: "gemini-3.1-flash-lite-preview",
+		});
 
 			await controller.chat({ query: "  hello  " });
 
@@ -80,7 +80,7 @@ describe("ChatController", () => {
 				answer: "follow-up",
 				sources: [],
 				tokensUsed: 100,
-				model: "gpt-5-mini",
+				model: "gemini-3.1-flash-lite-preview",
 			});
 
 			const history = [
