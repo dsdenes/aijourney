@@ -9,22 +9,26 @@
  *   5. Download results and persist summaries
  */
 
-import OpenAI from "openai";
 import type { Article, SummaryContent } from "@aijourney/shared";
+import OpenAI from "openai";
 import {
-	getArticlesByStatus,
-	getArticleById,
-	updateArticleStatus,
+	completeAgentRun,
+	failAgentRun,
+	startAgentRun,
+} from "./agent-run-logger.js";
+import {
 	getAllArticles,
+	getArticleById,
+	getArticlesByStatus,
+	updateArticleStatus,
 } from "./article-repository.js";
-import {
-	saveSummary,
-	getSummaryByArticleId,
-	deleteSummaryByArticleId,
-} from "./summary-repository.js";
-import { log } from "./log-stream.js";
-import { startAgentRun, completeAgentRun, failAgentRun } from "./agent-run-logger.js";
 import { extractArticleText } from "./crawler.js";
+import { log } from "./log-stream.js";
+import {
+	deleteSummaryByArticleId,
+	getSummaryByArticleId,
+	saveSummary,
+} from "./summary-repository.js";
 
 const OPENAI_MODEL = process.env.OPENAI_SUMMARIZATION_MODEL || "gpt-5-nano";
 const PROMPT_VERSION = "v2-batch";
@@ -43,7 +47,8 @@ let openaiClient: OpenAI | null = null;
 function getOpenAI(): OpenAI {
 	if (!openaiClient) {
 		const apiKey = process.env.OPENAI_API_KEY;
-		if (!apiKey) throw new Error("OPENAI_API_KEY environment variable is not set");
+		if (!apiKey)
+			throw new Error("OPENAI_API_KEY environment variable is not set");
 		openaiClient = new OpenAI({ apiKey });
 	}
 	return openaiClient;
@@ -243,7 +248,12 @@ function buildJsonl(articles: ArticlePrepared[]): string {
  */
 export async function submitBatchSummarization(
 	mode: "new" | "all" | "resummarize" = "new",
-): Promise<{ batchId: string; articleCount: number; skipped: number; errors: string[] }> {
+): Promise<{
+	batchId: string;
+	articleCount: number;
+	skipped: number;
+	errors: string[];
+}> {
 	const agentRun = await startAgentRun({
 		agent: "summarizer",
 		input: `Batch summarization (mode=${mode})`,
@@ -269,7 +279,10 @@ export async function submitBatchSummarization(
 
 		// If mode is resummarize, delete existing summaries first
 		if (mode === "resummarize") {
-			log("info", `Deleting existing summaries for ${prepared.length} articles`);
+			log(
+				"info",
+				`Deleting existing summaries for ${prepared.length} articles`,
+			);
 			for (const { article } of prepared) {
 				await deleteSummaryByArticleId(article.id);
 			}
@@ -278,11 +291,16 @@ export async function submitBatchSummarization(
 		const jsonl = buildJsonl(prepared);
 		const openai = getOpenAI();
 
-		log("info", `Uploading JSONL batch file (${prepared.length} articles, ${jsonl.length} bytes)`);
+		log(
+			"info",
+			`Uploading JSONL batch file (${prepared.length} articles, ${jsonl.length} bytes)`,
+		);
 
 		// Upload the JSONL file
 		const file = await openai.files.create({
-			file: new File([jsonl], "batch-summarize.jsonl", { type: "application/jsonl" }),
+			file: new File([jsonl], "batch-summarize.jsonl", {
+				type: "application/jsonl",
+			}),
 			purpose: "batch",
 		});
 
@@ -303,7 +321,9 @@ export async function submitBatchSummarization(
 		log("info", `Batch created: ${batch.id} (status=${batch.status})`);
 
 		// Track the batch
-		const articleMap = new Map(prepared.map(({ article }) => [article.id, article]));
+		const articleMap = new Map(
+			prepared.map(({ article }) => [article.id, article]),
+		);
 		activeBatches.set(batch.id, {
 			batchId: batch.id,
 			status: batch.status,
@@ -348,7 +368,10 @@ async function pollAndProcessBatch(
 			const tracked = activeBatches.get(batchId);
 			if (tracked) tracked.status = batch.status;
 
-			log("debug", `Batch ${batchId}: status=${batch.status}, completed=${batch.request_counts?.completed ?? 0}/${batch.request_counts?.total ?? 0}`);
+			log(
+				"debug",
+				`Batch ${batchId}: status=${batch.status}, completed=${batch.request_counts?.completed ?? 0}/${batch.request_counts?.total ?? 0}`,
+			);
 
 			if (
 				batch.status === "completed" ||
@@ -378,7 +401,10 @@ async function pollAndProcessBatch(
 		const result = await processCompletedBatch(batchId, batch!);
 		const durationMs = Date.now() - startTime;
 
-		log("info", `Batch ${batchId} processed: ${result.summarized} summarized, ${result.errors.length} errors, ${result.totalTokensUsed} tokens`);
+		log(
+			"info",
+			`Batch ${batchId} processed: ${result.summarized} summarized, ${result.errors.length} errors, ${result.totalTokensUsed} tokens`,
+		);
 
 		await completeAgentRun(agentRunId, {
 			output: `Batch ${batchId}: ${result.summarized} summarized, ${result.lowRelevanceArticles.length} low-relevance, ${result.errors.length} errors`,
@@ -394,7 +420,10 @@ async function pollAndProcessBatch(
 			},
 		});
 	} catch (err) {
-		log("error", `Batch ${batchId} processing failed: ${err instanceof Error ? err.message : String(err)}`);
+		log(
+			"error",
+			`Batch ${batchId} processing failed: ${err instanceof Error ? err.message : String(err)}`,
+		);
 		await failAgentRun(
 			agentRunId,
 			err instanceof Error ? err.message : String(err),
@@ -458,7 +487,8 @@ async function processCompletedBatch(
 			};
 
 			const articleId = response.custom_id;
-			const article = articleMap.get(articleId) || (await getArticleById(articleId));
+			const article =
+				articleMap.get(articleId) || (await getArticleById(articleId));
 
 			if (!article) {
 				result.errors.push(`Article ${articleId} not found`);
@@ -471,7 +501,9 @@ async function processCompletedBatch(
 			}
 
 			if (response.response.status_code !== 200) {
-				result.errors.push(`${articleId}: HTTP ${response.response.status_code}`);
+				result.errors.push(
+					`${articleId}: HTTP ${response.response.status_code}`,
+				);
 				continue;
 			}
 
@@ -505,8 +537,12 @@ async function processCompletedBatch(
 			}
 
 			// Track low-relevance articles
-			const relevanceScore = (parsed as SummaryContent & { relevanceScore?: number }).relevanceScore ?? 1.0;
-			const relevanceReason = (parsed as SummaryContent & { relevanceReason?: string }).relevanceReason ?? "";
+			const relevanceScore =
+				(parsed as SummaryContent & { relevanceScore?: number })
+					.relevanceScore ?? 1.0;
+			const relevanceReason =
+				(parsed as SummaryContent & { relevanceReason?: string })
+					.relevanceReason ?? "";
 
 			if (relevanceScore < 0.5) {
 				result.lowRelevanceArticles.push({
@@ -537,12 +573,18 @@ async function processCompletedBatch(
 			await updateArticleStatus(articleId, "summarized");
 			result.summarized++;
 
-			log("debug", `Batch result: ${parsed.title} (relevance=${relevanceScore.toFixed(2)}, ${tokensUsed} tokens)`, {
-				articleId,
-				relevanceScore,
-			});
+			log(
+				"debug",
+				`Batch result: ${parsed.title} (relevance=${relevanceScore.toFixed(2)}, ${tokensUsed} tokens)`,
+				{
+					articleId,
+					relevanceScore,
+				},
+			);
 		} catch (err) {
-			result.errors.push(`Parse error: ${err instanceof Error ? err.message : String(err)}`);
+			result.errors.push(
+				`Parse error: ${err instanceof Error ? err.message : String(err)}`,
+			);
 		}
 	}
 
@@ -554,7 +596,10 @@ async function processCompletedBatch(
 			const errorLines = errorText.trim().split("\n").filter(Boolean);
 			for (const errLine of errorLines) {
 				try {
-					const parsed = JSON.parse(errLine) as { custom_id: string; error: { message: string } };
+					const parsed = JSON.parse(errLine) as {
+						custom_id: string;
+						error: { message: string };
+					};
 					result.errors.push(`${parsed.custom_id}: ${parsed.error.message}`);
 				} catch {
 					result.errors.push(`Batch error: ${errLine.slice(0, 200)}`);
@@ -574,9 +619,7 @@ async function processCompletedBatch(
 /**
  * Check the status of a batch job.
  */
-export async function checkBatchStatus(
-	batchId: string,
-): Promise<{
+export async function checkBatchStatus(batchId: string): Promise<{
 	status: string;
 	total: number;
 	completed: number;
