@@ -94,7 +94,13 @@ describe("AiPlannerService", () => {
 
 		it("should throw if response is not 6 questions", async () => {
 			mockCreate.mockResolvedValueOnce({
-				choices: [{ message: { content: JSON.stringify([{ id: 1, question: "Only one?" }]) } }],
+				choices: [
+					{
+						message: {
+							content: JSON.stringify([{ id: 1, question: "Only one?" }]),
+						},
+					},
+				],
 			});
 
 			await expect(

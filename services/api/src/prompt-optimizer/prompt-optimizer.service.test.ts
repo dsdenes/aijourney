@@ -67,7 +67,13 @@ describe("PromptOptimizerService", () => {
 			};
 
 			mockCreate.mockResolvedValue({
-				choices: [{ message: { content: "```json\n" + JSON.stringify(mockResponse) + "\n```" } }],
+				choices: [
+					{
+						message: {
+							content: "```json\n" + JSON.stringify(mockResponse) + "\n```",
+						},
+					},
+				],
 			});
 
 			const result = await service.analyzePrompt("Write code to sort an array");
@@ -98,7 +104,17 @@ describe("PromptOptimizerService", () => {
 
 		it("should call Grok with correct model and token limit", async () => {
 			mockCreate.mockResolvedValue({
-				choices: [{ message: { content: JSON.stringify({ score: 10, scoreExplanation: "x", goals: [] }) } }],
+				choices: [
+					{
+						message: {
+							content: JSON.stringify({
+								score: 10,
+								scoreExplanation: "x",
+								goals: [],
+							}),
+						},
+					},
+				],
 			});
 
 			await service.analyzePrompt("test prompt");
@@ -113,7 +129,17 @@ describe("PromptOptimizerService", () => {
 
 		it("should include the prompt in the user message", async () => {
 			mockCreate.mockResolvedValue({
-				choices: [{ message: { content: JSON.stringify({ score: 10, scoreExplanation: "x", goals: [] }) } }],
+				choices: [
+					{
+						message: {
+							content: JSON.stringify({
+								score: 10,
+								scoreExplanation: "x",
+								goals: [],
+							}),
+						},
+					},
+				],
 			});
 
 			await service.analyzePrompt("My specific prompt text");
@@ -168,11 +194,17 @@ describe("PromptOptimizerService", () => {
 
 		it("should include original prompt and goal in the request", async () => {
 			mockCreate.mockResolvedValue({
-				choices: [{ message: { content: JSON.stringify({
-					optimizedPrompt: "x",
-					changes: [],
-					newScore: 90,
-				}) } }],
+				choices: [
+					{
+						message: {
+							content: JSON.stringify({
+								optimizedPrompt: "x",
+								changes: [],
+								newScore: 90,
+							}),
+						},
+					},
+				],
 			});
 
 			await service.optimizePrompt("Original prompt", "My chosen goal");
@@ -185,11 +217,17 @@ describe("PromptOptimizerService", () => {
 
 		it("should use correct model and token limit for optimization", async () => {
 			mockCreate.mockResolvedValue({
-				choices: [{ message: { content: JSON.stringify({
-					optimizedPrompt: "x",
-					changes: [],
-					newScore: 90,
-				}) } }],
+				choices: [
+					{
+						message: {
+							content: JSON.stringify({
+								optimizedPrompt: "x",
+								changes: [],
+								newScore: 90,
+							}),
+						},
+					},
+				],
 			});
 
 			await service.optimizePrompt("test", "goal");
@@ -210,7 +248,11 @@ describe("PromptOptimizerService", () => {
 			};
 
 			mockCreate.mockResolvedValue({
-				choices: [{ message: { content: "```\n" + JSON.stringify(response) + "\n```" } }],
+				choices: [
+					{
+						message: { content: "```\n" + JSON.stringify(response) + "\n```" },
+					},
+				],
 			});
 
 			const result = await service.optimizePrompt("test", "goal");
