@@ -149,20 +149,20 @@
 
   function agentColor(agent: string): string {
     const colors: Record<string, string> = {
-      chat: 'bg-blue-500/20 text-blue-300',
-      summarizer: 'bg-purple-500/20 text-purple-300',
-      'rag-ingestor': 'bg-teal-500/20 text-teal-300',
-      crawler: 'bg-amber-500/20 text-amber-300',
-      'quality-filter': 'bg-indigo-500/20 text-indigo-300',
-      pipeline: 'bg-slate-500/20 text-slate-300',
+      chat: 'bg-blue-100 text-blue-700',
+      summarizer: 'bg-purple-100 text-purple-700',
+      'rag-ingestor': 'bg-teal-100 text-teal-700',
+      crawler: 'bg-amber-100 text-amber-700',
+      'quality-filter': 'bg-indigo-100 text-indigo-700',
+      pipeline: 'bg-slate-100 text-slate-700',
     };
-    return colors[agent] ?? 'bg-gray-500/20 text-gray-300';
+    return colors[agent] ?? 'bg-gray-100 text-gray-700';
   }
 
   const statusColors: Record<string, string> = {
-    running: 'bg-cyan-500/20 text-cyan-300 animate-pulse',
-    completed: 'bg-green-500/20 text-green-300',
-    failed: 'bg-red-500/20 text-red-300',
+    running: 'bg-cyan-100 text-cyan-700 animate-pulse',
+    completed: 'bg-green-100 text-green-700',
+    failed: 'bg-red-100 text-red-700',
   };
 
   const statusIcons: Record<string, string> = {
@@ -281,7 +281,7 @@
             </span>
 
             <!-- Status badge -->
-            <span class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase {statusColors[run.status] ?? 'bg-gray-500/20 text-gray-300'}">
+            <span class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase {statusColors[run.status] ?? 'bg-gray-100 text-gray-700'}">
               {run.status}
             </span>
 

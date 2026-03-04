@@ -372,14 +372,14 @@
   }
 
   const statusBadge: Record<string, string> = {
-    fetched: 'bg-blue-500/20 text-blue-300',
-    extracted: 'bg-cyan-500/20 text-cyan-300',
-    deduped: 'bg-purple-500/20 text-purple-300',
-    quality_passed: 'bg-green-500/20 text-green-300',
-    quality_failed: 'bg-red-500/20 text-red-300',
-    summarized: 'bg-emerald-500/20 text-emerald-300',
-    ingested: 'bg-teal-500/20 text-teal-300',
-    rejected: 'bg-red-500/20 text-red-300',
+    fetched: 'bg-blue-100 text-blue-700',
+    extracted: 'bg-cyan-100 text-cyan-700',
+    deduped: 'bg-purple-100 text-purple-700',
+    quality_passed: 'bg-green-100 text-green-700',
+    quality_failed: 'bg-red-100 text-red-700',
+    summarized: 'bg-emerald-100 text-emerald-700',
+    ingested: 'bg-teal-100 text-teal-700',
+    rejected: 'bg-red-100 text-red-700',
   };
 
   const logLevelColors: Record<string, string> = {
@@ -390,10 +390,10 @@
   };
 
   const logLevelBadgeColors: Record<string, string> = {
-    info: 'bg-blue-500/20 text-blue-300',
-    warn: 'bg-yellow-500/20 text-yellow-300',
-    error: 'bg-red-500/20 text-red-300',
-    debug: 'bg-gray-500/20 text-gray-400',
+    info: 'bg-blue-100 text-blue-700',
+    warn: 'bg-yellow-100 text-yellow-700',
+    error: 'bg-red-100 text-red-700',
+    debug: 'bg-gray-100 text-gray-600',
   };
 </script>
 
@@ -451,12 +451,12 @@
               <span
                 class="rounded-full px-2 py-0.5 font-medium
                   {progress.status === 'running'
-                    ? 'bg-cyan-500/20 text-cyan-300'
+                    ? 'bg-cyan-100 text-cyan-700'
                     : progress.status === 'completed'
-                      ? 'bg-green-500/20 text-green-300'
+                      ? 'bg-green-100 text-green-700'
                       : progress.status === 'failed'
-                        ? 'bg-red-500/20 text-red-300'
-                        : 'bg-gray-500/20 text-gray-300'}"
+                        ? 'bg-red-100 text-red-700'
+                        : 'bg-gray-100 text-gray-700'}"
               >
                 {progress.status}
               </span>
@@ -521,12 +521,12 @@
               <span
                 class="rounded-full px-2 py-0.5 font-medium
                   {pipelineProgress.status === 'running'
-                    ? 'bg-cyan-500/20 text-cyan-300'
+                    ? 'bg-cyan-100 text-cyan-700'
                     : pipelineProgress.status === 'completed'
-                      ? 'bg-green-500/20 text-green-300'
+                      ? 'bg-green-100 text-green-700'
                       : pipelineProgress.status === 'failed'
-                        ? 'bg-red-500/20 text-red-300'
-                        : 'bg-gray-500/20 text-gray-300'}"
+                        ? 'bg-red-100 text-red-700'
+                        : 'bg-gray-100 text-gray-700'}"
               >
                 {pipelineProgress.status}
               </span>
@@ -553,14 +553,14 @@
                   <span
                     class="rounded-full px-2 py-0.5 text-[10px] font-medium
                       {s.status === 'running'
-                        ? 'bg-cyan-500/20 text-cyan-300'
+                        ? 'bg-cyan-100 text-cyan-700'
                         : s.status === 'done'
-                          ? 'bg-green-500/20 text-green-300'
+                          ? 'bg-green-100 text-green-700'
                           : s.status === 'skipped'
-                            ? 'bg-yellow-500/20 text-yellow-300'
+                            ? 'bg-yellow-100 text-yellow-700'
                             : s.status === 'failed'
-                              ? 'bg-red-500/20 text-red-300'
-                              : 'bg-gray-500/20 text-gray-400'}"
+                              ? 'bg-red-100 text-red-700'
+                              : 'bg-gray-100 text-gray-600'}"
                   >
                     {s.status}
                   </span>
@@ -890,7 +890,7 @@
                       </td>
                       <td class="px-2 py-2 text-text-muted">{article.source}</td>
                       <td class="px-2 py-2">
-                        <span class="rounded-full px-2 py-0.5 text-xs font-medium {statusBadge[article.status] || 'bg-gray-500/20 text-gray-300'}">
+                        <span class="rounded-full px-2 py-0.5 text-xs font-medium {statusBadge[article.status] || 'bg-gray-100 text-gray-700'}">
                           {article.status}
                         </span>
                       </td>

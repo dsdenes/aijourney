@@ -198,11 +198,11 @@
   }
 
   const statusColors: Record<string, string> = {
-    waiting: 'bg-yellow-500/20 text-yellow-300',
-    active: 'bg-cyan-500/20 text-cyan-300',
-    completed: 'bg-green-500/20 text-green-300',
-    failed: 'bg-red-500/20 text-red-300',
-    delayed: 'bg-orange-500/20 text-orange-300',
+    waiting: 'bg-yellow-100 text-yellow-700',
+    active: 'bg-cyan-100 text-cyan-700',
+    completed: 'bg-green-100 text-green-700',
+    failed: 'bg-red-100 text-red-700',
+    delayed: 'bg-orange-100 text-orange-700',
   };
 </script>
 
@@ -235,27 +235,27 @@
           <div class="grid grid-cols-2 gap-3">
             <div>
               <p class="text-xs text-text">Waiting</p>
-              <p class="text-xl font-bold text-yellow-300">{worker.stats.waiting}</p>
+              <p class="text-xl font-bold text-yellow-600">{worker.stats.waiting}</p>
             </div>
             <div>
               <p class="text-xs text-text">Active</p>
-              <p class="text-xl font-bold text-cyan-300">{worker.stats.active}</p>
+              <p class="text-xl font-bold text-cyan-600">{worker.stats.active}</p>
             </div>
             <div>
               <p class="text-xs text-text">Completed</p>
-              <p class="text-xl font-bold text-green-300">{worker.stats.completed}</p>
+              <p class="text-xl font-bold text-green-600">{worker.stats.completed}</p>
             </div>
             <div>
               <p class="text-xs text-text">Failed</p>
-              <p class="text-xl font-bold text-red-300">{worker.stats.failed}</p>
+              <p class="text-xl font-bold text-red-600">{worker.stats.failed}</p>
             </div>
             <div>
               <p class="text-xs text-text">Delayed</p>
-              <p class="text-xl font-bold text-orange-300">{worker.stats.delayed}</p>
+              <p class="text-xl font-bold text-orange-600">{worker.stats.delayed}</p>
             </div>
             <div>
               <p class="text-xs text-text">Status</p>
-              <p class="text-xl font-bold {worker.stats.paused ? 'text-yellow-300' : 'text-green-300'}">
+              <p class="text-xl font-bold {worker.stats.paused ? 'text-yellow-600' : 'text-green-600'}">
                 {worker.stats.paused ? '⏸ Paused' : '▶ Running'}
               </p>
             </div>
@@ -283,7 +283,7 @@
                 <button
                   onclick={resumeQueue}
                   disabled={actionLoading === 'resume'}
-                  class="flex w-full items-center justify-center gap-2 rounded-md bg-green-600/20 px-3 py-2 text-xs font-medium text-green-300 ring-1 ring-green-600/30 hover:bg-green-600/30 disabled:opacity-50"
+                  class="flex w-full items-center justify-center gap-2 rounded-md bg-green-100 px-3 py-2 text-xs font-medium text-green-700 ring-1 ring-green-300 hover:bg-green-200 disabled:opacity-50"
                 >
                   {actionLoading === 'resume' ? '...' : '▶ Resume Queue'}
                 </button>
@@ -291,7 +291,7 @@
                 <button
                   onclick={pauseQueue}
                   disabled={actionLoading === 'pause'}
-                  class="flex w-full items-center justify-center gap-2 rounded-md bg-yellow-600/20 px-3 py-2 text-xs font-medium text-yellow-300 ring-1 ring-yellow-600/30 hover:bg-yellow-600/30 disabled:opacity-50"
+                  class="flex w-full items-center justify-center gap-2 rounded-md bg-yellow-100 px-3 py-2 text-xs font-medium text-yellow-700 ring-1 ring-yellow-300 hover:bg-yellow-200 disabled:opacity-50"
                 >
                   {actionLoading === 'pause' ? '...' : '⏸ Pause Queue'}
                 </button>
@@ -317,7 +317,7 @@
             <button
               onclick={retryFailed}
               disabled={actionLoading === 'retry'}
-              class="flex w-full items-center justify-center gap-2 rounded-md bg-blue-600/20 px-3 py-2 text-xs font-medium text-blue-300 ring-1 ring-blue-600/30 hover:bg-blue-600/30 disabled:opacity-50"
+              class="flex w-full items-center justify-center gap-2 rounded-md bg-blue-100 px-3 py-2 text-xs font-medium text-blue-700 ring-1 ring-blue-300 hover:bg-blue-200 disabled:opacity-50"
             >
               {actionLoading === 'retry' ? '...' : '🔄 Retry All Failed'}
             </button>
@@ -365,7 +365,7 @@
                   onclick={() => { jobFilter = status as typeof jobFilter; }}
                   class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors
                     {jobFilter === status
-                      ? (statusColors[status] || 'bg-gray-500/20 text-gray-300')
+                      ? (statusColors[status] || 'bg-gray-100 text-gray-700')
                       : 'text-text-muted hover:bg-surface-dark'}"
                 >
                   {status}
@@ -385,7 +385,7 @@
                     class="flex w-full items-center gap-3 px-3 py-2.5 text-left text-xs hover:bg-surface-dark"
                   >
                     <span class="font-mono text-text-muted">{job.id || '—'}</span>
-                    <span class="rounded-full px-2 py-0.5 text-xs font-medium {statusColors[job.status] || 'bg-gray-500/20 text-gray-300'}">
+                    <span class="rounded-full px-2 py-0.5 text-xs font-medium {statusColors[job.status] || 'bg-gray-100 text-gray-700'}">
                       {job.status}
                     </span>
                     <span class="flex-1 truncate text-text-muted">
@@ -435,7 +435,7 @@
                               {#if job.failedReason}
                                 <div class="flex gap-2">
                                   <dt class="w-24 shrink-0 text-red-400">Error</dt>
-                                  <dd class="text-red-300 break-all">{job.failedReason}</dd>
+                                  <dd class="text-red-600 break-all">{job.failedReason}</dd>
                                 </div>
                               {/if}
                             </dl>

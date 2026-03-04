@@ -205,7 +205,7 @@
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2">
                 <h4 class="text-sm font-medium text-text">{summary.content.title}</h4>
-                <span class="shrink-0 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-medium text-emerald-300">
+                <span class="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
                   {summary.content.difficulty}
                 </span>
               </div>

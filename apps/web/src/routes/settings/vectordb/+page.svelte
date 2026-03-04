@@ -82,23 +82,23 @@
   );
 
   const stateColor = $derived(() => {
-    if (!stats) return 'bg-gray-500/20 text-gray-300';
+    if (!stats) return 'bg-gray-100 text-gray-700';
     switch (stats.index.state) {
-      case 'Ready': return 'bg-green-500/20 text-green-300';
-      case 'Initializing': return 'bg-yellow-500/20 text-yellow-300';
-      default: return 'bg-red-500/20 text-red-300';
+      case 'Ready': return 'bg-green-100 text-green-700';
+      case 'Initializing': return 'bg-yellow-100 text-yellow-700';
+      default: return 'bg-red-100 text-red-700';
     }
   });
 
   const statusColors: Record<string, string> = {
-    fetched: 'bg-slate-500/20 text-slate-300',
-    extracted: 'bg-indigo-500/20 text-indigo-300',
-    deduped: 'bg-purple-500/20 text-purple-300',
-    quality_passed: 'bg-cyan-500/20 text-cyan-300',
-    quality_failed: 'bg-red-500/20 text-red-300',
-    summarized: 'bg-yellow-500/20 text-yellow-300',
-    ingested: 'bg-green-500/20 text-green-300',
-    rejected: 'bg-red-500/20 text-red-300',
+    fetched: 'bg-slate-100 text-slate-700',
+    extracted: 'bg-indigo-100 text-indigo-700',
+    deduped: 'bg-purple-100 text-purple-700',
+    quality_passed: 'bg-cyan-100 text-cyan-700',
+    quality_failed: 'bg-red-100 text-red-700',
+    summarized: 'bg-yellow-100 text-yellow-700',
+    ingested: 'bg-green-100 text-green-700',
+    rejected: 'bg-red-100 text-red-700',
   };
 
   const statusLabels: Record<string, string> = {
@@ -162,7 +162,7 @@
     </div>
     <div class="rounded-lg bg-surface p-4">
       <p class="text-xs font-semibold uppercase text-text-muted">Pending Ingestion</p>
-      <p class="mt-1 text-2xl font-bold {pendingIngestion > 0 ? 'text-yellow-300' : 'text-green-300'}">
+      <p class="mt-1 text-2xl font-bold {pendingIngestion > 0 ? 'text-yellow-600' : 'text-green-600'}">
         {formatNumber(pendingIngestion)}
       </p>
       <p class="text-xs text-text-muted">summarized articles</p>
@@ -242,7 +242,7 @@
       <div class="space-y-2">
         {#each Object.entries(stats.articles.byStatus).sort((a, b) => b[1] - a[1]) as [status, count]}
           <div class="flex items-center justify-between">
-            <span class="rounded-full px-2.5 py-0.5 text-xs font-medium {statusColors[status] || 'bg-gray-500/20 text-gray-300'}">
+            <span class="rounded-full px-2.5 py-0.5 text-xs font-medium {statusColors[status] || 'bg-gray-100 text-gray-700'}">
               {statusLabels[status] || status}
             </span>
             <div class="flex items-center gap-2">
@@ -270,13 +270,13 @@
 
       {#if pendingIngestion > 0}
         <div class="mb-4 rounded-md bg-yellow-900/20 p-3">
-          <p class="text-sm text-yellow-300">
+          <p class="text-sm text-yellow-700">
             <span class="font-semibold">{pendingIngestion}</span> article{pendingIngestion !== 1 ? 's' : ''} ready for ingestion
           </p>
         </div>
       {:else}
         <div class="mb-4 rounded-md bg-green-900/20 p-3">
-          <p class="text-sm text-green-300">All articles are ingested. Nothing to do.</p>
+          <p class="text-sm text-green-700">All articles are ingested. Nothing to do.</p>
         </div>
       {/if}
 

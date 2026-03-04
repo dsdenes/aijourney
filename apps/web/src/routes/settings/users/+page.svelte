@@ -105,7 +105,7 @@
               <td class="px-4 py-3 text-text-muted">{user.department || '—'}</td>
               <td class="px-4 py-3">
                 {#if user.onboardingComplete}
-                  <span class="text-green-400">✓</span>
+                  <span class="text-green-600">✓</span>
                 {:else}
                   <span class="text-text-muted">—</span>
                 {/if}
@@ -119,7 +119,7 @@
                     disabled={actionLoading === user.id}
                     class="rounded px-2.5 py-1 text-xs font-medium transition-colors
                       {user.role === 'admin'
-                        ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30'
+                        ? 'bg-red-100 text-red-700 hover:bg-red-200'
                         : 'bg-primary/20 text-primary hover:bg-primary/30'}
                       disabled:opacity-50"
                   >

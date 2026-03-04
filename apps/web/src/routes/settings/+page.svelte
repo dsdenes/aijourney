@@ -68,14 +68,14 @@
   );
 
   const statusColors: Record<string, string> = {
-    PENDING: 'bg-yellow-500/20 text-yellow-300',
-    APPROVED: 'bg-blue-500/20 text-blue-300',
-    RUNNING: 'bg-cyan-500/20 text-cyan-300',
-    COMPLETED: 'bg-green-500/20 text-green-300',
-    FAILED: 'bg-red-500/20 text-red-300',
-    CANCELLED: 'bg-gray-500/20 text-gray-300',
-    CANCEL_REQUESTED: 'bg-orange-500/20 text-orange-300',
-    REJECTED: 'bg-red-500/20 text-red-300',
+    PENDING: 'bg-yellow-100 text-yellow-700',
+    APPROVED: 'bg-blue-100 text-blue-700',
+    RUNNING: 'bg-cyan-100 text-cyan-700',
+    COMPLETED: 'bg-green-100 text-green-700',
+    FAILED: 'bg-red-100 text-red-700',
+    CANCELLED: 'bg-gray-100 text-gray-700',
+    CANCEL_REQUESTED: 'bg-orange-100 text-orange-700',
+    REJECTED: 'bg-red-100 text-red-700',
   };
 </script>
 
@@ -109,7 +109,7 @@
         <div class="space-y-2">
           {#each Object.entries(runsByStatus()).sort((a, b) => b[1] - a[1]) as [status, count]}
             <div class="flex items-center justify-between">
-              <span class="rounded-full px-2.5 py-0.5 text-xs font-medium {statusColors[status] || 'bg-gray-500/20 text-gray-300'}">
+              <span class="rounded-full px-2.5 py-0.5 text-xs font-medium {statusColors[status] || 'bg-gray-100 text-gray-700'}">
                 {status}
               </span>
               <div class="flex items-center gap-2">
