@@ -273,7 +273,9 @@ describe("RAG Ingestor", () => {
 			expect(upsertArg.records[0].id).toBe("a1:0");
 			expect(upsertArg.records[0].values).toHaveLength(1536);
 			expect(upsertArg.records[0].metadata.doc_id).toBe("a1");
-			expect(upsertArg.records[0].metadata.article_url).toBe("http://test.com/ai");
+			expect(upsertArg.records[0].metadata.article_url).toBe(
+				"http://test.com/ai",
+			);
 			expect(upsertArg.records[1].id).toBe("a1:1");
 		});
 	});

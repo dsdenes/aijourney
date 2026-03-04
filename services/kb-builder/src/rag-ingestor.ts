@@ -326,7 +326,10 @@ export async function runRagIngestion(): Promise<RagIngestionResult> {
 	});
 
 	// Step 3: Embed all chunk texts via OpenAI text-embedding-3-small
-	log("info", `Embedding ${chunks.length} chunks via OpenAI ${EMBEDDING_MODEL}`);
+	log(
+		"info",
+		`Embedding ${chunks.length} chunks via OpenAI ${EMBEDDING_MODEL}`,
+	);
 	let embeddings: number[][];
 	try {
 		embeddings = await embedTexts(chunks.map((c) => c.text));
