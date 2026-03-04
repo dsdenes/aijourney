@@ -570,4 +570,31 @@ export class WorkersService implements OnModuleInit, OnModuleDestroy {
 			return { data: [] };
 		}
 	}
+
+	// ─── Vector DB Stats & Ingestion ───
+
+	async getVectorDbStats(): Promise<Record<string, unknown>> {
+		try {
+			const res = await fetch(`${this.kbUrl}/rag/stats`);
+			return (await res.json()) as Record<string, unknown>;
+		} catch {
+			return {
+				error: { code: "KB_OFFLINE", message: "KB Builder service is not running" },
+			};
+		}
+	}
+
+	async triggerRagIngestion(): Promise<Record<string, unknown>> {
+		try {
+			const res = await fetch(`${this.kbUrl}/pipeline/ingest`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+			});
+			return (await res.json()) as Record<string, unknown>;
+		} catch {
+			return {
+				error: { code: "KB_OFFLINE", message: "KB Builder service is not running" },
+			};
+		}
+	}
 }

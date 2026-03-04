@@ -165,6 +165,18 @@ export class WorkersController {
 		return await this.workersService.getActiveBatches();
 	}
 
+	@Get("kb-builder/rag/stats")
+	@ApiOperation({ summary: "Get Pinecone vector database stats" })
+	async getVectorDbStats() {
+		return await this.workersService.getVectorDbStats();
+	}
+
+	@Post("kb-builder/rag/ingest")
+	@ApiOperation({ summary: "Trigger RAG ingestion for summarized articles" })
+	async triggerRagIngestion() {
+		return await this.workersService.triggerRagIngestion();
+	}
+
 	@Get("kb-builder/batch-summarize/:batchId")
 	@ApiOperation({ summary: "Check batch summarization status" })
 	async getBatchStatus(@Param("batchId") batchId: string) {

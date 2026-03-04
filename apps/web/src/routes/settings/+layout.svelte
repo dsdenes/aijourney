@@ -9,6 +9,7 @@
     { label: 'Overview', href: '/settings', icon: '📊' },
     { label: 'Agent Runs', href: '/settings/runs', icon: '🤖' },
     { label: 'Users', href: '/settings/users', icon: '👥' },
+    { label: 'Vector DB', href: '/settings/vectordb', icon: '🧮' },
     { label: 'Workers', href: '/settings/workers', icon: '⚙️' },
   ];
 

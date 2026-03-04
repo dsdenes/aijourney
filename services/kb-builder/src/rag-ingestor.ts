@@ -471,3 +471,80 @@ export async function deleteAllVectors(): Promise<void> {
 		);
 	}
 }
+
+// ── Stats ──
+
+export interface VectorDbStats {
+	index: {
+		name: string;
+		dimension: number;
+		metric: string;
+		state: string;
+		totalRecordCount: number;
+		indexFullness: number;
+		namespaces: Record<string, { recordCount: number }>;
+	};
+	articles: {
+		total: number;
+		byStatus: Record<string, number>;
+	};
+	embedding: {
+		model: string;
+		dimension: number;
+		provider: string;
+	};
+}
+
+/**
+ * Get comprehensive stats about the Pinecone vector database,
+ * article pipeline status, and embedding configuration.
+ */
+export async function getVectorDbStats(): Promise<VectorDbStats> {
+	const pc = getPinecone();
+	const index = getIndex();
+
+	// Fetch Pinecone index description + stats in parallel
+	const [description, indexStats] = await Promise.all([
+		pc.describeIndex(PINECONE_INDEX_NAME),
+		index.describeIndexStats(),
+	]);
+
+	// Fetch article counts by status
+	const statuses = [
+		"crawled",
+		"quality_passed",
+		"quality_failed",
+		"summarized",
+		"ingested",
+	] as const;
+	const articleCounts = await Promise.all(
+		statuses.map(async (status) => {
+			const articles = await getArticlesByStatus(status);
+			return [status, articles.length] as const;
+		}),
+	);
+	const byStatus: Record<string, number> = {};
+	let total = 0;
+	for (const [status, count] of articleCounts) {
+		byStatus[status] = count;
+		total += count;
+	}
+
+	return {
+		index: {
+			name: PINECONE_INDEX_NAME,
+			dimension: description.dimension ?? 0,
+			metric: description.metric ?? "unknown",
+			state: description.status?.state ?? "unknown",
+			totalRecordCount: indexStats.totalRecordCount ?? 0,
+			indexFullness: indexStats.indexFullness ?? 0,
+			namespaces: (indexStats.namespaces as Record<string, { recordCount: number }>) ?? {},
+		},
+		articles: { total, byStatus },
+		embedding: {
+			model: EMBEDDING_MODEL,
+			dimension: EMBEDDING_DIMENSION,
+			provider: "openai",
+		},
+	};
+}

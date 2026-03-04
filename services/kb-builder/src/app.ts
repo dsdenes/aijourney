@@ -28,7 +28,7 @@ import {
 	log,
 } from "./log-stream.js";
 import { getPipelineProgress, runPipeline } from "./pipeline.js";
-import { deleteVectorsByArticleId } from "./rag-ingestor.js";
+import { deleteVectorsByArticleId, getVectorDbStats } from "./rag-ingestor.js";
 import { isRagAvailable, searchKnowledgeBase } from "./rag-query.js";
 import {
 	countSummaries,
@@ -322,6 +322,25 @@ app.post("/rag/query", async (req, res) => {
 app.get("/rag/status", async (_req, res) => {
 	const available = await isRagAvailable();
 	res.json({ data: { available, provider: "self" } });
+});
+
+/** Get detailed Pinecone vector database stats */
+app.get("/rag/stats", async (_req, res) => {
+	try {
+		const stats = await getVectorDbStats();
+		res.json({ data: stats });
+	} catch (err) {
+		log(
+			"error",
+			`RAG stats failed: ${err instanceof Error ? err.message : String(err)}`,
+		);
+		res.status(500).json({
+			error: {
+				code: "RAG_STATS_FAILED",
+				message: err instanceof Error ? err.message : "Stats fetch failed",
+			},
+		});
+	}
 });
 
 // --------------- Article Deletion ---------------
