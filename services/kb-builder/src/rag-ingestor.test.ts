@@ -266,15 +266,15 @@ describe("RAG Ingestor", () => {
 			expect(result.errors).toHaveLength(0);
 			expect(updateArticleStatus).toHaveBeenCalledWith("a1", "ingested");
 
-			// Verify Pinecone upsert was called with vectors
+			// Verify Pinecone upsert was called with records wrapper
 			expect(mockUpsert).toHaveBeenCalledTimes(1);
 			const upsertArg = mockUpsert.mock.calls[0][0];
-			expect(upsertArg).toHaveLength(2);
-			expect(upsertArg[0].id).toBe("a1:0");
-			expect(upsertArg[0].values).toHaveLength(1536);
-			expect(upsertArg[0].metadata.doc_id).toBe("a1");
-			expect(upsertArg[0].metadata.article_url).toBe("http://test.com/ai");
-			expect(upsertArg[1].id).toBe("a1:1");
+			expect(upsertArg.records).toHaveLength(2);
+			expect(upsertArg.records[0].id).toBe("a1:0");
+			expect(upsertArg.records[0].values).toHaveLength(1536);
+			expect(upsertArg.records[0].metadata.doc_id).toBe("a1");
+			expect(upsertArg.records[0].metadata.article_url).toBe("http://test.com/ai");
+			expect(upsertArg.records[1].id).toBe("a1:1");
 		});
 	});
 });

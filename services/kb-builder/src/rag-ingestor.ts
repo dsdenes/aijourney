@@ -370,7 +370,7 @@ export async function runRagIngestion(): Promise<RagIngestionResult> {
 	for (let i = 0; i < vectors.length; i += UPSERT_BATCH_SIZE) {
 		const batch = vectors.slice(i, i + UPSERT_BATCH_SIZE);
 		try {
-			await index.upsert(batch);
+			await index.upsert({ records: batch });
 		} catch (err) {
 			const msg = `Pinecone upsert failed (batch ${Math.floor(i / UPSERT_BATCH_SIZE)}): ${err instanceof Error ? err.message : String(err)}`;
 			result.errors.push(msg);
