@@ -213,19 +213,17 @@ Respond in this exact JSON format (no markdown, no code fences):
 			`Generating strategy with gpt-5.2 for goal: ${goal.substring(0, 80)}...`,
 		);
 
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		const requestBody: any = {
+		const requestBody = {
 			model: STRATEGY_MODEL,
 			messages: [
-				{ role: "system", content: systemMessage },
+				{ role: "system" as const, content: systemMessage },
 				{
-					role: "user",
+					role: "user" as const,
 					content: `Project Goal:\n${goal}\n\nSpecification Answers:\n${specificationsText}${feedbackBlock}`,
 				},
 			],
 			max_completion_tokens: 16000,
-			// gpt-5.2 supports reasoning effort (not yet in SDK types)
-			reasoning: { effort: "high" },
+			reasoning_effort: "high" as const,
 		};
 		const response =
 			await this.getOpenAIClient().chat.completions.create(requestBody);

@@ -168,7 +168,7 @@ describe("AiPlannerService", () => {
 			expect(mockCreate).toHaveBeenCalledTimes(1);
 			const call = mockCreate.mock.calls[0]?.[0];
 			expect(call.model).toBe("gpt-5.2");
-			expect(call.reasoning).toEqual({ effort: "high" });
+			expect(call.reasoning_effort).toBe("high");
 			expect(call.max_completion_tokens).toBe(16000);
 		});
 
