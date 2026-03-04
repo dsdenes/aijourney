@@ -342,6 +342,16 @@ app.post("/rag/recreate-index", async (_req, res) => {
 					"info",
 					"Index recreated successfully with integrated multilingual-e5-large",
 				);
+
+				// Reset all "ingested" articles back to "summarized" so they can be re-ingested
+				const ingested = await getArticlesByStatus("ingested");
+				if (ingested.length > 0) {
+					log("info", `Resetting ${ingested.length} ingested articles to 'summarized'`);
+					for (const article of ingested) {
+						await updateArticleStatus(article.id, "summarized");
+					}
+					log("info", `All ${ingested.length} articles reset to 'summarized' — ready for re-ingestion`);
+				}
 			} catch (err: unknown) {
 				log(
 					"error",

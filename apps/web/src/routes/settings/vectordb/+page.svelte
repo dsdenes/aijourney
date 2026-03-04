@@ -122,7 +122,7 @@
     loadStats();
     refreshInterval = setInterval(() => {
       if (autoRefresh) loadStats();
-    }, 5000);
+    }, 2000);
     return () => {
       if (refreshInterval) clearInterval(refreshInterval);
     };
@@ -208,27 +208,6 @@
           <span class="font-mono text-sm text-text">{stats.embedding.dimension}</span>
         </div>
       </div>
-    </div>
-
-    <!-- Namespaces -->
-    <div class="rounded-lg bg-surface p-5">
-      <h2 class="mb-4 text-sm font-semibold uppercase text-text">Namespaces</h2>
-      {#if Object.keys(stats.index.namespaces).length === 0}
-        <p class="text-sm text-text-muted">No namespaces (using default)</p>
-        <div class="mt-2 flex items-center justify-between rounded-md bg-surface-dark p-3">
-          <span class="font-mono text-sm text-text-muted">(default)</span>
-          <span class="text-sm font-medium text-text">{formatNumber(stats.index.totalRecordCount)} vectors</span>
-        </div>
-      {:else}
-        <div class="space-y-2">
-          {#each Object.entries(stats.index.namespaces) as [ns, data]}
-            <div class="flex items-center justify-between rounded-md bg-surface-dark p-3">
-              <span class="font-mono text-sm text-text">{ns || '(default)'}</span>
-              <span class="text-sm font-medium text-text">{formatNumber(data.recordCount)} vectors</span>
-            </div>
-          {/each}
-        </div>
-      {/if}
     </div>
 
     <!-- Article Pipeline Status -->
