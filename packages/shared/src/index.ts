@@ -49,6 +49,12 @@ export type {
 	KpiMeasurement,
 } from "./types/evidence.js";
 export type {
+	Journey,
+	JourneyGeneratedBy,
+	JourneyMetadata,
+} from "./types/journey.js";
+export type { KPI, RubricLevel } from "./types/kpi.js";
+export type {
 	MemoryCategory,
 	MemoryExtraction,
 	MemoryExtractionJob,
@@ -57,12 +63,6 @@ export type {
 	MemorySource,
 	MemoryStats,
 } from "./types/memory.js";
-export type {
-	Journey,
-	JourneyGeneratedBy,
-	JourneyMetadata,
-} from "./types/journey.js";
-export type { KPI, RubricLevel } from "./types/kpi.js";
 export type { RunLog, RunLogActor } from "./types/run-log.js";
 export type {
 	RunApproval,

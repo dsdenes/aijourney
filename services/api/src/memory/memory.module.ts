@@ -1,8 +1,8 @@
 import { Module } from "@nestjs/common";
 import { MemoryController } from "./memory.controller";
-import { MemoryExtractionService } from "./memory-extraction.service";
 import { MemoryRepository } from "./memory.repository";
 import { MemoryService } from "./memory.service";
+import { MemoryExtractionService } from "./memory-extraction.service";
 
 @Module({
 	controllers: [MemoryController],

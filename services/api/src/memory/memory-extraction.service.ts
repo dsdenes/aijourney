@@ -1,7 +1,7 @@
 import type {
+	MemoryExtraction,
 	MemoryExtractionJob,
 	MemoryFact,
-	MemoryExtraction,
 } from "@aijourney/shared";
 import { generateId, nowISO } from "@aijourney/shared";
 import { Inject, Injectable, Logger } from "@nestjs/common";
@@ -25,9 +25,7 @@ export class MemoryExtractionService {
 		if (!this.openaiClient) {
 			const apiKey = process.env.OPENAI_API_KEY;
 			if (!apiKey) {
-				throw new Error(
-					"OPENAI_API_KEY environment variable is not set",
-				);
+				throw new Error("OPENAI_API_KEY environment variable is not set");
 			}
 			this.openaiClient = new OpenAI({ apiKey });
 		}
@@ -113,9 +111,7 @@ Where "supersedes" is either null or the exact text of an existing fact that thi
 
 				// Handle superseding
 				if (item.supersedes) {
-					const oldFact = existingFacts.find(
-						(f) => f.fact === item.supersedes,
-					);
+					const oldFact = existingFacts.find((f) => f.fact === item.supersedes);
 					if (oldFact) {
 						await this.repo.supersedeFact(oldFact.id, factId);
 					}

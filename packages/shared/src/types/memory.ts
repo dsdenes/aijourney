@@ -22,10 +22,7 @@ export type MemoryCategory =
 	| "context"
 	| "personality";
 
-export type MemorySource =
-	| "ai-planner"
-	| "ai-chat"
-	| "prompt-optimizer";
+export type MemorySource = "ai-planner" | "ai-chat" | "prompt-optimizer";
 
 /** A memory extraction job payload */
 export interface MemoryExtractionJob {
