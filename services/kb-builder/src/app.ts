@@ -28,7 +28,11 @@ import {
 	log,
 } from "./log-stream.js";
 import { getPipelineProgress, runPipeline } from "./pipeline.js";
-import { deleteVectorsByArticleId, getVectorDbStats, recreateIndex } from "./rag-ingestor.js";
+import {
+	deleteVectorsByArticleId,
+	getVectorDbStats,
+	recreateIndex,
+} from "./rag-ingestor.js";
 import { isRagAvailable, searchKnowledgeBase } from "./rag-query.js";
 import {
 	countSummaries,
@@ -326,22 +330,35 @@ app.get("/rag/status", async (_req, res) => {
 
 /** Recreate the Pinecone index with integrated multilingual-e5-large embedding */
 app.post("/rag/recreate-index", async (_req, res) => {
-	log("info", "Index recreation requested — will delete and recreate with integrated embedding");
+	log(
+		"info",
+		"Index recreation requested — will delete and recreate with integrated embedding",
+	);
 	try {
 		void (async () => {
 			try {
 				await recreateIndex();
-				log("info", "Index recreated successfully with integrated multilingual-e5-large");
+				log(
+					"info",
+					"Index recreated successfully with integrated multilingual-e5-large",
+				);
 			} catch (err: unknown) {
-				log("error", `Index recreation failed: ${err instanceof Error ? err.message : String(err)}`);
+				log(
+					"error",
+					`Index recreation failed: ${err instanceof Error ? err.message : String(err)}`,
+				);
 			}
 		})();
 		res.json({
 			status: "accepted",
-			message: "Index recreation started. Old index will be deleted and re-created with integrated multilingual-e5-large embedding.",
+			message:
+				"Index recreation started. Old index will be deleted and re-created with integrated multilingual-e5-large embedding.",
 		});
 	} catch (err) {
-		log("error", `Index recreation failed: ${err instanceof Error ? err.message : String(err)}`);
+		log(
+			"error",
+			`Index recreation failed: ${err instanceof Error ? err.message : String(err)}`,
+		);
 		res.status(500).json({
 			error: {
 				code: "RECREATE_FAILED",

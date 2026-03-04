@@ -77,11 +77,15 @@
   }
 
   const pendingIngestion = $derived(stats?.articles.byStatus['summarized'] ?? 0);
+  const pendingSummarization = $derived(stats?.articles.byStatus['quality_passed'] ?? 0);
   const totalIngested = $derived(stats?.articles.byStatus['ingested'] ?? 0);
   const totalArticles = $derived(stats?.articles.total ?? 0);
+  /** Eligible = articles that could eventually be ingested (passed quality or already further) */
+  const totalEligible = $derived(pendingSummarization + pendingIngestion + totalIngested);
   const ingestionProgress = $derived(
-    totalArticles > 0 ? ((totalIngested) / totalArticles) * 100 : 0
+    totalEligible > 0 ? (totalIngested / totalEligible) * 100 : 0
   );
+  const allDone = $derived(pendingIngestion === 0 && pendingSummarization === 0);
 
   const stateColor = $derived(() => {
     if (!stats) return 'bg-gray-100 text-gray-700';
@@ -233,7 +237,7 @@
       <!-- Progress bar -->
       <div class="mb-4">
         <div class="mb-1 flex items-center justify-between text-xs text-text-muted">
-          <span>Ingestion Progress</span>
+          <span>Ingestion Progress ({totalIngested} / {totalEligible} eligible)</span>
           <span>{ingestionProgress.toFixed(0)}%</span>
         </div>
         <div class="h-2.5 overflow-hidden rounded-full bg-surface-dark">
@@ -279,9 +283,15 @@
             <span class="font-semibold">{pendingIngestion}</span> article{pendingIngestion !== 1 ? 's' : ''} ready for ingestion
           </p>
         </div>
+      {:else if pendingSummarization > 0}
+        <div class="mb-4 rounded-md bg-blue-900/20 p-3">
+          <p class="text-sm text-blue-700">
+            No articles pending ingestion. <span class="font-semibold">{pendingSummarization}</span> article{pendingSummarization !== 1 ? 's' : ''} still need summarization before they can be ingested.
+          </p>
+        </div>
       {:else}
         <div class="mb-4 rounded-md bg-green-900/20 p-3">
-          <p class="text-sm text-green-700">All articles are ingested. Nothing to do.</p>
+          <p class="text-sm text-green-700">All eligible articles are ingested. Nothing to do.</p>
         </div>
       {/if}
 

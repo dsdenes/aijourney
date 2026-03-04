@@ -116,7 +116,9 @@ export class ChatService {
 	 */
 	private async fetchSummaries(): Promise<KBSummary[]> {
 		try {
-			const res = await fetch(`${this.configService.config.KB_BUILDER_URL}/summaries`);
+			const res = await fetch(
+				`${this.configService.config.KB_BUILDER_URL}/summaries`,
+			);
 			if (!res.ok) return [];
 			const data = (await res.json()) as { data: KBSummary[] };
 			return data.data || [];
@@ -133,7 +135,9 @@ export class ChatService {
 	 */
 	private async fetchArticles(): Promise<KBArticle[]> {
 		try {
-			const res = await fetch(`${this.configService.config.KB_BUILDER_URL}/articles`);
+			const res = await fetch(
+				`${this.configService.config.KB_BUILDER_URL}/articles`,
+			);
 			if (!res.ok) return [];
 			const data = (await res.json()) as { data: KBArticle[] };
 			return data.data || [];
@@ -228,11 +232,14 @@ ${c.donts.map((d) => `  ✗ ${d}`).join("\n")}`;
 		searchTimeMs?: number;
 	}> {
 		try {
-			const res = await fetch(`${this.configService.config.KB_BUILDER_URL}/rag/query`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ query, topK: 8, scoreThreshold: 0.3 }),
-			});
+			const res = await fetch(
+				`${this.configService.config.KB_BUILDER_URL}/rag/query`,
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ query, topK: 8, scoreThreshold: 0.3 }),
+				},
+			);
 			if (!res.ok) {
 				this.logger.warn(
 					`RAG query returned ${res.status} — falling back to keyword search`,
@@ -362,13 +369,13 @@ ${chunk.text}`;
 		let sources: { title: string; url: string; relevance: string }[];
 		let embeddingTokens = 0;
 
-		technicalSteps.push("RAG provider: Pinecone (searchRecords with integrated multilingual-e5-large)");
-		technicalSteps.push(`RAG query: \"${query.slice(0, 120)}\"`);
+		technicalSteps.push(
+			"RAG provider: Pinecone (searchRecords with integrated multilingual-e5-large)",
+		);
+		technicalSteps.push(`RAG query: "${query.slice(0, 120)}"`);
 
 		// Semantic search via Pinecone
-		this.logger.log(
-			`Using Pinecone RAG for query: "${query.slice(0, 60)}"`,
-		);
+		this.logger.log(`Using Pinecone RAG for query: "${query.slice(0, 60)}"`);
 		const ragStart = Date.now();
 		const ragResult = await this.searchRag(query);
 		const ragElapsed = Date.now() - ragStart;
@@ -381,7 +388,9 @@ ${chunk.text}`;
 		);
 
 		if (ragResult.rawResponse) {
-			technicalSteps.push(`RAG raw response: ${JSON.stringify(ragResult.rawResponse)}`);
+			technicalSteps.push(
+				`RAG raw response: ${JSON.stringify(ragResult.rawResponse)}`,
+			);
 		}
 
 		if (!context || context.includes("No relevant information")) {

@@ -118,7 +118,9 @@ export async function recreateIndex(): Promise<{ message: string }> {
 					name: PINECONE_INDEX_NAME,
 					deletionProtection: "disabled",
 				});
-			} catch { /* may already be disabled */ }
+			} catch {
+				/* may already be disabled */
+			}
 			await pc.deleteIndex(PINECONE_INDEX_NAME);
 			// Wait for deletion to complete
 			await new Promise((r) => setTimeout(r, 5000));
@@ -128,7 +130,10 @@ export async function recreateIndex(): Promise<{ message: string }> {
 	}
 
 	// Create new index with integrated embedding
-	log("info", `Creating Pinecone index '${PINECONE_INDEX_NAME}' with integrated ${INTEGRATED_MODEL} embedding`);
+	log(
+		"info",
+		`Creating Pinecone index '${PINECONE_INDEX_NAME}' with integrated ${INTEGRATED_MODEL} embedding`,
+	);
 	await pc.createIndexForModel({
 		name: PINECONE_INDEX_NAME,
 		cloud: "aws",
@@ -140,12 +145,17 @@ export async function recreateIndex(): Promise<{ message: string }> {
 		waitUntilReady: true,
 	});
 
-	log("info", `Pinecone index '${PINECONE_INDEX_NAME}' created with integrated ${INTEGRATED_MODEL}`);
+	log(
+		"info",
+		`Pinecone index '${PINECONE_INDEX_NAME}' created with integrated ${INTEGRATED_MODEL}`,
+	);
 
 	// Reset pinecone client so it picks up new index
 	pineconeClient = null;
 
-	return { message: `Index '${PINECONE_INDEX_NAME}' recreated with integrated ${INTEGRATED_MODEL} embedding. Re-ingestion required.` };
+	return {
+		message: `Index '${PINECONE_INDEX_NAME}' recreated with integrated ${INTEGRATED_MODEL} embedding. Re-ingestion required.`,
+	};
 }
 
 // ── Chunker (Rust binary via spawn) ──
@@ -328,7 +338,10 @@ export async function runRagIngestion(): Promise<RagIngestionResult> {
 	});
 
 	// Step 3: Upsert into Pinecone — embedding is handled server-side by Pinecone
-	log("info", `Upserting ${chunks.length} records into Pinecone (integrated ${INTEGRATED_MODEL} embedding)`);
+	log(
+		"info",
+		`Upserting ${chunks.length} records into Pinecone (integrated ${INTEGRATED_MODEL} embedding)`,
+	);
 	const index = getIndex();
 
 	const records = chunks.map((chunk) => {

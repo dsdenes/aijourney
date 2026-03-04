@@ -139,7 +139,10 @@ export async function searchKnowledgeBase(
 	return {
 		chunks,
 		tokensUsed: 0,
-		rawResponse: { hitCount: hits.length, hits: hits.map((h) => ({ _id: h._id, _score: h._score })) },
+		rawResponse: {
+			hitCount: hits.length,
+			hits: hits.map((h) => ({ _id: h._id, _score: h._score })),
+		},
 		searchTimeMs,
 	};
 }
