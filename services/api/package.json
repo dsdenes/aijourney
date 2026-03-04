@@ -14,6 +14,7 @@
 	},
 	"dependencies": {
 		"@aijourney/shared": "workspace:*",
+		"@google/genai": "^1.43.0",
 		"@nestjs/bullmq": "^11.0.0",
 		"@nestjs/common": "^11.0.0",
 		"@nestjs/core": "^11.0.0",

@@ -1,6 +1,6 @@
 import { getRateLimiter } from "@aijourney/shared";
+import { GoogleGenAI } from "@google/genai";
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import OpenAI from "openai";
 import { AgentRunsService } from "../agent-runs/agent-runs.service";
 import { AppConfigService } from "../config/config.service";
 
@@ -65,15 +65,15 @@ export interface ChatResponse {
 	promptTokens?: number;
 	completionTokens?: number;
 	model: string;
-	/** Full messages array sent to OpenAI (JSON) */
+	/** Full messages array sent to Gemini (JSON) */
 	fullInput?: string;
-	/** Full raw response from OpenAI */
+	/** Full raw response from Gemini */
 	fullOutput?: string;
 	/** Step-by-step technical details on how the answer was produced */
 	technicalSteps?: string[];
 }
 
-const CHAT_MODEL = process.env.OPENAI_CHAT_MODEL || "gpt-5-mini";
+const CHAT_MODEL = "gemini-3.1-flash-lite-preview";
 
 const SYSTEM_PROMPT = `You are an AI knowledge assistant for a workplace AI adoption platform. You help users learn about AI tools, techniques, and best practices.
 
@@ -90,7 +90,7 @@ Rules:
 @Injectable()
 export class ChatService {
 	private readonly logger = new Logger(ChatService.name);
-	private openai: OpenAI | null = null;
+	private genai: GoogleGenAI | null = null;
 	private readonly rateLimiter = getRateLimiter(CHAT_MODEL, {
 		logger: (msg) => this.logger.warn(msg),
 	});
@@ -100,15 +100,15 @@ export class ChatService {
 		@Inject(AgentRunsService) private readonly agentRunsService: AgentRunsService,
 	) {}
 
-	private getOpenAI(): OpenAI {
-		if (!this.openai) {
-			const apiKey = process.env.OPENAI_API_KEY;
+	private getGenAI(): GoogleGenAI {
+		if (!this.genai) {
+			const apiKey = process.env.GEMINI_API_KEY;
 			if (!apiKey) {
-				throw new Error("OPENAI_API_KEY environment variable is not set");
+				throw new Error("GEMINI_API_KEY environment variable is not set");
 			}
-			this.openai = new OpenAI({ apiKey });
+			this.genai = new GoogleGenAI({ apiKey });
 		}
-		return this.openai;
+		return this.genai;
 	}
 
 	/**
@@ -361,7 +361,7 @@ ${chunk.text}`;
 		query: string,
 		conversationHistory: ChatMessage[] = [],
 	): Promise<ChatResponse> {
-		const openai = this.getOpenAI();
+		const ai = this.getGenAI();
 		const technicalSteps: string[] = [];
 		const totalStart = Date.now();
 
@@ -415,65 +415,78 @@ ${chunk.text}`;
 			`Including ${conversationHistory.length} previous messages as conversation context (max 10)`,
 		);
 
-		// Build messages
-		const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-			{ role: "system", content: SYSTEM_PROMPT },
-			{
-				role: "system",
-				content: `Here is relevant context from the knowledge base:\n\n${context}`,
-			},
-		];
+		// Build Gemini contents array — system instruction goes in config
+		const systemText = `${SYSTEM_PROMPT}\n\nHere is relevant context from the knowledge base:\n\n${context}`;
+
+		const contents: { role: "user" | "model"; parts: { text: string }[] }[] =
+			[];
 
 		// Add conversation history (last 10 messages)
 		for (const msg of conversationHistory.slice(-10)) {
-			messages.push({ role: msg.role, content: msg.content });
+			contents.push({
+				role: msg.role === "assistant" ? "model" : "user",
+				parts: [{ text: msg.content }],
+			});
 		}
 
 		// Add current query
-		messages.push({ role: "user", content: query });
+		contents.push({ role: "user", parts: [{ text: query }] });
 
 		this.logger.log(
-			`Chat query: "${query.slice(0, 60)}" with ${sources.length} sources [pinecone]`,
+			`Chat query: "${query.slice(0, 60)}" with ${sources.length} sources [pinecone] [gemini]`,
 		);
 
 		// Rate limit: estimate tokens from message payload + max completion
 		const estimatedTokens =
 			Math.ceil(
-				messages.reduce((sum, m) => sum + (m.content?.length ?? 0), 0) / 4,
+				(systemText.length +
+					contents.reduce(
+						(sum, c) => sum + c.parts.reduce((s, p) => s + p.text.length, 0),
+						0,
+					)) /
+					4,
 			) + 4000;
 		await this.rateLimiter.waitForCapacity(estimatedTokens);
 		this.rateLimiter.recordRequest(estimatedTokens);
 
 		const llmStart = Date.now();
-		const completion = await openai.chat.completions.create({
+		const response = await ai.models.generateContent({
 			model: CHAT_MODEL,
-			messages,
-			max_completion_tokens: 4000,
+			contents,
+			config: {
+				systemInstruction: systemText,
+				maxOutputTokens: 4000,
+			},
 		});
 		const llmElapsed = Date.now() - llmStart;
 
-		const choice = completion.choices[0];
 		const answer =
-			choice?.message?.content || "Sorry, I could not generate a response.";
-		const tokensUsed = (completion.usage?.total_tokens ?? 0) + embeddingTokens;
+			response.text || "Sorry, I could not generate a response.";
 		const promptTokens =
-			(completion.usage?.prompt_tokens ?? 0) + embeddingTokens;
-		const completionTokens = completion.usage?.completion_tokens ?? 0;
+			(response.usageMetadata?.promptTokenCount ?? 0) + embeddingTokens;
+		const completionTokens =
+			response.usageMetadata?.candidatesTokenCount ?? 0;
+		const tokensUsed = promptTokens + completionTokens;
 
 		// Record actual usage
-		if (completion.usage?.total_tokens) {
+		if (response.usageMetadata?.totalTokenCount) {
 			this.rateLimiter.recordUsage(
-				Math.max(0, completion.usage.total_tokens - estimatedTokens),
+				Math.max(
+					0,
+					response.usageMetadata.totalTokenCount - estimatedTokens,
+				),
 			);
 		}
 
 		const totalElapsed = Date.now() - totalStart;
 
 		this.logger.log(
-			`Chat response: ${tokensUsed} tokens (${promptTokens} in / ${completionTokens} out), ${sources.length} sources [pinecone] (${totalElapsed}ms)`,
+			`Chat response: ${tokensUsed} tokens (${promptTokens} in / ${completionTokens} out), ${sources.length} sources [pinecone] [gemini] (${totalElapsed}ms)`,
 		);
 
-		technicalSteps.push(`OpenAI ${CHAT_MODEL} responded in ${llmElapsed}ms`);
+		technicalSteps.push(
+			`Gemini ${CHAT_MODEL} responded in ${llmElapsed}ms`,
+		);
 		technicalSteps.push(
 			`Tokens — prompt: ${promptTokens.toLocaleString()}, completion: ${completionTokens.toLocaleString()}, total: ${tokensUsed.toLocaleString()}`,
 		);
@@ -486,7 +499,7 @@ ${chunk.text}`;
 			promptTokens,
 			completionTokens,
 			model: CHAT_MODEL,
-			fullInput: JSON.stringify(messages),
+			fullInput: JSON.stringify({ systemInstruction: systemText, contents }),
 			fullOutput: answer,
 			technicalSteps,
 		};
