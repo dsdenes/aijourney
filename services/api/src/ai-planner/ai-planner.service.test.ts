@@ -110,7 +110,7 @@ describe("AiPlannerService", () => {
 	});
 
 	describe("generateStrategy", () => {
-		it("should generate strategy via Grok and enhance last step with gpt-5.2", async () => {
+		it("should generate strategy via gpt-5.2 with high reasoning", async () => {
 			process.env.OPENAI_API_KEY = "test-openai-key";
 
 			const mockStrategy = {
@@ -126,7 +126,8 @@ describe("AiPlannerService", () => {
 						title: "Define FAQ",
 						description: "Gather common questions.",
 						inputArtifacts: "Your list of customer questions",
-						outputArtifacts: "A structured FAQ draft — save it for the next step",
+						outputArtifacts:
+							"A structured FAQ draft — save it for the next step",
 						prompt: "You are a customer support agent for ABC Corp...",
 					},
 					{
@@ -140,23 +141,8 @@ describe("AiPlannerService", () => {
 				],
 			};
 
-			const enhancedLastStep = {
-				order: 2,
-				title: "Polish & Finalize FAQ",
-				description: "Create a professional, ready-to-publish FAQ.",
-				inputArtifacts: "The FAQ draft from Step 1",
-				outputArtifacts: "A polished FAQ document — copy it into a Google Doc and share with your team",
-				prompt: "You are a professional editor. Take this FAQ draft and...",
-			};
-
-			// First call: Grok generates the strategy
 			mockCreate.mockResolvedValueOnce({
 				choices: [{ message: { content: JSON.stringify(mockStrategy) } }],
-			});
-
-			// Second call: gpt-5.2 enhances the last step
-			mockCreate.mockResolvedValueOnce({
-				choices: [{ message: { content: JSON.stringify(enhancedLastStep) } }],
 			});
 
 			const result = await service.generateStrategy(
@@ -173,52 +159,30 @@ describe("AiPlannerService", () => {
 			expect(result.title).toBe("AI-Powered Customer Support");
 			expect(result.steps).toHaveLength(2);
 			expect(result.tool).toBe("chatgpt");
-			expect(result.startingState).toBe("You have a list of common customer questions.");
+			expect(result.startingState).toBe(
+				"You have a list of common customer questions.",
+			);
 			expect(result.endResult).toBe("A complete FAQ document.");
-			// The last step should be the enhanced version
-			expect(result.steps[1]?.title).toBe("Polish & Finalize FAQ");
 
-			// Verify gpt-5.2 was called for the last step
-			expect(mockCreate).toHaveBeenCalledTimes(2);
-			const secondCall = mockCreate.mock.calls[1]?.[0];
-			expect(secondCall.model).toBe("gpt-5.2");
-			expect(secondCall.reasoning).toEqual({ effort: "high" });
+			// Verify gpt-5.2 was called with high reasoning
+			expect(mockCreate).toHaveBeenCalledTimes(1);
+			const call = mockCreate.mock.calls[0]?.[0];
+			expect(call.model).toBe("gpt-5.2");
+			expect(call.reasoning).toEqual({ effort: "high" });
+			expect(call.max_completion_tokens).toBe(16000);
 		});
 
-		it("should fall back to Grok last step when OPENAI_API_KEY is missing", async () => {
+		it("should fail loudly when OPENAI_API_KEY is missing", async () => {
 			delete process.env.OPENAI_API_KEY;
 
-			const mockStrategy = {
-				title: "Simple Plan",
-				summary: "A one-step plan.",
-				startingState: "Nothing",
-				endResult: "Something",
-				nextSteps: "Use it",
-				tool: "chatgpt",
-				steps: [
-					{
-						order: 1,
-						title: "Do it",
-						description: "Just do it.",
-						inputArtifacts: "Nothing",
-						outputArtifacts: "The result",
-						prompt: "Help me do the thing...",
-					},
-				],
-			};
+			await expect(
+				service.generateStrategy("Simple task", [
+					{ id: 1, question: "Quick?", answer: true },
+				]),
+			).rejects.toThrow("OPENAI_API_KEY environment variable is not set");
 
-			mockCreate.mockResolvedValueOnce({
-				choices: [{ message: { content: JSON.stringify(mockStrategy) } }],
-			});
-
-			const result = await service.generateStrategy(
-				"Simple task",
-				[{ id: 1, question: "Quick?", answer: true }],
-			);
-
-			// Should still work — just uses the Grok version of the last step
-			expect(result.steps[0]?.title).toBe("Do it");
-			expect(mockCreate).toHaveBeenCalledTimes(1);
+			// Should not have called the LLM at all
+			expect(mockCreate).not.toHaveBeenCalled();
 		});
 	});
 });
