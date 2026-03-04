@@ -1,7 +1,7 @@
 import { Body, Controller, Inject, Post } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import { MemoryService } from "../memory/memory.service";
-import { type ChatMessage, ChatService } from "./chat.service";
+import type { ChatMessage, ChatService } from "./chat.service";
 
 class ChatQueryDto {
 	query!: string;
