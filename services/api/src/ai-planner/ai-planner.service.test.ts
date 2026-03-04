@@ -2,14 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppConfigService } from "../config/config.service";
 import { AiPlannerService } from "./ai-planner.service";
 
-// Mock @google/genai
-const mockGenerateContent = vi.fn();
+// Mock openai (xAI Grok uses OpenAI-compatible SDK)
+const mockCreate = vi.fn();
 
-vi.mock("@google/genai", () => ({
-	GoogleGenAI: class MockGoogleGenAI {
-		models = {
-			generateContent: mockGenerateContent,
-		};
+vi.mock("openai", () => ({
+	default: class OpenAI {
+		chat = { completions: { create: mockCreate } };
 	},
 }));
 
@@ -23,7 +21,7 @@ describe("AiPlannerService", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks();
-		process.env.GEMINI_API_KEY = "test-key";
+		process.env.GROK_API_KEY = "test-key";
 		service = new AiPlannerService(mockConfig);
 	});
 
@@ -38,8 +36,8 @@ describe("AiPlannerService", () => {
 				{ id: 6, question: "Do you already use AI tools?" },
 			];
 
-			mockGenerateContent.mockResolvedValueOnce({
-				text: JSON.stringify(mockQuestions),
+			mockCreate.mockResolvedValueOnce({
+				choices: [{ message: { content: JSON.stringify(mockQuestions) } }],
 			});
 
 			const result = await service.generateQuestions(
@@ -59,8 +57,8 @@ describe("AiPlannerService", () => {
 				question: `Follow-up question ${i + 1}?`,
 			}));
 
-			mockGenerateContent.mockResolvedValueOnce({
-				text: JSON.stringify(mockQuestions),
+			mockCreate.mockResolvedValueOnce({
+				choices: [{ message: { content: JSON.stringify(mockQuestions) } }],
 			});
 
 			const previousAnswers = [
@@ -76,15 +74,18 @@ describe("AiPlannerService", () => {
 
 			expect(result).toHaveLength(6);
 
-			// Verify previous answers were passed to Gemini in the system instruction
-			const callArgs = mockGenerateContent.mock.calls[0]?.[0];
-			expect(callArgs.config.systemInstruction).toContain("Is this internal?");
-			expect(callArgs.config.systemInstruction).toContain("YES");
-			expect(callArgs.config.systemInstruction).toContain("NO");
+			// Verify previous answers were passed to Grok in the system message
+			const callArgs = mockCreate.mock.calls[0]?.[0];
+			const systemMsg = callArgs.messages.find((m: any) => m.role === "system");
+			expect(systemMsg.content).toContain("Is this internal?");
+			expect(systemMsg.content).toContain("YES");
+			expect(systemMsg.content).toContain("NO");
 		});
 
 		it("should throw on empty response", async () => {
-			mockGenerateContent.mockResolvedValueOnce({ text: "" });
+			mockCreate.mockResolvedValueOnce({
+				choices: [{ message: { content: "" } }],
+			});
 
 			await expect(
 				service.generateQuestions("Build a chatbot", 1, []),
@@ -92,8 +93,8 @@ describe("AiPlannerService", () => {
 		});
 
 		it("should throw if response is not 6 questions", async () => {
-			mockGenerateContent.mockResolvedValueOnce({
-				text: JSON.stringify([{ id: 1, question: "Only one?" }]),
+			mockCreate.mockResolvedValueOnce({
+				choices: [{ message: { content: JSON.stringify([{ id: 1, question: "Only one?" }]) } }],
 			});
 
 			await expect(
@@ -103,7 +104,7 @@ describe("AiPlannerService", () => {
 	});
 
 	describe("generateStrategy", () => {
-		it("should generate strategy via Gemini", async () => {
+		it("should generate strategy via Grok", async () => {
 			const mockStrategy = {
 				title: "AI-Powered Customer Support",
 				summary: "Use ChatGPT to build a customer support chatbot.",
@@ -118,8 +119,8 @@ describe("AiPlannerService", () => {
 				],
 			};
 
-			mockGenerateContent.mockResolvedValueOnce({
-				text: JSON.stringify(mockStrategy),
+			mockCreate.mockResolvedValueOnce({
+				choices: [{ message: { content: JSON.stringify(mockStrategy) } }],
 			});
 
 			const result = await service.generateStrategy(
@@ -139,5 +140,3 @@ describe("AiPlannerService", () => {
 		});
 	});
 });
-
-

@@ -1,22 +1,25 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { GoogleGenAI } from "@google/genai";
+import OpenAI from "openai";
 import { PROMPTING_PRACTICES_CONTEXT } from "./prompting-practices-context";
 
-const MODEL = "gemini-3.1-flash-lite-preview";
+const MODEL = "grok-4-1-fast-reasoning";
 
 @Injectable()
 export class PromptOptimizerService {
 	private readonly logger = new Logger(PromptOptimizerService.name);
-	private genai: GoogleGenAI;
+	private openai: OpenAI;
 
 	constructor() {
-		const apiKey = process.env.GEMINI_API_KEY;
+		const apiKey = process.env.GROK_API_KEY;
 		if (!apiKey) {
 			this.logger.warn(
-				"GEMINI_API_KEY is not set — prompt optimizer will fail at runtime",
+				"GROK_API_KEY is not set — prompt optimizer will fail at runtime",
 			);
 		}
-		this.genai = new GoogleGenAI({ apiKey: apiKey || "missing" });
+		this.openai = new OpenAI({
+			apiKey: apiKey || "missing",
+			baseURL: "https://api.x.ai/v1",
+		});
 	}
 
 	/**
@@ -49,17 +52,20 @@ Respond in this exact JSON format (no markdown, no code fences):
 
 		this.logger.debug(`Analyzing prompt: ${prompt.substring(0, 80)}...`);
 
-		const response = await this.genai.models.generateContent({
+		const response = await this.openai.chat.completions.create({
 			model: MODEL,
-			contents: [{ role: "user", parts: [{ text: `Here is the prompt to analyze:\n\n${prompt}` }] }],
-			config: {
-				systemInstruction: systemMessage,
-				maxOutputTokens: 8000,
-			},
+			messages: [
+				{ role: "system", content: systemMessage },
+				{
+					role: "user",
+					content: `Here is the prompt to analyze:\n\n${prompt}`,
+				},
+			],
+			max_completion_tokens: 8000,
 		});
 
-		const content = response.text?.trim();
-		if (!content) throw new Error("Empty response from Gemini");
+		const content = response.choices[0]?.message?.content?.trim();
+		if (!content) throw new Error("Empty response from Grok");
 
 		this.logger.debug(`Analysis response: ${content.substring(0, 200)}`);
 
@@ -113,17 +119,20 @@ Respond in this exact JSON format (no markdown, no code fences):
 
 		this.logger.debug(`Optimizing prompt with goal: ${goal}`);
 
-		const response = await this.genai.models.generateContent({
+		const response = await this.openai.chat.completions.create({
 			model: MODEL,
-			contents: [{ role: "user", parts: [{ text: `Original prompt:\n"${originalPrompt}"\n\nChosen goal:\n"${goal}"\n\nPlease optimize this prompt for the stated goal.` }] }],
-			config: {
-				systemInstruction: systemMessage,
-				maxOutputTokens: 8000,
-			},
+			messages: [
+				{ role: "system", content: systemMessage },
+				{
+					role: "user",
+					content: `Original prompt:\n"${originalPrompt}"\n\nChosen goal:\n"${goal}"\n\nPlease optimize this prompt for the stated goal.`,
+				},
+			],
+			max_completion_tokens: 8000,
 		});
 
-		const content = response.text?.trim();
-		if (!content) throw new Error("Empty response from Gemini");
+		const content = response.choices[0]?.message?.content?.trim();
+		if (!content) throw new Error("Empty response from Grok");
 
 		this.logger.debug(`Optimization response: ${content.substring(0, 200)}`);
 

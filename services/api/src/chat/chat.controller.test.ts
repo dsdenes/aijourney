@@ -24,10 +24,16 @@ describe("ChatController", () => {
 		it("should return chat response wrapped in data envelope", async () => {
 			service.chat.mockResolvedValue({
 				answer: "AI helps with productivity.",
-				sources: [{ title: "Article 1", url: "https://example.com", relevance: "tools" }],
+				sources: [
+					{
+						title: "Article 1",
+						url: "https://example.com",
+						relevance: "tools",
+					},
+				],
 				tokensUsed: 200,
-			model: "gemini-3.1-flash-lite-preview",
-		});
+				model: "gemini-3.1-flash-lite-preview",
+			});
 
 			const result = await controller.chat({
 				query: "Tell me about AI",
@@ -37,7 +43,13 @@ describe("ChatController", () => {
 			expect(result).toEqual({
 				data: {
 					answer: "AI helps with productivity.",
-					sources: [{ title: "Article 1", url: "https://example.com", relevance: "tools" }],
+					sources: [
+						{
+							title: "Article 1",
+							url: "https://example.com",
+							relevance: "tools",
+						},
+					],
 					tokensUsed: 200,
 					model: "gemini-3.1-flash-lite-preview",
 				},
@@ -67,8 +79,8 @@ describe("ChatController", () => {
 				answer: "response",
 				sources: [],
 				tokensUsed: 50,
-model: "gemini-3.1-flash-lite-preview",
-		});
+				model: "gemini-3.1-flash-lite-preview",
+			});
 
 			await controller.chat({ query: "  hello  " });
 

@@ -5,31 +5,34 @@ import type {
 	PlannerStrategy,
 } from "@aijourney/shared";
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import { GoogleGenAI } from "@google/genai";
+import OpenAI from "openai";
 import { AppConfigService } from "../config/config.service";
 
-const QUESTIONS_MODEL = "gemini-3.1-flash-lite-preview";
-const STRATEGY_MODEL = "gemini-3.1-flash-lite-preview";
+const QUESTIONS_MODEL = "grok-4-1-fast-reasoning";
+const STRATEGY_MODEL = "grok-4-1-fast-reasoning";
 
 @Injectable()
 export class AiPlannerService {
 	private readonly logger = new Logger(AiPlannerService.name);
-	private genai: GoogleGenAI | null = null;
+	private openai: OpenAI | null = null;
 
 	constructor(
 		@Inject(AppConfigService)
 		private readonly configService: AppConfigService,
 	) {}
 
-	private getGenAI(): GoogleGenAI {
-		if (!this.genai) {
-			const apiKey = process.env.GEMINI_API_KEY;
+	private getClient(): OpenAI {
+		if (!this.openai) {
+			const apiKey = process.env.GROK_API_KEY;
 			if (!apiKey) {
-				throw new Error("GEMINI_API_KEY environment variable is not set");
+				throw new Error("GROK_API_KEY environment variable is not set");
 			}
-			this.genai = new GoogleGenAI({ apiKey });
+			this.openai = new OpenAI({
+				apiKey,
+				baseURL: "https://api.x.ai/v1",
+			});
 		}
-		return this.genai;
+		return this.openai;
 	}
 
 	/**
@@ -98,17 +101,17 @@ Respond in this exact JSON format (no markdown, no code fences):
 			`Generating round ${round} questions for goal: ${goal.substring(0, 80)}...`,
 		);
 
-		const response = await this.getGenAI().models.generateContent({
+		const response = await this.getClient().chat.completions.create({
 			model: QUESTIONS_MODEL,
-			contents: [{ role: "user", parts: [{ text: `My project goal:\n\n${goal}` }] }],
-			config: {
-				systemInstruction: systemMessage,
-				maxOutputTokens: 8000,
-			},
+			messages: [
+				{ role: "system", content: systemMessage },
+				{ role: "user", content: `My project goal:\n\n${goal}` },
+			],
+			max_completion_tokens: 8000,
 		});
 
-		const content = response.text?.trim();
-		if (!content) throw new Error("Empty response from Gemini");
+		const content = response.choices[0]?.message?.content?.trim();
+		if (!content) throw new Error("Empty response from Grok");
 
 		this.logger.debug(`Round ${round} response: ${content.substring(0, 200)}`);
 
@@ -132,7 +135,7 @@ Respond in this exact JSON format (no markdown, no code fences):
 	}
 
 	/**
-	 * Generate the final AI usage strategy using OpenAI.
+	 * Generate the final AI usage strategy using Grok.
 	 */
 	async generateStrategy(
 		goal: string,
@@ -165,17 +168,20 @@ Respond in this exact JSON format (no markdown, no code fences):
 			`Generating strategy for goal: ${goal.substring(0, 80)}...`,
 		);
 
-		const response = await this.getGenAI().models.generateContent({
+		const response = await this.getClient().chat.completions.create({
 			model: STRATEGY_MODEL,
-			contents: [{ role: "user", parts: [{ text: `Project Goal:\n${goal}\n\nSpecification Answers:\n${specificationsText}${feedbackBlock}` }] }],
-			config: {
-				systemInstruction: systemMessage,
-				maxOutputTokens: 16000,
-			},
+			messages: [
+				{ role: "system", content: systemMessage },
+				{
+					role: "user",
+					content: `Project Goal:\n${goal}\n\nSpecification Answers:\n${specificationsText}${feedbackBlock}`,
+				},
+			],
+			max_completion_tokens: 16000,
 		});
 
-		const content = response.text?.trim();
-		if (!content) throw new Error("Empty response from Gemini");
+		const content = response.choices[0]?.message?.content?.trim();
+		if (!content) throw new Error("Empty response from Grok");
 
 		this.logger.debug(`Strategy response: ${content.substring(0, 200)}`);
 
@@ -184,8 +190,13 @@ Respond in this exact JSON format (no markdown, no code fences):
 			.replace(/\s*```$/, "");
 		const strategy = JSON.parse(cleaned) as PlannerStrategy;
 
-		if (!strategy.title || !strategy.steps || !strategy.tool || !strategy.steps[0]?.prompt) {
-			throw new Error("Invalid strategy format returned from Gemini");
+		if (
+			!strategy.title ||
+			!strategy.steps ||
+			!strategy.tool ||
+			!strategy.steps[0]?.prompt
+		) {
+			throw new Error("Invalid strategy format returned from Grok");
 		}
 
 		return strategy;

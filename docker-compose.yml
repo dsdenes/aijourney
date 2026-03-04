@@ -47,6 +47,7 @@ services:
       REDIS_URL: redis://redis:6379
       APP_URL: http://localhost:5173
       API_URL: http://localhost:3000
+      GROK_API_KEY: "${GROK_API_KEY}"
       KB_BUILDER_URL: http://kb-builder:3002
 
   worker:
