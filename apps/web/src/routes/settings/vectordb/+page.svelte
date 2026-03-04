@@ -30,7 +30,6 @@
   let ingestMessage = $state('');
   let recreating = $state(false);
   let recreateMessage = $state('');
-  let autoRefresh = $state(false);
   let refreshInterval: ReturnType<typeof setInterval> | null = null;
 
   async function loadStats() {
@@ -51,29 +50,23 @@
 
   async function triggerIngestion() {
     ingesting = true;
-    ingestMessage = '';
+    ingestMessage = 'Ingestion started — processing articles...';
     try {
       const res = await api.post<{ status: string; message: string }>('/workers/kb-builder/rag/ingest');
       if (res.data) {
         ingestMessage = (res.data as any).message || 'Ingestion started';
       } else if ((res as any).error) {
         ingestMessage = `Error: ${(res as any).error.message}`;
+        ingesting = false;
       }
-      // Start auto-refresh to track progress
-      autoRefresh = true;
     } catch (err) {
       ingestMessage = `Error: ${err instanceof Error ? err.message : 'Ingestion trigger failed'}`;
-    } finally {
       ingesting = false;
     }
   }
 
   function formatNumber(n: number): string {
     return n.toLocaleString();
-  }
-
-  function formatPercent(n: number): string {
-    return `${(n * 100).toFixed(1)}%`;
   }
 
   const pendingIngestion = $derived(stats?.articles.byStatus['summarized'] ?? 0);
@@ -86,6 +79,13 @@
     totalEligible > 0 ? (totalIngested / totalEligible) * 100 : 0
   );
   const allDone = $derived(pendingIngestion === 0 && pendingSummarization === 0);
+
+  // Auto-clear "ingesting" spinner when no more pending articles
+  $effect(() => {
+    if (ingesting && pendingIngestion === 0) {
+      ingesting = false;
+    }
+  });
 
   const stateColor = $derived(() => {
     if (!stats) return 'bg-gray-100 text-gray-700';
@@ -120,9 +120,7 @@
 
   onMount(() => {
     loadStats();
-    refreshInterval = setInterval(() => {
-      if (autoRefresh) loadStats();
-    }, 2000);
+    refreshInterval = setInterval(loadStats, 5000);
     return () => {
       if (refreshInterval) clearInterval(refreshInterval);
     };
@@ -159,10 +157,7 @@
           {stats.index.state}
         </span>
       </p>
-      <p class="mt-1 text-xs text-text-muted">Fullness: {formatPercent(stats.index.indexFullness)}</p>
-      {#if stats.index.indexFullness === 0 && stats.index.totalRecordCount > 0}
-        <p class="mt-0.5 text-[10px] text-text-faint">(serverless indexes always report 0%)</p>
-      {/if}
+
     </div>
     <div class="rounded-lg bg-surface p-4">
       <p class="text-xs font-semibold uppercase text-text-muted">Articles Ingested</p>
@@ -284,22 +279,13 @@
           {#if ingesting}
             <span class="flex items-center gap-2">
               <span class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
-              Starting...
+              Ingesting...
             </span>
           {:else}
             Run Ingestion
           {/if}
         </button>
-        <button
-          onclick={loadStats}
-          class="rounded-lg bg-surface-dark px-4 py-2 text-sm font-medium text-text-muted transition-colors hover:bg-surface hover:text-text"
-        >
-          Refresh Stats
-        </button>
-        <label class="flex items-center gap-2 text-sm text-text-muted">
-          <input type="checkbox" bind:checked={autoRefresh} class="rounded border-border" />
-          Auto-refresh
-        </label>
+
       </div>
 
       {#if ingestMessage}
@@ -327,7 +313,6 @@
               } else if ((res as any).error) {
                 recreateMessage = `Error: ${(res as any).error.message}`;
               }
-              autoRefresh = true;
             } catch (err) {
               recreateMessage = `Error: ${err instanceof Error ? err.message : 'Failed'}`;
             } finally {

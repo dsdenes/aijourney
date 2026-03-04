@@ -268,11 +268,19 @@ app.post("/summarize", async (req, res) => {
 	// Run asynchronously so the HTTP request returns immediately
 	const { runSummarization } = await import("./summarizer.js");
 	runSummarization(limit)
-		.then((result) => {
+		.then(async (result) => {
 			log(
 				"info",
 				`Summarization finished: ${result.summarized} done, ${result.skipped} skipped, ${result.errors.length} errors, ${result.totalTokensUsed} tokens`,
 			);
+
+			// Auto-trigger ingestion for newly summarized articles
+			if (result.summarized > 0) {
+				log("info", `Auto-starting ingestion for ${result.summarized} newly summarized articles`);
+				const { runRagIngestion } = await import("./rag-ingestor.js");
+				await runRagIngestion();
+				log("info", "Auto-ingestion after summarization completed");
+			}
 		})
 		.catch((err) => {
 			log(
@@ -346,11 +354,26 @@ app.post("/rag/recreate-index", async (_req, res) => {
 				// Reset all "ingested" articles back to "summarized" so they can be re-ingested
 				const ingested = await getArticlesByStatus("ingested");
 				if (ingested.length > 0) {
-					log("info", `Resetting ${ingested.length} ingested articles to 'summarized'`);
+					log(
+						"info",
+						`Resetting ${ingested.length} ingested articles to 'summarized'`,
+					);
 					for (const article of ingested) {
 						await updateArticleStatus(article.id, "summarized");
 					}
-					log("info", `All ${ingested.length} articles reset to 'summarized' — ready for re-ingestion`);
+					log(
+						"info",
+						`All ${ingested.length} articles reset to 'summarized' — ready for re-ingestion`,
+					);
+				}
+
+				// Auto-trigger ingestion for all summarized articles
+				const summarized = await getArticlesByStatus("summarized");
+				if (summarized.length > 0) {
+					log("info", `Auto-starting ingestion for ${summarized.length} summarized articles`);
+					const { runRagIngestion } = await import("./rag-ingestor.js");
+					await runRagIngestion();
+					log("info", "Auto-ingestion after index recreation completed");
 				}
 			} catch (err: unknown) {
 				log(
