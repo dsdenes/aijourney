@@ -91,19 +91,25 @@
   });
 
   const statusColors: Record<string, string> = {
-    crawled: 'bg-blue-500/20 text-blue-300',
+    fetched: 'bg-slate-500/20 text-slate-300',
+    extracted: 'bg-indigo-500/20 text-indigo-300',
+    deduped: 'bg-purple-500/20 text-purple-300',
     quality_passed: 'bg-cyan-500/20 text-cyan-300',
     quality_failed: 'bg-red-500/20 text-red-300',
     summarized: 'bg-yellow-500/20 text-yellow-300',
     ingested: 'bg-green-500/20 text-green-300',
+    rejected: 'bg-red-500/20 text-red-300',
   };
 
   const statusLabels: Record<string, string> = {
-    crawled: 'Crawled',
+    fetched: 'Fetched',
+    extracted: 'Extracted',
+    deduped: 'Deduplicated',
     quality_passed: 'Quality Passed',
     quality_failed: 'Quality Failed',
     summarized: 'Summarized (pending ingest)',
     ingested: 'Ingested into Vector DB',
+    rejected: 'Rejected',
   };
 
   onMount(() => {

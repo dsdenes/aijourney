@@ -511,11 +511,14 @@ export async function getVectorDbStats(): Promise<VectorDbStats> {
 
 	// Fetch article counts by status
 	const statuses = [
-		"crawled",
+		"fetched",
+		"extracted",
+		"deduped",
 		"quality_passed",
 		"quality_failed",
 		"summarized",
 		"ingested",
+		"rejected",
 	] as const;
 	const articleCounts = await Promise.all(
 		statuses.map(async (status) => {
