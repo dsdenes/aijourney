@@ -13,6 +13,11 @@ const envSchema = z.object({
 	APP_URL: z.string().default("http://localhost:5173"),
 	API_URL: z.string().default("http://localhost:3000"),
 	KB_BUILDER_URL: z.string().default("http://localhost:3002"),
+	STRIPE_SECRET_KEY: z.string().default(""),
+	STRIPE_WEBHOOK_SECRET: z.string().default(""),
+	STRIPE_PRO_PRICE_ID: z.string().default(""),
+	STRIPE_ENTERPRISE_PRICE_ID: z.string().default(""),
+	STRIPE_LLM_PACK_PRICE_ID: z.string().default(""),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;

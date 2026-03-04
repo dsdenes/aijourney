@@ -8,6 +8,9 @@ interface AuthUser {
 	email: string;
 	name: string;
 	role: string;
+	globalRole: string;
+	tenantId: string;
+	orgRole: string;
 	token: string;
 	onboardingComplete: boolean;
 }

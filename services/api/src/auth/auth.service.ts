@@ -1,9 +1,22 @@
-import { Inject, Injectable, Logger, UnauthorizedException } from "@nestjs/common";
+import type { GlobalRole, OrgRole } from "@aijourney/shared";
+import { generateId, nowISO } from "@aijourney/shared";
+import {
+	Inject,
+	Injectable,
+	Logger,
+	UnauthorizedException,
+} from "@nestjs/common";
 import { AppConfigService } from "../config/config.service";
+import { InvitationsService } from "../invitations/invitations.service";
+import { TenantsService } from "../tenants/tenants.service";
 import { UsersService } from "../users/users.service";
 
-/** Emails that are automatically promoted to admin on first login */
-const DEFAULT_ADMINS = ["d.pal@mito.hu", "paldaniel@gmail.com", "dsdenes@gmail.com"];
+/** Emails that are automatically promoted to superadmin on first login */
+const DEFAULT_SUPERADMINS = [
+	"d.pal@mito.hu",
+	"paldaniel@gmail.com",
+	"dsdenes@gmail.com",
+];
 
 interface GoogleTokenResponse {
 	id_token: string;
@@ -22,6 +35,17 @@ interface GoogleIdTokenPayload {
 	hd?: string; // hosted domain (Google Workspace)
 }
 
+interface AuthUserResponse {
+	userId: string;
+	email: string;
+	name: string;
+	role: string;
+	globalRole: GlobalRole;
+	tenantId: string;
+	orgRole: OrgRole;
+	onboardingComplete: boolean;
+}
+
 @Injectable()
 export class AuthService {
 	private readonly logger = new Logger(AuthService.name);
@@ -29,6 +53,8 @@ export class AuthService {
 	constructor(
 		@Inject(AppConfigService) private readonly configService: AppConfigService,
 		@Inject(UsersService) private readonly usersService: UsersService,
+		@Inject(TenantsService) private readonly tenantsService: TenantsService,
+		@Inject(InvitationsService) private readonly invitationsService: InvitationsService,
 	) {}
 
 	/**
@@ -42,7 +68,7 @@ export class AuthService {
 		accessToken: string;
 		refreshToken?: string;
 		expiresIn: number;
-		user: { userId: string; email: string; name: string; role: string; onboardingComplete: boolean };
+		user: AuthUserResponse;
 	}> {
 		const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET } =
 			this.configService.config;
@@ -90,64 +116,140 @@ export class AuthService {
 		const sub = payload.sub;
 
 		// Upsert user in database
-		const { user, role } = await this.upsertUser(sub, email, name);
+		const user = await this.upsertUser(sub, email, name);
 
-		this.logger.log(`Token exchange successful for ${email} (role=${role})`);
+		this.logger.log(
+			`Token exchange successful for ${email} (globalRole=${user.globalRole}, orgRole=${user.orgRole})`,
+		);
 
 		return {
 			idToken: tokens.id_token,
 			accessToken: tokens.access_token,
 			refreshToken: tokens.refresh_token,
 			expiresIn: tokens.expires_in,
-			user: {
-				userId: user.id,
-				email: user.email,
-				name: user.name,
-				role,
-				onboardingComplete: user.onboardingComplete ?? false,
-			},
+			user,
 		};
 	}
 
 	/**
-	 * Find or create a user upon login. Auto-promotes DEFAULT_ADMINS.
+	 * Find or create a user upon login.
+	 * - If user already exists: update lastLoginAt, auto-promote superadmins.
+	 * - If user is new with a pending invitation: accept invitation and create user in that tenant.
+	 * - If user is new with no invitation: create a new personal tenant AND user (self-onboarding).
+	 * - Superadmin list is still honoured for global role promotion.
 	 */
 	private async upsertUser(
 		googleSub: string,
 		email: string,
 		name: string,
-	): Promise<{ user: { id: string; email: string; name: string; onboardingComplete: boolean }; role: string }> {
-		const isDefaultAdmin = DEFAULT_ADMINS.includes(email.toLowerCase());
+	): Promise<AuthUserResponse> {
+		const isSuperadmin = DEFAULT_SUPERADMINS.includes(email.toLowerCase());
 
+		// 1. Check if user already exists
 		let existing = await this.usersService.getByEmail(email);
 
 		if (existing) {
-			// Update last login and auto-promote if default admin
 			const updates: Record<string, unknown> = {
 				lastLoginAt: new Date().toISOString(),
 			};
-			if (isDefaultAdmin && existing.role !== "admin") {
-				updates["role"] = "admin";
+
+			// Auto-promote superadmins
+			if (isSuperadmin && existing.globalRole !== "superadmin") {
+				updates["globalRole"] = "superadmin";
 			}
+
+			// Backfill googleId if missing
+			if (!existing.googleId) {
+				updates["googleId"] = googleSub;
+			}
+
 			existing = await this.usersService.update(existing.id, updates);
+
 			return {
-				user: { id: existing.id, email: existing.email, name: existing.name, onboardingComplete: existing.onboardingComplete ?? false },
+				userId: existing.id,
+				email: existing.email,
+				name: existing.name,
 				role: existing.role,
+				globalRole: existing.globalRole ?? "user",
+				tenantId: existing.tenantId ?? "",
+				orgRole: existing.orgRole ?? "member",
+				onboardingComplete: existing.onboardingComplete ?? false,
 			};
 		}
 
-		// Create new user
-		const role = isDefaultAdmin ? "admin" : "employee";
+		// 2. Check for pending invitation
+		const pendingInvitations =
+			await this.invitationsService.findPendingForEmail(email);
+
+		if (pendingInvitations.length > 0) {
+			// Accept the oldest pending invitation
+			const invitation = pendingInvitations[0]!;
+
+			// Create user with invited tenant and role
+			const newUser = await this.usersService.create({
+				googleId: googleSub,
+				email,
+				name,
+				role: invitation.orgRole === "owner" ? "admin" : "employee",
+				globalRole: isSuperadmin ? "superadmin" : "user",
+				tenantId: invitation.tenantId,
+				orgRole: invitation.orgRole,
+			});
+
+			// Mark invitation as accepted
+			await this.invitationsService.accept(invitation.id);
+
+			this.logger.log(
+				`New user ${email} joined tenant ${invitation.tenantId} via invitation`,
+			);
+
+			return {
+				userId: newUser.id,
+				email: newUser.email,
+				name: newUser.name,
+				role: newUser.role,
+				globalRole: newUser.globalRole ?? "user",
+				tenantId: newUser.tenantId ?? "",
+				orgRole: newUser.orgRole ?? "member",
+				onboardingComplete: newUser.onboardingComplete ?? false,
+			};
+		}
+
+		// 3. Self-onboarding: create a new tenant for this user
+		const slug =
+			email
+				.split("@")[0]
+				?.replace(/[^a-z0-9-]/gi, "-")
+				.toLowerCase() || generateId();
+		const tenant = await this.tenantsService.create({
+			name: `${name}'s Organization`,
+			slug,
+			plan: "free" as const,
+		});
+
 		const newUser = await this.usersService.create({
 			googleId: googleSub,
 			email,
 			name,
-			role,
+			role: "admin",
+			globalRole: isSuperadmin ? "superadmin" : "user",
+			tenantId: tenant.id,
+			orgRole: "owner" as OrgRole,
 		});
 
+		this.logger.log(
+			`New user ${email} self-onboarded with personal tenant ${tenant.id}`,
+		);
+
 		return {
-			user: { id: newUser.id, email: newUser.email, name: newUser.name, onboardingComplete: newUser.onboardingComplete ?? false },
+			userId: newUser.id,
+			email: newUser.email,
+			name: newUser.name,
 			role: newUser.role,
+			globalRole: newUser.globalRole ?? "user",
+			tenantId: newUser.tenantId ?? "",
+			orgRole: newUser.orgRole ?? "owner",
+			onboardingComplete: newUser.onboardingComplete ?? false,
 		};
 	}
 

@@ -12,6 +12,8 @@
   ];
 
   const isAdmin = $derived(auth.user?.role === 'admin');
+  const isOrgAdmin = $derived(auth.user?.orgRole === 'owner' || auth.user?.orgRole === 'admin');
+  const isSuperadmin = $derived(auth.user?.globalRole === 'superadmin');
 </script>
 
 <aside class="flex w-64 flex-col border-r border-border bg-surface">
@@ -35,8 +37,44 @@
       </a>
     {/each}
 
-    {#if isAdmin}
+    {#if isOrgAdmin}
       <div class="my-3 border-t border-border"></div>
+      <p class="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-text-muted">Organization</p>
+      <a
+        href="/org"
+        class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors
+          {$page.url.pathname.startsWith('/org')
+            ? 'bg-primary/10 text-primary'
+            : 'text-text-muted hover:bg-surface-dark hover:text-text'}"
+      >
+        <span>🏢</span>
+        Org Settings
+      </a>
+      <a
+        href="/org/members"
+        class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors
+          {$page.url.pathname.startsWith('/org/members')
+            ? 'bg-primary/10 text-primary'
+            : 'text-text-muted hover:bg-surface-dark hover:text-text'}"
+      >
+        <span>👥</span>
+        Members
+      </a>
+      <a
+        href="/org/billing"
+        class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors
+          {$page.url.pathname.startsWith('/org/billing')
+            ? 'bg-primary/10 text-primary'
+            : 'text-text-muted hover:bg-surface-dark hover:text-text'}"
+      >
+        <span>💳</span>
+        Billing
+      </a>
+    {/if}
+
+    {#if isAdmin || isSuperadmin}
+      <div class="my-3 border-t border-border"></div>
+      <p class="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-text-muted">Admin</p>
       <a
         href="/settings"
         class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors
@@ -46,6 +84,19 @@
       >
         <span>⚙️</span>
         Settings
+      </a>
+    {/if}
+
+    {#if isSuperadmin}
+      <a
+        href="/superadmin"
+        class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors
+          {$page.url.pathname.startsWith('/superadmin')
+            ? 'bg-primary/10 text-primary'
+            : 'text-text-muted hover:bg-surface-dark hover:text-text'}"
+      >
+        <span>🛡️</span>
+        Super Admin
       </a>
     {/if}
   </nav>

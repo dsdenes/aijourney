@@ -7,6 +7,7 @@ import type {
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import OpenAI from "openai";
 import { AppConfigService } from "../config/config.service";
+import { QuotaService } from "../quotas/quotas.service";
 
 const QUESTIONS_MODEL = "grok-4-1-fast-reasoning";
 const STRATEGY_MODEL = "gpt-5.2";
@@ -20,6 +21,8 @@ export class AiPlannerService {
 	constructor(
 		@Inject(AppConfigService)
 		private readonly configService: AppConfigService,
+		@Inject(QuotaService)
+		private readonly quotaService: QuotaService,
 	) {}
 
 	private getGrokClient(): OpenAI {

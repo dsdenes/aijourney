@@ -22,15 +22,19 @@
     return page.url.pathname.startsWith(href);
   }
 
+  const hasSettingsAccess = $derived(
+    auth.user?.role === 'admin' || auth.user?.globalRole === 'superadmin'
+  );
+
   // Redirect non-admin users
   $effect(() => {
-    if (auth.user && auth.user.role !== 'admin') {
+    if (auth.user && !hasSettingsAccess) {
       goto('/', { replaceState: true });
     }
   });
 </script>
 
-{#if auth.user?.role === 'admin'}
+{#if hasSettingsAccess}
   <div>
     <div class="mb-6">
       <h1 class="text-2xl font-bold text-text">Settings</h1>

@@ -44,6 +44,15 @@ export class JourneysRepository {
 		return docs.map((d) => fromDoc(d));
 	}
 
+	async listByTenant(tenantId: string, limit = 200): Promise<Journey[]> {
+		const docs = await this.col
+			.find({ tenantId })
+			.sort({ createdAt: -1 })
+			.limit(limit)
+			.toArray();
+		return docs.map((d) => fromDoc(d));
+	}
+
 	async update(id: string, updates: Partial<Journey>): Promise<void> {
 		const { id: _id, ...rest } = updates;
 		if (Object.keys(rest).length === 0) return;

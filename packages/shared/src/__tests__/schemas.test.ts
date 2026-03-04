@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+	bulkInviteSchema,
 	cancelRunRequestSchema,
+	createInvitationSchema,
 	createJourneySchema,
 	createRunRequestSchema,
+	createTenantSchema,
 	createUserSchema,
 	updateJourneySchema,
+	updateTenantSchema,
 	updateUserSchema,
 } from "../index.js";
 
@@ -13,6 +17,7 @@ describe("createUserSchema", () => {
 		googleId: "google-123",
 		email: "testuser@mito.hu",
 		name: "Test User",
+		tenantId: "tenant-001",
 	};
 
 	it("should accept valid user input", () => {
@@ -29,23 +34,24 @@ describe("createUserSchema", () => {
 			...validUser,
 			avatarUrl: "https://example.com/avatar.jpg",
 			role: "admin",
+			globalRole: "superadmin",
+			orgRole: "owner",
 		});
 		expect(result.success).toBe(true);
 		if (result.success) {
 			expect(result.data.role).toBe("admin");
 			expect(result.data.avatarUrl).toBe("https://example.com/avatar.jpg");
+			expect(result.data.globalRole).toBe("superadmin");
+			expect(result.data.orgRole).toBe("owner");
 		}
 	});
 
-	it("should reject non-@mito.hu email", () => {
+	it("should accept any email domain (multi-tenant)", () => {
 		const result = createUserSchema.safeParse({
 			...validUser,
 			email: "user@gmail.com",
 		});
-		expect(result.success).toBe(false);
-		if (!result.success) {
-			expect(result.error.issues[0]!.message).toContain("@mito.hu");
-		}
+		expect(result.success).toBe(true);
 	});
 
 	it("should reject invalid email format", () => {
@@ -422,6 +428,262 @@ describe("cancelRunRequestSchema", () => {
 		const result = cancelRunRequestSchema.safeParse({
 			reason: "a".repeat(501),
 		});
+		expect(result.success).toBe(false);
+	});
+});
+
+// ────────────────────────────────────────────────────
+// Tenant schemas
+// ────────────────────────────────────────────────────
+
+describe("createTenantSchema", () => {
+	it("should accept valid input with defaults", () => {
+		const result = createTenantSchema.safeParse({
+			name: "Mito AI",
+			slug: "mito-ai",
+		});
+		expect(result.success).toBe(true);
+		if (result.success) {
+			expect(result.data.plan).toBe("free");
+		}
+	});
+
+	it("should accept with explicit plan", () => {
+		const result = createTenantSchema.safeParse({
+			name: "Enterprise Corp",
+			slug: "enterprise-corp",
+			plan: "enterprise",
+		});
+		expect(result.success).toBe(true);
+		if (result.success) {
+			expect(result.data.plan).toBe("enterprise");
+		}
+	});
+
+	it("should reject empty name", () => {
+		const result = createTenantSchema.safeParse({
+			name: "",
+			slug: "valid-slug",
+		});
+		expect(result.success).toBe(false);
+	});
+
+	it("should reject name over 200 chars", () => {
+		const result = createTenantSchema.safeParse({
+			name: "a".repeat(201),
+			slug: "valid-slug",
+		});
+		expect(result.success).toBe(false);
+	});
+
+	it("should reject slug with uppercase letters", () => {
+		const result = createTenantSchema.safeParse({
+			name: "Test",
+			slug: "Invalid-Slug",
+		});
+		expect(result.success).toBe(false);
+	});
+
+	it("should reject slug with spaces", () => {
+		const result = createTenantSchema.safeParse({
+			name: "Test",
+			slug: "has space",
+		});
+		expect(result.success).toBe(false);
+	});
+
+	it("should reject slug shorter than 2 chars", () => {
+		const result = createTenantSchema.safeParse({
+			name: "Test",
+			slug: "a",
+		});
+		expect(result.success).toBe(false);
+	});
+
+	it("should reject slug longer than 50 chars", () => {
+		const result = createTenantSchema.safeParse({
+			name: "Test",
+			slug: "a".repeat(51),
+		});
+		expect(result.success).toBe(false);
+	});
+
+	it("should reject invalid plan", () => {
+		const result = createTenantSchema.safeParse({
+			name: "Test",
+			slug: "test",
+			plan: "premium",
+		});
+		expect(result.success).toBe(false);
+	});
+
+	it("should accept slug with hyphens and numbers", () => {
+		const result = createTenantSchema.safeParse({
+			name: "Test 123",
+			slug: "test-org-123",
+		});
+		expect(result.success).toBe(true);
+	});
+
+	it("should reject missing name", () => {
+		const result = createTenantSchema.safeParse({
+			slug: "valid-slug",
+		});
+		expect(result.success).toBe(false);
+	});
+
+	it("should reject missing slug", () => {
+		const result = createTenantSchema.safeParse({
+			name: "Valid Name",
+		});
+		expect(result.success).toBe(false);
+	});
+});
+
+describe("updateTenantSchema", () => {
+	it("should accept partial name update", () => {
+		const result = updateTenantSchema.safeParse({
+			name: "New Name",
+		});
+		expect(result.success).toBe(true);
+	});
+
+	it("should accept settings with displayName", () => {
+		const result = updateTenantSchema.safeParse({
+			settings: { displayName: "My Org" },
+		});
+		expect(result.success).toBe(true);
+	});
+
+	it("should accept settings with logoUrl", () => {
+		const result = updateTenantSchema.safeParse({
+			settings: { logoUrl: "https://example.com/logo.png" },
+		});
+		expect(result.success).toBe(true);
+	});
+
+	it("should reject invalid logoUrl", () => {
+		const result = updateTenantSchema.safeParse({
+			settings: { logoUrl: "not-a-url" },
+		});
+		expect(result.success).toBe(false);
+	});
+
+	it("should accept empty object", () => {
+		const result = updateTenantSchema.safeParse({});
+		expect(result.success).toBe(true);
+	});
+
+	it("should reject name over 200 chars", () => {
+		const result = updateTenantSchema.safeParse({
+			name: "x".repeat(201),
+		});
+		expect(result.success).toBe(false);
+	});
+});
+
+// ────────────────────────────────────────────────────
+// Invitation schemas
+// ────────────────────────────────────────────────────
+
+describe("createInvitationSchema", () => {
+	it("should accept valid email with default role", () => {
+		const result = createInvitationSchema.safeParse({
+			email: "user@example.com",
+		});
+		expect(result.success).toBe(true);
+		if (result.success) {
+			expect(result.data.orgRole).toBe("member");
+		}
+	});
+
+	it("should accept with explicit orgRole", () => {
+		const result = createInvitationSchema.safeParse({
+			email: "admin@example.com",
+			orgRole: "admin",
+		});
+		expect(result.success).toBe(true);
+		if (result.success) {
+			expect(result.data.orgRole).toBe("admin");
+		}
+	});
+
+	it("should accept owner orgRole", () => {
+		const result = createInvitationSchema.safeParse({
+			email: "owner@example.com",
+			orgRole: "owner",
+		});
+		expect(result.success).toBe(true);
+	});
+
+	it("should reject invalid email", () => {
+		const result = createInvitationSchema.safeParse({
+			email: "not-an-email",
+		});
+		expect(result.success).toBe(false);
+	});
+
+	it("should reject invalid orgRole", () => {
+		const result = createInvitationSchema.safeParse({
+			email: "user@example.com",
+			orgRole: "superuser",
+		});
+		expect(result.success).toBe(false);
+	});
+
+	it("should reject missing email", () => {
+		const result = createInvitationSchema.safeParse({});
+		expect(result.success).toBe(false);
+	});
+});
+
+describe("bulkInviteSchema", () => {
+	it("should accept valid array of emails", () => {
+		const result = bulkInviteSchema.safeParse({
+			emails: ["a@b.com", "c@d.com"],
+		});
+		expect(result.success).toBe(true);
+		if (result.success) {
+			expect(result.data.orgRole).toBe("member");
+		}
+	});
+
+	it("should accept with explicit orgRole", () => {
+		const result = bulkInviteSchema.safeParse({
+			emails: ["a@b.com"],
+			orgRole: "admin",
+		});
+		expect(result.success).toBe(true);
+	});
+
+	it("should reject empty emails array", () => {
+		const result = bulkInviteSchema.safeParse({
+			emails: [],
+		});
+		expect(result.success).toBe(false);
+	});
+
+	it("should reject more than 50 emails", () => {
+		const emails = Array.from({ length: 51 }, (_, i) => `user${i}@example.com`);
+		const result = bulkInviteSchema.safeParse({ emails });
+		expect(result.success).toBe(false);
+	});
+
+	it("should reject invalid emails in array", () => {
+		const result = bulkInviteSchema.safeParse({
+			emails: ["valid@test.com", "not-an-email"],
+		});
+		expect(result.success).toBe(false);
+	});
+
+	it("should accept exactly 50 emails", () => {
+		const emails = Array.from({ length: 50 }, (_, i) => `user${i}@example.com`);
+		const result = bulkInviteSchema.safeParse({ emails });
+		expect(result.success).toBe(true);
+	});
+
+	it("should reject missing emails field", () => {
+		const result = bulkInviteSchema.safeParse({});
 		expect(result.success).toBe(false);
 	});
 });

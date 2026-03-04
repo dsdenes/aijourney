@@ -1,5 +1,6 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import OpenAI from "openai";
+import { QuotaService } from "../quotas/quotas.service";
 import { PROMPTING_PRACTICES_CONTEXT } from "./prompting-practices-context";
 
 const MODEL = "grok-4-1-fast-reasoning";
@@ -9,7 +10,9 @@ export class PromptOptimizerService {
 	private readonly logger = new Logger(PromptOptimizerService.name);
 	private openai: OpenAI;
 
-	constructor() {
+	constructor(
+		@Inject(QuotaService) private readonly quotaService: QuotaService,
+	) {
 		const apiKey = process.env.GROK_API_KEY;
 		if (!apiKey) {
 			this.logger.warn(

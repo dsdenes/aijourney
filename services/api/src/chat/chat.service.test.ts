@@ -2,6 +2,7 @@ import { Test, type TestingModule } from "@nestjs/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentRunsService } from "../agent-runs/agent-runs.service";
 import { AppConfigService } from "../config/config.service";
+import { QuotaService } from "../quotas/quotas.service";
 import { ChatService } from "./chat.service";
 
 // Mock @google/genai
@@ -81,6 +82,27 @@ describe("ChatService", () => {
 						startRun: vi.fn().mockResolvedValue({ id: "test-run-id" }),
 						completeRun: vi.fn().mockResolvedValue(undefined),
 						failRun: vi.fn().mockResolvedValue(undefined),
+					},
+				},
+				{
+					provide: QuotaService,
+					useValue: {
+						checkAndIncrement: vi
+							.fn()
+							.mockResolvedValue({
+								allowed: true,
+								remainingCalls: 999,
+								totalLimit: 1000,
+								used: 1,
+							}),
+						check: vi
+							.fn()
+							.mockResolvedValue({
+								allowed: true,
+								remainingCalls: 999,
+								totalLimit: 1000,
+								used: 1,
+							}),
 					},
 				},
 			],
@@ -187,6 +209,27 @@ describe("ChatService", () => {
 							startRun: vi.fn().mockResolvedValue({ id: "test-run-id" }),
 							completeRun: vi.fn().mockResolvedValue(undefined),
 							failRun: vi.fn().mockResolvedValue(undefined),
+						},
+					},
+					{
+						provide: QuotaService,
+						useValue: {
+							checkAndIncrement: vi
+								.fn()
+								.mockResolvedValue({
+									allowed: true,
+									remainingCalls: 999,
+									totalLimit: 1000,
+									used: 1,
+								}),
+							check: vi
+								.fn()
+								.mockResolvedValue({
+									allowed: true,
+									remainingCalls: 999,
+									totalLimit: 1000,
+									used: 1,
+								}),
 						},
 					},
 				],

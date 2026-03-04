@@ -49,15 +49,21 @@ export class JwtStrategy extends PassportStrategy(Strategy, "jwt") {
 
 	async validate(
 		payload: Record<string, unknown>,
-	): Promise<{ userId: string; email: string; role: string }> {
+	): Promise<{ userId: string; email: string; role: string; globalRole: string; tenantId: string; orgRole: string }> {
 		const email = (payload["email"] || "dev@localhost") as string;
 
-		// Look up the actual role from MongoDB (not from JWT claim)
+		// Look up the actual roles and tenant from MongoDB (not from JWT claim)
 		let role = "employee";
+		let globalRole = "user";
+		let tenantId = "";
+		let orgRole = "member";
 		try {
 			const dbUser = await this.usersService.getByEmail(email);
 			if (dbUser) {
 				role = dbUser.role;
+				globalRole = dbUser.globalRole ?? "user";
+				tenantId = dbUser.tenantId ?? "";
+				orgRole = dbUser.orgRole ?? "member";
 			}
 		} catch {
 			// User may not exist yet — will be created on token exchange
@@ -68,6 +74,9 @@ export class JwtStrategy extends PassportStrategy(Strategy, "jwt") {
 			userId: (payload["sub"] || "dev-user") as string,
 			email,
 			role,
+			globalRole,
+			tenantId,
+			orgRole,
 		};
 	}
 }

@@ -49,6 +49,15 @@ export class RunsRepository {
 		return docs.map((d) => fromDoc(d));
 	}
 
+	async listByTenant(tenantId: string, limit = 200): Promise<RunRequest[]> {
+		const docs = await this.col
+			.find({ tenantId })
+			.sort({ createdAt: -1 })
+			.limit(limit)
+			.toArray();
+		return docs.map((d) => fromDoc(d));
+	}
+
 	async updateStatus(
 		id: string,
 		status: string,

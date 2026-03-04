@@ -1,15 +1,25 @@
-import { Module } from "@nestjs/common";
+import {
+	type MiddlewareConsumer,
+	Module,
+	type NestModule,
+} from "@nestjs/common";
 import { AgentRunsModule } from "./agent-runs/agent-runs.module";
 import { AiPlannerModule } from "./ai-planner/ai-planner.module";
 import { AuthModule } from "./auth/auth.module";
+import { BillingModule } from "./billing/billing.module";
 import { ChatModule } from "./chat/chat.module";
+import { TenantContextMiddleware } from "./common/middleware/tenant-context.middleware";
 import { ConfigModule } from "./config/config.module";
 import { HealthModule } from "./health/health.module";
+import { InvitationsModule } from "./invitations/invitations.module";
 import { JourneysModule } from "./journeys/journeys.module";
 import { MemoryModule } from "./memory/memory.module";
 import { MongoDBModule } from "./mongodb/mongodb.module";
 import { PromptOptimizerModule } from "./prompt-optimizer/prompt-optimizer.module";
+import { QuotasModule } from "./quotas/quotas.module";
 import { RunsModule } from "./runs/runs.module";
+import { SuperAdminModule } from "./superadmin/superadmin.module";
+import { TenantsModule } from "./tenants/tenants.module";
 import { UsersModule } from "./users/users.module";
 import { WorkersModule } from "./workers/workers.module";
 
@@ -20,6 +30,9 @@ import { WorkersModule } from "./workers/workers.module";
 		HealthModule,
 		AuthModule,
 		UsersModule,
+		TenantsModule,
+		InvitationsModule,
+		BillingModule,
 		JourneysModule,
 		RunsModule,
 		WorkersModule,
@@ -28,6 +41,15 @@ import { WorkersModule } from "./workers/workers.module";
 		PromptOptimizerModule,
 		AiPlannerModule,
 		MemoryModule,
+		QuotasModule,
+		SuperAdminModule,
 	],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+	configure(consumer: MiddlewareConsumer) {
+		consumer
+			.apply(TenantContextMiddleware)
+			.exclude("health", "auth/google(.*)")
+			.forRoutes("*");
+	}
+}

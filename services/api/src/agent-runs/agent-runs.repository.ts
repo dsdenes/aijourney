@@ -47,6 +47,15 @@ export class AgentRunsRepository {
 		return docs.map((d) => fromDoc(d));
 	}
 
+	async listByTenant(tenantId: string, limit = 200): Promise<AgentRun[]> {
+		const docs = await this.col
+			.find({ tenantId })
+			.sort({ createdAt: -1 })
+			.limit(limit)
+			.toArray();
+		return docs.map((d) => fromDoc(d));
+	}
+
 	async listByAgent(agent: string, limit = 100): Promise<AgentRun[]> {
 		const docs = await this.col
 			.find({ agent })

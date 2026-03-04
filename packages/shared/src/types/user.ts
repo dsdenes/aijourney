@@ -1,5 +1,5 @@
 import type { ComfortLevel } from "../constants/journey-levels.js";
-import type { Role } from "../constants/roles.js";
+import type { GlobalRole, OrgRole, Role } from "../constants/roles.js";
 
 export interface UserPreferences {
 	tools?: string[];
@@ -15,7 +15,14 @@ export interface User {
 	email: string;
 	name: string;
 	avatarUrl?: string;
+	/** @deprecated Use globalRole instead */
 	role: Role;
+	/** System-wide role: superadmin | user */
+	globalRole: GlobalRole;
+	/** Tenant this user belongs to */
+	tenantId: string;
+	/** Role within the tenant: owner | admin | member */
+	orgRole: OrgRole;
 	department?: string;
 	jobTitle?: string;
 	jobDescription?: string;

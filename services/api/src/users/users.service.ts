@@ -16,6 +16,9 @@ export class UsersService {
 			name: input.name,
 			avatarUrl: input.avatarUrl,
 			role: input.role ?? "employee",
+			globalRole: input.globalRole ?? "user",
+			tenantId: input.tenantId,
+			orgRole: input.orgRole ?? "member",
 			onboardingComplete: false,
 			preferences: {},
 			createdAt: now,
@@ -35,6 +38,10 @@ export class UsersService {
 		return this.usersRepo.getByEmail(email);
 	}
 
+	async getByGoogleId(googleId: string): Promise<User | undefined> {
+		return this.usersRepo.getByGoogleId(googleId);
+	}
+
 	async update(id: string, input: UpdateUserInput): Promise<User> {
 		await this.usersRepo.update(id, { ...input, updatedAt: nowISO() });
 		return this.getById(id);
@@ -42,5 +49,17 @@ export class UsersService {
 
 	async listAll(): Promise<User[]> {
 		return this.usersRepo.listAll();
+	}
+
+	async listByTenant(tenantId: string): Promise<User[]> {
+		return this.usersRepo.listByTenant(tenantId);
+	}
+
+	async countByTenant(tenantId: string): Promise<number> {
+		return this.usersRepo.countByTenant(tenantId);
+	}
+
+	async countAll(): Promise<number> {
+		return this.usersRepo.countAll();
 	}
 }

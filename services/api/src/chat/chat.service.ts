@@ -3,6 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { AgentRunsService } from "../agent-runs/agent-runs.service";
 import { AppConfigService } from "../config/config.service";
+import { QuotaService } from "../quotas/quotas.service";
 
 interface SummaryContent {
 	title: string;
@@ -98,6 +99,7 @@ export class ChatService {
 	constructor(
 		@Inject(AppConfigService) private readonly configService: AppConfigService,
 		@Inject(AgentRunsService) private readonly agentRunsService: AgentRunsService,
+		@Inject(QuotaService) private readonly quotaService: QuotaService,
 	) {}
 
 	private getGenAI(): GoogleGenAI {

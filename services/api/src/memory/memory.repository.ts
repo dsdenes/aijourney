@@ -141,6 +141,13 @@ export class MemoryRepository {
 		});
 	}
 
+	async tenantFactCount(tenantId: string): Promise<number> {
+		return this.facts.countDocuments({
+			tenantId,
+			supersededBy: { $exists: false },
+		});
+	}
+
 	async globalCategoryCounts(): Promise<Record<MemoryCategory, number>> {
 		const pipeline = [
 			{ $match: { supersededBy: { $exists: false } } },
@@ -160,9 +167,49 @@ export class MemoryRepository {
 		return counts as Record<MemoryCategory, number>;
 	}
 
+	async tenantCategoryCounts(
+		tenantId: string,
+	): Promise<Record<MemoryCategory, number>> {
+		const pipeline = [
+			{ $match: { tenantId, supersededBy: { $exists: false } } },
+			{ $group: { _id: "$category", count: { $sum: 1 } } },
+		];
+		const results = await this.facts.aggregate(pipeline).toArray();
+		const counts: Record<string, number> = {
+			preferences: 0,
+			goals: 0,
+			skills: 0,
+			context: 0,
+			personality: 0,
+		};
+		for (const row of results) {
+			counts[row._id as string] = row.count as number;
+		}
+		return counts as Record<MemoryCategory, number>;
+	}
+
 	async globalSourceCounts(): Promise<Record<MemorySource, number>> {
 		const pipeline = [
 			{ $match: { supersededBy: { $exists: false } } },
+			{ $group: { _id: "$source", count: { $sum: 1 } } },
+		];
+		const results = await this.facts.aggregate(pipeline).toArray();
+		const counts: Record<string, number> = {
+			"ai-planner": 0,
+			"ai-chat": 0,
+			"prompt-optimizer": 0,
+		};
+		for (const row of results) {
+			counts[row._id as string] = row.count as number;
+		}
+		return counts as Record<MemorySource, number>;
+	}
+
+	async tenantSourceCounts(
+		tenantId: string,
+	): Promise<Record<MemorySource, number>> {
+		const pipeline = [
+			{ $match: { tenantId, supersededBy: { $exists: false } } },
 			{ $group: { _id: "$source", count: { $sum: 1 } } },
 		];
 		const results = await this.facts.aggregate(pipeline).toArray();

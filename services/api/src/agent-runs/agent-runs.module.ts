@@ -6,6 +6,6 @@ import { AgentRunsService } from "./agent-runs.service";
 @Module({
 	controllers: [AgentRunsController],
 	providers: [AgentRunsRepository, AgentRunsService],
-	exports: [AgentRunsService],
+	exports: [AgentRunsService, AgentRunsRepository],
 })
 export class AgentRunsModule {}

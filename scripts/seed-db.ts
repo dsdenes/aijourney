@@ -101,6 +101,59 @@ async function main() {
 		);
 	console.log("  ✓ events");
 
+	// Multi-tenant collections
+	await db
+		.collection("tenants")
+		.createIndex({ slug: 1 }, { unique: true, name: "slug_unique" });
+	console.log("  ✓ tenants");
+
+	await db
+		.collection("invitations")
+		.createIndex({ token: 1 }, { unique: true, name: "token_unique" });
+	await db
+		.collection("invitations")
+		.createIndex({ tenantId: 1, status: 1 }, { name: "tenantId_status" });
+	await db
+		.collection("invitations")
+		.createIndex({ email: 1, tenantId: 1 }, { name: "email_tenantId" });
+	await db
+		.collection("invitations")
+		.createIndex(
+			{ expiresAt: 1 },
+			{ name: "expiresAt_ttl", expireAfterSeconds: 0 },
+		);
+	console.log("  ✓ invitations");
+
+	// Add tenantId compound indexes to existing collections
+	await db
+		.collection("users")
+		.createIndex({ tenantId: 1, email: 1 }, { name: "tenantId_email" });
+	await db
+		.collection("users")
+		.createIndex(
+			{ googleId: 1 },
+			{ unique: true, sparse: true, name: "googleId_unique" },
+		);
+	await db
+		.collection("journeys")
+		.createIndex(
+			{ tenantId: 1, createdAt: -1 },
+			{ name: "tenantId_createdAt_desc" },
+		);
+	await db
+		.collection("run_requests")
+		.createIndex({ tenantId: 1, status: 1 }, { name: "tenantId_status" });
+	await db
+		.collection("agent_runs")
+		.createIndex(
+			{ tenantId: 1, createdAt: -1 },
+			{ name: "tenantId_createdAt_desc" },
+		);
+	await db
+		.collection("memory_facts")
+		.createIndex({ tenantId: 1, category: 1 }, { name: "tenantId_category" });
+	console.log("  ✓ multi-tenant indexes");
+
 	await client.close();
 	console.log("Done!");
 }

@@ -7,6 +7,6 @@ import { MemoryExtractionService } from "./memory-extraction.service";
 @Module({
 	controllers: [MemoryController],
 	providers: [MemoryService, MemoryExtractionService, MemoryRepository],
-	exports: [MemoryService],
+	exports: [MemoryService, MemoryRepository],
 })
 export class MemoryModule {}

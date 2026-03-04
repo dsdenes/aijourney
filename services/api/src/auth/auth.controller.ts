@@ -47,7 +47,7 @@ export class AuthController {
 	@UseGuards(AuthGuard("jwt"))
 	@ApiBearerAuth()
 	@ApiOperation({ summary: "Get current user profile" })
-	async me(@CurrentUser() user: { userId: string; email: string }) {
+	async me(@CurrentUser() user: { userId: string; email: string; role: string; globalRole: string; tenantId: string; orgRole: string }) {
 		return { data: user };
 	}
 

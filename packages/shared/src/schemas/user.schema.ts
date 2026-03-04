@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { COMFORT_LEVELS } from "../constants/journey-levels.js";
-import { ROLES } from "../constants/roles.js";
+import { GLOBAL_ROLES, ORG_ROLES, ROLES } from "../constants/roles.js";
 
 export const userPreferencesSchema = z.object({
 	tools: z.array(z.string()).optional(),
@@ -12,13 +12,13 @@ export const userPreferencesSchema = z.object({
 
 export const createUserSchema = z.object({
 	googleId: z.string().min(1),
-	email: z
-		.string()
-		.email()
-		.endsWith("@mito.hu", { message: "Email must be @mito.hu" }),
+	email: z.string().email(),
 	name: z.string().min(1).max(200),
 	avatarUrl: z.string().url().optional(),
 	role: z.enum(ROLES).default("employee"),
+	globalRole: z.enum(GLOBAL_ROLES).default("user"),
+	tenantId: z.string().min(1),
+	orgRole: z.enum(ORG_ROLES).default("member"),
 });
 
 export const updateUserSchema = z.object({
@@ -29,6 +29,9 @@ export const updateUserSchema = z.object({
 	preferences: userPreferencesSchema.optional(),
 	onboardingComplete: z.boolean().optional(),
 	role: z.enum(ROLES).optional(),
+	globalRole: z.enum(GLOBAL_ROLES).optional(),
+	tenantId: z.string().min(1).optional(),
+	orgRole: z.enum(ORG_ROLES).optional(),
 	lastLoginAt: z.string().optional(),
 });
 
