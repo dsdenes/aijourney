@@ -46,14 +46,14 @@ describe("agent-run-logger", () => {
 			const run = await startAgentRun({
 				agent: "summarizer",
 				input: "Batch summarization",
-				model: "gpt-5-mini",
+				model: "gpt-5-nano",
 			});
 
 			expect(run.id).toBe("test-run-id");
 			expect(run.agent).toBe("summarizer");
 			expect(run.status).toBe("running");
 			expect(run.input).toBe("Batch summarization");
-			expect(run.model).toBe("gpt-5-mini");
+			expect(run.model).toBe("gpt-5-nano");
 			expect(run.createdAt).toBe("2026-01-15T10:00:00.000Z");
 			expect(mockInsertOne).toHaveBeenCalledOnce();
 			// Verify _id mapping

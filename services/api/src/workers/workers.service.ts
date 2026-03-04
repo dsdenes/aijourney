@@ -504,6 +504,15 @@ export class WorkersService implements OnModuleInit, OnModuleDestroy {
 		}
 	}
 
+	async getKbBuilderSummarizationStats(): Promise<Record<string, unknown>> {
+		try {
+			const res = await fetch(`${this.kbUrl}/summarization-stats`);
+			return (await res.json()) as Record<string, unknown>;
+		} catch {
+			return { data: null, error: { code: "KB_OFFLINE", message: "KB Builder service is not running" } };
+		}
+	}
+
 	// ─── Article Deletion ───
 
 	async deleteKbBuilderArticle(

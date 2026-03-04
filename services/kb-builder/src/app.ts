@@ -304,6 +304,102 @@ app.get("/summaries", async (_req, res) => {
 	res.json({ data: summaries, meta: { total: summaries.length } });
 });
 
+/** Detailed summarization stats: articles, progress, costs */
+app.get("/summarization-stats", async (_req, res) => {
+	try {
+		const [articles, summaries] = await Promise.all([
+			getAllArticles(),
+			getAllSummaries(),
+		]);
+
+		// Build a map of articleId → summary for quick lookup
+		const summaryMap = new Map(summaries.map((s) => [s.articleId, s]));
+
+		// Articles eligible for summarization: status quality_passed or summarized
+		const eligibleStatuses = new Set([
+			"quality_passed",
+			"summarized",
+			"ingested",
+		]);
+		const eligibleArticles = articles.filter((a) =>
+			eligibleStatuses.has(a.status),
+		);
+		const summarizedArticles = eligibleArticles.filter(
+			(a) => a.status === "summarized" || a.status === "ingested",
+		);
+
+		const totalEligible = eligibleArticles.length;
+		const totalSummarized = summarizedArticles.length;
+		const totalToSummarize = totalEligible - totalSummarized;
+		const percent =
+			totalEligible > 0
+				? Math.round((totalSummarized / totalEligible) * 100)
+				: 0;
+
+		// Token and cost stats
+		const totalTokens = summaries.reduce((sum, s) => sum + s.tokensUsed, 0);
+		const totalPromptTokens = summaries.reduce(
+			(sum, s) => sum + (s.promptTokens || 0),
+			0,
+		);
+		const totalCompletionTokens = summaries.reduce(
+			(sum, s) => sum + (s.completionTokens || 0),
+			0,
+		);
+
+		// gpt-5-nano pricing: $0.10/M input, $0.40/M output
+		const inputCostPerM = 0.1;
+		const outputCostPerM = 0.4;
+		const totalCost =
+			(totalPromptTokens * inputCostPerM +
+				totalCompletionTokens * outputCostPerM) /
+			1_000_000;
+		const costPerArticle =
+			totalSummarized > 0 ? totalCost / totalSummarized : 0;
+
+		// Per-article detail: join article + summary info
+		const articleDetails = eligibleArticles.map((a) => {
+			const summary = summaryMap.get(a.id);
+			return {
+				id: a.id,
+				title: a.title,
+				url: a.url,
+				status: a.status,
+				hasSummary: !!summary,
+				tokensUsed: summary?.tokensUsed || 0,
+				promptTokens: summary?.promptTokens || 0,
+				completionTokens: summary?.completionTokens || 0,
+				model: summary?.model || null,
+				summarizedAt: summary?.createdAt || null,
+			};
+		});
+
+		res.json({
+			data: {
+				totalArticles: articles.length,
+				totalEligible,
+				totalSummarized,
+				totalToSummarize,
+				percent,
+				totalTokens,
+				totalPromptTokens,
+				totalCompletionTokens,
+				totalCost: Math.round(totalCost * 10000) / 10000,
+				costPerArticle: Math.round(costPerArticle * 10000) / 10000,
+				model: summaries[0]?.model || "gpt-5-nano",
+				articles: articleDetails,
+			},
+		});
+	} catch (err) {
+		res.status(500).json({
+			error: {
+				code: "STATS_FAILED",
+				message: err instanceof Error ? err.message : "Failed to compute stats",
+			},
+		});
+	}
+});
+
 // --------------- RAG Query ---------------
 
 /** Semantic search over the Pinecone knowledge base */

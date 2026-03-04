@@ -10,23 +10,16 @@
     { label: 'Agent Runs', href: '/settings/runs', icon: '🤖' },
     { label: 'Users', href: '/settings/users', icon: '👥' },
     { label: 'Vector DB', href: '/settings/vectordb', icon: '🧮' },
+    { label: 'Summarization', href: '/settings/summarization', icon: '📝' },
+    { label: 'KB Builder', href: '/settings/kb-builder', icon: '🏗️' },
+    { label: 'KB Chat', href: '/settings/kb-chat', icon: '💬' },
     { label: 'Workers', href: '/settings/workers', icon: '⚙️' },
-  ];
-
-  const workerTabs = [
-    { label: 'Summarization', href: '/settings/workers/summarization', icon: '📝' },
-    { label: 'Personalization', href: '/settings/workers/personalization', icon: '🎯' },
-    { label: 'KB Chat', href: '/settings/workers/kb-chat', icon: '💬' },
-    { label: 'KB Builder', href: '/settings/workers/kb-builder', icon: '🏗️' },
   ];
 
   function isActive(href: string): boolean {
     if (href === '/settings') return page.url.pathname === '/settings';
-    if (href === '/settings/workers') return page.url.pathname.startsWith('/settings/workers');
     return page.url.pathname.startsWith(href);
   }
-
-  const isWorkersSection = $derived(page.url.pathname.startsWith('/settings/workers'));
 
   // Redirect non-admin users
   $effect(() => {
@@ -44,7 +37,7 @@
     </div>
 
     <!-- Main tab navigation -->
-    <div class="mb-2 flex gap-1 rounded-lg bg-surface p-1">
+    <div class="mb-6 flex flex-wrap gap-1 rounded-lg bg-surface p-1">
       {#each mainTabs as tab}
         <a
           href={tab.href}
@@ -58,26 +51,6 @@
         </a>
       {/each}
     </div>
-
-    <!-- Worker sub-tabs (only when on a workers route) -->
-    {#if isWorkersSection}
-      <div class="mb-6 flex gap-1 rounded-lg bg-surface/50 p-1">
-        {#each workerTabs as tab}
-          <a
-            href={tab.href}
-            class="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors
-              {isActive(tab.href)
-                ? 'bg-accent text-white'
-                : 'text-text-muted hover:bg-surface-dark hover:text-text'}"
-          >
-            <span>{tab.icon}</span>
-            {tab.label}
-          </a>
-        {/each}
-      </div>
-    {:else}
-      <div class="mb-6"></div>
-    {/if}
 
     {@render children()}
   </div>

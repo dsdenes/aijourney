@@ -132,6 +132,12 @@ export class WorkersController {
 		return await this.workersService.getKbBuilderSummaries();
 	}
 
+	@Get("kb-builder/summarization-stats")
+	@ApiOperation({ summary: "Get detailed summarization statistics" })
+	async kbBuilderSummarizationStats() {
+		return await this.workersService.getKbBuilderSummarizationStats();
+	}
+
 	@Get("kb-builder/status")
 	@ApiOperation({ summary: "Get full KB Builder status" })
 	async kbBuilderFullStatus() {

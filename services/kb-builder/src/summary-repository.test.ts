@@ -66,7 +66,7 @@ describe("summary-repository", () => {
 					roleRelevance: [{ role: "engineering", relevanceScore: 0.9 }],
 					citations: [{ text: "Quote", sourceSection: "intro" }],
 				} as any,
-				model: "gpt-5-mini",
+				model: "gpt-5-nano",
 				promptVersion: "v2-batch",
 				tokensUsed: 500,
 				promptTokens: 300,

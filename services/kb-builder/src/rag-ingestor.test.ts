@@ -207,7 +207,7 @@ describe("RAG Ingestor", () => {
 			const mockSummary = {
 				id: "s1",
 				articleId: "a1",
-				model: "gpt-5-mini",
+				model: "gpt-5-nano",
 				createdAt: "2025-01-01",
 				content: {
 					title: "AI Best Practices",
