@@ -276,7 +276,10 @@ app.post("/summarize", async (req, res) => {
 
 			// Auto-trigger ingestion for newly summarized articles
 			if (result.summarized > 0) {
-				log("info", `Auto-starting ingestion for ${result.summarized} newly summarized articles`);
+				log(
+					"info",
+					`Auto-starting ingestion for ${result.summarized} newly summarized articles`,
+				);
 				const { runRagIngestion } = await import("./rag-ingestor.js");
 				await runRagIngestion();
 				log("info", "Auto-ingestion after summarization completed");
@@ -370,7 +373,10 @@ app.post("/rag/recreate-index", async (_req, res) => {
 				// Auto-trigger ingestion for all summarized articles
 				const summarized = await getArticlesByStatus("summarized");
 				if (summarized.length > 0) {
-					log("info", `Auto-starting ingestion for ${summarized.length} summarized articles`);
+					log(
+						"info",
+						`Auto-starting ingestion for ${summarized.length} summarized articles`,
+					);
 					const { runRagIngestion } = await import("./rag-ingestor.js");
 					await runRagIngestion();
 					log("info", "Auto-ingestion after index recreation completed");
