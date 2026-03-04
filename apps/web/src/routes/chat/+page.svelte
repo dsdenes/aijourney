@@ -1,5 +1,16 @@
 <script lang="ts">
   import { api } from '$lib/api';
+  import { marked } from 'marked';
+
+  // Configure marked for safe, synchronous rendering
+  marked.setOptions({
+    breaks: true,
+    gfm: true,
+  });
+
+  function renderMarkdown(content: string): string {
+    return marked.parse(content) as string;
+  }
 
   interface ChatSource {
     title: string;
@@ -117,7 +128,7 @@
                 ? 'border-2 border-red-500/60 bg-red-950/40 text-red-200'
                 : 'bg-surface-darker text-text'}"
           >
-            <div class="whitespace-pre-wrap">{msg.content}</div>
+            <div class="prose prose-sm max-w-none prose-headings:text-text prose-p:text-text prose-strong:text-text prose-li:text-text prose-a:text-primary prose-code:rounded prose-code:bg-surface-dark prose-code:px-1 prose-code:py-0.5 prose-code:text-xs prose-pre:bg-surface-dark prose-pre:text-sm">{@html renderMarkdown(msg.content)}</div>
 
             <!-- Sources (for assistant messages) -->
             {#if msg.sources && msg.sources.length > 0}

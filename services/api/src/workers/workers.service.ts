@@ -597,4 +597,18 @@ export class WorkersService implements OnModuleInit, OnModuleDestroy {
 			};
 		}
 	}
+
+	async recreateRagIndex(): Promise<Record<string, unknown>> {
+		try {
+			const res = await fetch(`${this.kbUrl}/rag/recreate-index`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+			});
+			return (await res.json()) as Record<string, unknown>;
+		} catch {
+			return {
+				error: { code: "KB_OFFLINE", message: "KB Builder service is not running" },
+			};
+		}
+	}
 }

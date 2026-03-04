@@ -177,6 +177,12 @@ export class WorkersController {
 		return await this.workersService.triggerRagIngestion();
 	}
 
+	@Post("kb-builder/rag/recreate-index")
+	@ApiOperation({ summary: "Recreate Pinecone index with integrated embedding" })
+	async recreateRagIndex() {
+		return await this.workersService.recreateRagIndex();
+	}
+
 	@Get("kb-builder/batch-summarize/:batchId")
 	@ApiOperation({ summary: "Check batch summarization status" })
 	async getBatchStatus(@Param("batchId") batchId: string) {

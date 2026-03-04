@@ -28,6 +28,8 @@
   let error = $state('');
   let ingesting = $state(false);
   let ingestMessage = $state('');
+  let recreating = $state(false);
+  let recreateMessage = $state('');
   let autoRefresh = $state(false);
   let refreshInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -154,6 +156,9 @@
         </span>
       </p>
       <p class="mt-1 text-xs text-text-muted">Fullness: {formatPercent(stats.index.indexFullness)}</p>
+      {#if stats.index.indexFullness === 0 && stats.index.totalRecordCount > 0}
+        <p class="mt-0.5 text-[10px] text-text-faint">(serverless indexes always report 0%)</p>
+      {/if}
     </div>
     <div class="rounded-lg bg-surface p-4">
       <p class="text-xs font-semibold uppercase text-text-muted">Articles Ingested</p>
@@ -263,9 +268,9 @@
     <div class="rounded-lg bg-surface p-5">
       <h2 class="mb-4 text-sm font-semibold uppercase text-text">Ingestion Actions</h2>
       <p class="mb-4 text-sm text-text-muted">
-        Ingest summarized articles into the Pinecone vector database. This embeds the text using
-        OpenAI <code class="rounded bg-surface-dark px-1.5 py-0.5 text-xs text-text">text-embedding-3-small</code>
-        and upserts vectors into Pinecone.
+        Ingest summarized articles into the Pinecone vector database. Embedding is handled by
+        Pinecone's integrated <code class="rounded bg-surface-dark px-1.5 py-0.5 text-xs text-text">multilingual-e5-large</code>
+        model — no external embedding API calls are needed.
       </p>
 
       {#if pendingIngestion > 0}
@@ -313,6 +318,52 @@
           <p class="text-sm text-text-muted">{ingestMessage}</p>
         </div>
       {/if}
+
+      <!-- Recreate Index -->
+      <div class="mt-6 border-t border-border pt-4">
+        <h3 class="mb-2 text-xs font-semibold uppercase text-text">Recreate Index</h3>
+        <p class="mb-3 text-xs text-text-muted">
+          Delete the current index and recreate it with Pinecone integrated <code class="rounded bg-surface-dark px-1 py-0.5 text-[10px]">multilingual-e5-large</code> embedding.
+          All existing vectors will be deleted. You must re-run ingestion after this.
+        </p>
+        <button
+          onclick={async () => {
+            if (!confirm('This will DELETE all vectors and recreate the index. You must re-ingest afterwards. Continue?')) return;
+            recreating = true;
+            recreateMessage = '';
+            try {
+              const res = await api.post<{ status: string; message: string }>('/workers/kb-builder/rag/recreate-index');
+              if (res.data) {
+                recreateMessage = (res.data as any).message || 'Index recreation started';
+              } else if ((res as any).error) {
+                recreateMessage = `Error: ${(res as any).error.message}`;
+              }
+              autoRefresh = true;
+            } catch (err) {
+              recreateMessage = `Error: ${err instanceof Error ? err.message : 'Failed'}`;
+            } finally {
+              recreating = false;
+            }
+          }}
+          disabled={recreating}
+          class="rounded-lg bg-danger px-4 py-2 text-sm font-medium text-white transition-colors
+            hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {#if recreating}
+            <span class="flex items-center gap-2">
+              <span class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+              Recreating...
+            </span>
+          {:else}
+            Recreate Index
+          {/if}
+        </button>
+        {#if recreateMessage}
+          <div class="mt-2 rounded-md bg-surface-dark p-3">
+            <p class="text-sm text-text-muted">{recreateMessage}</p>
+          </div>
+        {/if}
+      </div>
     </div>
   </div>
 {/if}

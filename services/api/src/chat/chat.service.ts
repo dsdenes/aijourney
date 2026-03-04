@@ -49,6 +49,8 @@ interface RagChunk {
 interface RagSearchResult {
 	chunks: RagChunk[];
 	tokensUsed: number;
+	rawResponse?: unknown;
+	searchTimeMs?: number;
 }
 
 export interface ChatMessage {
@@ -82,7 +84,7 @@ Rules:
 - If the context doesn't cover the question, say so honestly and provide general guidance
 - Cite sources by mentioning the article title when referencing specific information
 - Keep answers concise but thorough
-- Use bullet points and formatting for readability
+- **Format your response in Markdown** — use headings, bullet points, bold, code blocks, and other Markdown formatting for readability
 - If asked about specific tools, mention practical dos and don'ts from the knowledge base`;
 
 @Injectable()
@@ -222,6 +224,8 @@ ${c.donts.map((d) => `  ✗ ${d}`).join("\n")}`;
 		context: string;
 		sources: { title: string; url: string; relevance: string }[];
 		embeddingTokens: number;
+		rawResponse?: unknown;
+		searchTimeMs?: number;
 	}> {
 		try {
 			const res = await fetch(`${this.configService.config.KB_BUILDER_URL}/rag/query`, {
@@ -244,6 +248,8 @@ ${c.donts.map((d) => `  ✗ ${d}`).join("\n")}`;
 					context: "No relevant information found in the knowledge base.",
 					sources: [],
 					embeddingTokens: result.tokensUsed,
+					rawResponse: result.rawResponse,
+					searchTimeMs: result.searchTimeMs,
 				};
 			}
 
@@ -275,7 +281,13 @@ ${chunk.text}`;
 				}
 			}
 
-			return { context, sources, embeddingTokens: result.tokensUsed };
+			return {
+				context,
+				sources,
+				embeddingTokens: result.tokensUsed,
+				rawResponse: result.rawResponse,
+				searchTimeMs: result.searchTimeMs,
+			};
 		} catch (err) {
 			this.logger.warn(
 				`RAG query failed: ${err instanceof Error ? err.message : String(err)} — falling back to keyword search`,
@@ -344,42 +356,49 @@ ${chunk.text}`;
 	): Promise<ChatResponse> {
 		const openai = this.getOpenAI();
 		const technicalSteps: string[] = [];
+		const totalStart = Date.now();
 
 		let context: string;
 		let sources: { title: string; url: string; relevance: string }[];
 		let embeddingTokens = 0;
 
-		technicalSteps.push("RAG provider: Pinecone (vector search with integrated embedding)");
+		technicalSteps.push("RAG provider: Pinecone (searchRecords with integrated multilingual-e5-large)");
+		technicalSteps.push(`RAG query: \"${query.slice(0, 120)}\"`);
 
 		// Semantic search via Pinecone
 		this.logger.log(
 			`Using Pinecone RAG for query: "${query.slice(0, 60)}"`,
 		);
-		technicalSteps.push(
-			"Querying Pinecone with integrated multilingual-e5-large embedding",
-		);
+		const ragStart = Date.now();
 		const ragResult = await this.searchRag(query);
+		const ragElapsed = Date.now() - ragStart;
 		context = ragResult.context;
 		sources = ragResult.sources;
 		embeddingTokens = ragResult.embeddingTokens;
 
-		if (embeddingTokens > 0) {
-			technicalSteps.push(`Embedding used ${embeddingTokens} tokens`);
+		technicalSteps.push(
+			`Pinecone searchRecords completed in ${ragResult.searchTimeMs ?? ragElapsed}ms (total RAG call: ${ragElapsed}ms)`,
+		);
+
+		if (ragResult.rawResponse) {
+			technicalSteps.push(`RAG raw response: ${JSON.stringify(ragResult.rawResponse)}`);
 		}
 
 		if (!context || context.includes("No relevant information")) {
 			technicalSteps.push(
 				"Pinecone returned no relevant chunks — falling back to keyword search over KB summaries",
 			);
+			const kwStart = Date.now();
 			const fallback = await this.keywordSearch(query);
+			const kwElapsed = Date.now() - kwStart;
 			context = fallback.context;
 			sources = fallback.sources;
 			technicalSteps.push(
-				`Keyword search found ${sources.length} relevant sources`,
+				`Keyword search found ${sources.length} relevant sources (${kwElapsed}ms)`,
 			);
 		} else {
 			technicalSteps.push(
-				`Pinecone returned ${sources.length} relevant document chunks`,
+				`Pinecone returned ${sources.length} relevant sources from RAG chunks`,
 			);
 		}
 
@@ -412,15 +431,17 @@ ${chunk.text}`;
 		const estimatedTokens =
 			Math.ceil(
 				messages.reduce((sum, m) => sum + (m.content?.length ?? 0), 0) / 4,
-			) + 1500;
+			) + 4000;
 		await this.rateLimiter.waitForCapacity(estimatedTokens);
 		this.rateLimiter.recordRequest(estimatedTokens);
 
+		const llmStart = Date.now();
 		const completion = await openai.chat.completions.create({
 			model: CHAT_MODEL,
 			messages,
-			max_completion_tokens: 1500,
+			max_completion_tokens: 4000,
 		});
+		const llmElapsed = Date.now() - llmStart;
 
 		const choice = completion.choices[0];
 		const answer =
@@ -437,14 +458,17 @@ ${chunk.text}`;
 			);
 		}
 
+		const totalElapsed = Date.now() - totalStart;
+
 		this.logger.log(
-			`Chat response: ${tokensUsed} tokens (${promptTokens} in / ${completionTokens} out), ${sources.length} sources [pinecone]`,
+			`Chat response: ${tokensUsed} tokens (${promptTokens} in / ${completionTokens} out), ${sources.length} sources [pinecone] (${totalElapsed}ms)`,
 		);
 
-		technicalSteps.push(`Called OpenAI model: ${CHAT_MODEL}`);
+		technicalSteps.push(`OpenAI ${CHAT_MODEL} responded in ${llmElapsed}ms`);
 		technicalSteps.push(
-			`Prompt tokens: ${promptTokens.toLocaleString()}, completion tokens: ${completionTokens.toLocaleString()}, total: ${tokensUsed.toLocaleString()}`,
+			`Tokens — prompt: ${promptTokens.toLocaleString()}, completion: ${completionTokens.toLocaleString()}, total: ${tokensUsed.toLocaleString()}`,
 		);
+		technicalSteps.push(`Total elapsed: ${totalElapsed}ms`);
 
 		return {
 			answer,

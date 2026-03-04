@@ -1,11 +1,11 @@
 /**
- * RAG ingestor — Rust chunker + OpenAI text-embedding-3-small + Pinecone:
+ * RAG ingestor — Rust chunker + Pinecone integrated embedding:
  *   1. Rust binary for fast paragraph-aware text splitting
- *   2. OpenAI text-embedding-3-small for cheap English embeddings ($0.02/1M tokens)
+ *   2. Pinecone integrated multilingual-e5-large for embedding (no OpenAI)
  *   3. Pinecone serverless index for vector storage + similarity search
  *
- * Each "summarized" article gets its formatted summary text chunked,
- * embedded via OpenAI, and upserted into Pinecone with rich metadata.
+ * Each "summarized" article gets its formatted summary text chunked
+ * and upserted into Pinecone where the embedding is done server-side.
  */
 
 import { type ChildProcess, spawn } from "node:child_process";
@@ -13,7 +13,6 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Article, Summary } from "@aijourney/shared";
 import { Pinecone } from "@pinecone-database/pinecone";
-import OpenAI from "openai";
 import {
 	getArticlesByStatus,
 	updateArticleStatus,
@@ -26,16 +25,13 @@ import { getSummaryByArticleId } from "./summary-repository.js";
 const PINECONE_INDEX_NAME = process.env.PINECONE_INDEX_NAME || "aijourney-kb";
 
 /** Maximum records to upsert in a single Pinecone batch call */
-const UPSERT_BATCH_SIZE = 100;
+const UPSERT_BATCH_SIZE = 96;
 
-/** Maximum texts to embed in a single OpenAI API call */
-const EMBED_BATCH_SIZE = 100;
+/** Pinecone integrated embedding model */
+const INTEGRATED_MODEL = "multilingual-e5-large";
 
-/** Embedding model — cheapest OpenAI option at $0.02/1M tokens */
-const EMBEDDING_MODEL = "text-embedding-3-small";
-
-/** Embedding dimension (text-embedding-3-small default: 1536) */
-const EMBEDDING_DIMENSION = 1536;
+/** Dimension for multilingual-e5-large (set by Pinecone, 1024d) */
+const INTEGRATED_DIMENSION = 1024;
 
 // Resolve chunker binary relative to this source file
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -105,45 +101,51 @@ export async function ensureCollection(): Promise<void> {
 	}
 }
 
-// ── OpenAI Embedding ──
-
-let openaiClient: OpenAI | null = null;
-
-function getOpenAI(): OpenAI {
-	if (!openaiClient) {
-		const apiKey = process.env.OPENAI_API_KEY || "";
-		if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
-		openaiClient = new OpenAI({ apiKey });
-	}
-	return openaiClient;
-}
-
 /**
- * Embed an array of texts using OpenAI text-embedding-3-small.
- * Batches internally at EMBED_BATCH_SIZE to respect API limits.
- * Returns vectors in the same order as inputs.
+ * Recreate the Pinecone index with integrated multilingual-e5-large embedding.
+ * DESTRUCTIVE — deletes all existing vectors. Re-ingestion required afterwards.
  */
-export async function embedTexts(texts: string[]): Promise<number[][]> {
-	if (texts.length === 0) return [];
+export async function recreateIndex(): Promise<{ message: string }> {
+	const pc = getPinecone();
 
-	const openai = getOpenAI();
-	const allEmbeddings: number[][] = [];
-
-	for (let i = 0; i < texts.length; i += EMBED_BATCH_SIZE) {
-		const batch = texts.slice(i, i + EMBED_BATCH_SIZE);
-		const response = await openai.embeddings.create({
-			model: EMBEDDING_MODEL,
-			input: batch,
-			dimensions: EMBEDDING_DIMENSION,
-		});
-		// Sort by index to preserve order
-		const sorted = response.data.sort((a, b) => a.index - b.index);
-		for (const item of sorted) {
-			allEmbeddings.push(item.embedding);
+	// Delete existing index if it exists
+	try {
+		const existing = await pc.describeIndex(PINECONE_INDEX_NAME);
+		if (existing) {
+			log("info", `Deleting existing Pinecone index '${PINECONE_INDEX_NAME}'`);
+			try {
+				await pc.configureIndex({
+					name: PINECONE_INDEX_NAME,
+					deletionProtection: "disabled",
+				});
+			} catch { /* may already be disabled */ }
+			await pc.deleteIndex(PINECONE_INDEX_NAME);
+			// Wait for deletion to complete
+			await new Promise((r) => setTimeout(r, 5000));
 		}
+	} catch {
+		log("debug", "No existing index to delete");
 	}
 
-	return allEmbeddings;
+	// Create new index with integrated embedding
+	log("info", `Creating Pinecone index '${PINECONE_INDEX_NAME}' with integrated ${INTEGRATED_MODEL} embedding`);
+	await pc.createIndexForModel({
+		name: PINECONE_INDEX_NAME,
+		cloud: "aws",
+		region: "us-east-1",
+		embed: {
+			model: INTEGRATED_MODEL,
+			fieldMap: { text: "text" },
+		},
+		waitUntilReady: true,
+	});
+
+	log("info", `Pinecone index '${PINECONE_INDEX_NAME}' created with integrated ${INTEGRATED_MODEL}`);
+
+	// Reset pinecone client so it picks up new index
+	pineconeClient = null;
+
+	return { message: `Index '${PINECONE_INDEX_NAME}' recreated with integrated ${INTEGRATED_MODEL} embedding. Re-ingestion required.` };
 }
 
 // ── Chunker (Rust binary via spawn) ──
@@ -245,7 +247,7 @@ function formatDocumentText(article: Article, summary: Summary): string {
 
 /**
  * Run RAG ingestion for all articles with "summarized" or "ingested" status.
- * Chunks via Rust → embeds via OpenAI → upserts into Pinecone.
+ * Chunks via Rust → upserts into Pinecone (Pinecone handles embedding server-side).
  */
 export async function runRagIngestion(): Promise<RagIngestionResult> {
 	const summarizedArticles = await getArticlesByStatus("summarized");
@@ -325,66 +327,48 @@ export async function runRagIngestion(): Promise<RagIngestionResult> {
 		chunks: chunks.length,
 	});
 
-	// Step 3: Embed all chunk texts via OpenAI text-embedding-3-small
-	log(
-		"info",
-		`Embedding ${chunks.length} chunks via OpenAI ${EMBEDDING_MODEL}`,
-	);
-	let embeddings: number[][];
-	try {
-		embeddings = await embedTexts(chunks.map((c) => c.text));
-	} catch (err) {
-		const msg = `Embedding failed: ${err instanceof Error ? err.message : String(err)}`;
-		result.errors.push(msg);
-		log("error", msg);
-		return result;
-	}
-
-	// Step 4: Upsert into Pinecone with precomputed vectors
-	log("info", `Upserting ${chunks.length} vectors into Pinecone`);
+	// Step 3: Upsert into Pinecone — embedding is handled server-side by Pinecone
+	log("info", `Upserting ${chunks.length} records into Pinecone (integrated ${INTEGRATED_MODEL} embedding)`);
 	const index = getIndex();
 
-	const vectors = chunks.map((chunk, idx) => {
+	const records = chunks.map((chunk) => {
 		const pair = articleSummaryMap.get(chunk.doc_id);
 		const article = pair?.article;
 		const summary = pair?.summary;
 
 		return {
-			id: `${chunk.doc_id}:${chunk.index}`,
-			values: embeddings[idx]!,
-			metadata: {
-				text: chunk.text,
-				doc_id: chunk.doc_id,
-				chunk_index: chunk.index,
-				char_start: chunk.start,
-				char_end: chunk.end,
-				article_url: article?.url || "",
-				article_title: article?.title || "",
-				article_source: article?.source || "",
-				summary_title: summary?.content.title || "",
-				tags: summary?.content.tags || [],
-				difficulty: summary?.content.difficulty || "",
-				summary_id: summary?.id || "",
-			},
+			_id: `${chunk.doc_id}:${chunk.index}`,
+			text: chunk.text,
+			doc_id: chunk.doc_id,
+			chunk_index: chunk.index,
+			char_start: chunk.start,
+			char_end: chunk.end,
+			article_url: article?.url || "",
+			article_title: article?.title || "",
+			article_source: article?.source || "",
+			summary_title: summary?.content.title || "",
+			tags: (summary?.content.tags || []).join(", "),
+			difficulty: summary?.content.difficulty || "",
+			summary_id: summary?.id || "",
 		};
 	});
 
-	// Upsert in batches
-	for (let i = 0; i < vectors.length; i += UPSERT_BATCH_SIZE) {
-		const batch = vectors.slice(i, i + UPSERT_BATCH_SIZE);
+	// Upsert in batches (Pinecone embeds each record's text field server-side)
+	for (let i = 0; i < records.length; i += UPSERT_BATCH_SIZE) {
+		const batch = records.slice(i, i + UPSERT_BATCH_SIZE);
 		try {
-			await index.upsert({ records: batch });
+			await index.upsertRecords({ records: batch });
 		} catch (err) {
-			const msg = `Pinecone upsert failed (batch ${Math.floor(i / UPSERT_BATCH_SIZE)}): ${err instanceof Error ? err.message : String(err)}`;
+			const msg = `Pinecone upsertRecords failed (batch ${Math.floor(i / UPSERT_BATCH_SIZE)}): ${err instanceof Error ? err.message : String(err)}`;
 			result.errors.push(msg);
 			log("error", msg);
 		}
 	}
 
 	result.totalChunks = chunks.length;
-	result.totalTokensUsed = 0; // OpenAI embedding tokens tracked via their dashboard
+	result.totalTokensUsed = 0;
 
-	// Step 5: Update article statuses
+	// Step 4: Update article statuses
 	const ingestedDocIds = new Set(chunks.map((c) => c.doc_id));
 	for (const docId of ingestedDocIds) {
 		try {
@@ -414,29 +398,30 @@ export async function runRagIngestion(): Promise<RagIngestionResult> {
 
 /**
  * Delete all Pinecone vectors associated with a given article (doc_id).
- * Queries by metadata filter then deletes matching IDs.
+ * Uses searchRecords with metadata filter then deletes matching IDs.
  */
 export async function deleteVectorsByArticleId(
 	articleId: string,
 ): Promise<number> {
 	try {
 		const index = getIndex();
-		// Embed a dummy query to search for matching doc_id
-		const [queryVec] = await embedTexts(["."]);
-		const results = await index.query({
-			vector: queryVec!,
-			topK: 1000,
-			filter: { doc_id: { $eq: articleId } },
-			includeMetadata: false,
+		// Search for records with this doc_id using integrated embedding
+		const results = await index.searchRecords({
+			query: {
+				topK: 1000,
+				inputs: { text: "." },
+				filter: { doc_id: { $eq: articleId } },
+			},
+			fields: ["_id"],
 		});
 
-		const matches = results.matches ?? [];
-		if (matches.length === 0) {
+		const hits = results.result?.hits ?? [];
+		if (hits.length === 0) {
 			log("debug", `No Pinecone records found for article ${articleId}`);
 			return 0;
 		}
 
-		const ids = matches.map((m) => m.id);
+		const ids = hits.map((h) => h._id);
 		await index.deleteMany(ids);
 
 		log(
@@ -541,13 +526,15 @@ export async function getVectorDbStats(): Promise<VectorDbStats> {
 			state: description.status?.state ?? "unknown",
 			totalRecordCount: indexStats.totalRecordCount ?? 0,
 			indexFullness: indexStats.indexFullness ?? 0,
-			namespaces: (indexStats.namespaces as Record<string, { recordCount: number }>) ?? {},
+			namespaces:
+				(indexStats.namespaces as Record<string, { recordCount: number }>) ??
+				{},
 		},
 		articles: { total, byStatus },
 		embedding: {
-			model: EMBEDDING_MODEL,
-			dimension: EMBEDDING_DIMENSION,
-			provider: "openai",
+			model: INTEGRATED_MODEL,
+			dimension: INTEGRATED_DIMENSION,
+			provider: "pinecone",
 		},
 	};
 }

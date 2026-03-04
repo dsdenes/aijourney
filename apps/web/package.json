@@ -10,7 +10,9 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
 	},
 	"dependencies": {
-		"@aijourney/shared": "workspace:*"
+		"@aijourney/shared": "workspace:*",
+		"@tailwindcss/typography": "^0.5.19",
+		"marked": "^17.0.3"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-static": "^3.0.8",

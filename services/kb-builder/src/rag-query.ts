@@ -1,19 +1,16 @@
 /**
- * RAG query module — embeds query via OpenAI text-embedding-3-small,
- * then retrieves relevant chunks from Pinecone using standard vector search.
+ * RAG query module — uses Pinecone integrated multilingual-e5-large embedding
+ * for both indexing and querying. No external embedding API calls needed.
  *
  * Used by the chat service via the kb-builder HTTP API.
  */
 
 import { Pinecone } from "@pinecone-database/pinecone";
-import OpenAI from "openai";
 import { log } from "./log-stream.js";
 
 // ── Config ──
 
 const PINECONE_INDEX_NAME = process.env.PINECONE_INDEX_NAME || "aijourney-kb";
-const EMBEDDING_MODEL = "text-embedding-3-small";
-const EMBEDDING_DIMENSION = 1536;
 
 // ── Types ──
 
@@ -35,6 +32,10 @@ export interface RagChunk {
 export interface RagSearchResult {
 	chunks: RagChunk[];
 	tokensUsed: number;
+	/** Raw Pinecone response for debugging */
+	rawResponse?: unknown;
+	/** Time in ms for the Pinecone search */
+	searchTimeMs?: number;
 }
 
 // ── Pinecone client ──
@@ -54,35 +55,11 @@ function getIndex() {
 	return getPinecone().index(PINECONE_INDEX_NAME);
 }
 
-// ── OpenAI client ──
-
-let openaiClient: OpenAI | null = null;
-
-function getOpenAI(): OpenAI {
-	if (!openaiClient) {
-		const apiKey = process.env.OPENAI_API_KEY || "";
-		if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
-		openaiClient = new OpenAI({ apiKey });
-	}
-	return openaiClient;
-}
-
-/** Embed a single text for query purposes. */
-async function embedQuery(text: string): Promise<number[]> {
-	const openai = getOpenAI();
-	const response = await openai.embeddings.create({
-		model: EMBEDDING_MODEL,
-		input: text,
-		dimensions: EMBEDDING_DIMENSION,
-	});
-	return response.data[0]!.embedding;
-}
-
 // ── Search ──
 
 /**
  * Search the Pinecone knowledge base for chunks relevant to a query.
- * Embeds via OpenAI text-embedding-3-small, then queries Pinecone.
+ * Uses Pinecone's integrated multilingual-e5-large embedding — no OpenAI call.
  *
  * @param query - User's search query / chat message
  * @param topK - Number of top chunks to retrieve (default: 8)
@@ -95,50 +72,76 @@ export async function searchKnowledgeBase(
 ): Promise<RagSearchResult> {
 	const index = getIndex();
 
-	// Embed the query text via OpenAI
-	const queryVector = await embedQuery(query);
-
-	// Standard Pinecone vector query
-	const response = await index.query({
-		vector: queryVector,
-		topK,
-		includeMetadata: true,
+	// Use Pinecone integrated embedding — query with text, not vector
+	const searchStart = Date.now();
+	const response = await index.searchRecords({
+		query: {
+			topK,
+			inputs: { text: query },
+		},
+		fields: [
+			"text",
+			"doc_id",
+			"chunk_index",
+			"article_url",
+			"article_title",
+			"article_source",
+			"summary_title",
+			"tags",
+			"difficulty",
+		],
 	});
+	const searchTimeMs = Date.now() - searchStart;
 
-	const matches = response.matches ?? [];
+	const hits = response.result?.hits ?? [];
 
 	// Filter by score threshold and map results
-	const chunks: RagChunk[] = matches
-		.filter((match) => (match.score ?? 0) >= scoreThreshold)
-		.map((match) => {
-			const m = (match.metadata ?? {}) as Record<string, unknown>;
+	const chunks: RagChunk[] = hits
+		.filter((hit) => (hit._score ?? 0) >= scoreThreshold)
+		.map((hit) => {
+			const f = (hit.fields ?? {}) as Record<string, unknown>;
+			// Tags may be stored as comma-separated string (from upsertRecords)
+			const rawTags = f.tags;
+			const tags: string[] =
+				typeof rawTags === "string"
+					? rawTags.split(", ").filter(Boolean)
+					: Array.isArray(rawTags)
+						? (rawTags as string[])
+						: [];
+
 			return {
-				text: String(m.text || ""),
-				score: match.score ?? 0,
+				text: String(f.text || ""),
+				score: hit._score ?? 0,
 				metadata: {
-					doc_id: String(m.doc_id || ""),
-					chunk_index: Number(m.chunk_index || 0),
-					article_url: String(m.article_url || ""),
-					article_title: String(m.article_title || ""),
-					article_source: String(m.article_source || ""),
-					summary_title: String(m.summary_title || ""),
-					tags: (m.tags as string[]) || [],
-					difficulty: String(m.difficulty || ""),
+					doc_id: String(f.doc_id || ""),
+					chunk_index: Number(f.chunk_index || 0),
+					article_url: String(f.article_url || ""),
+					article_title: String(f.article_title || ""),
+					article_source: String(f.article_source || ""),
+					summary_title: String(f.summary_title || ""),
+					tags,
+					difficulty: String(f.difficulty || ""),
 				},
 			};
 		});
 
 	log(
 		"debug",
-		`RAG search: "${query.slice(0, 60)}" → ${chunks.length} chunks`,
+		`RAG search: "${query.slice(0, 60)}" → ${chunks.length} chunks (${searchTimeMs}ms)`,
 		{
 			topK,
 			scoreThreshold,
 			resultsFound: chunks.length,
+			searchTimeMs,
 		},
 	);
 
-	return { chunks, tokensUsed: 0 };
+	return {
+		chunks,
+		tokensUsed: 0,
+		rawResponse: { hitCount: hits.length, hits: hits.map((h) => ({ _id: h._id, _score: h._score })) },
+		searchTimeMs,
+	};
 }
 
 /**
