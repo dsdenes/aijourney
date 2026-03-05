@@ -103,6 +103,12 @@
 
   <!-- User info + logout -->
   <div class="border-t border-border p-4">
+    {#if auth.user?.tenantName}
+      <div class="mb-3 flex items-center gap-2 rounded-md bg-primary/5 px-3 py-1.5">
+        <span class="text-xs">🏢</span>
+        <span class="truncate text-xs font-medium text-primary">{auth.user.tenantName}</span>
+      </div>
+    {/if}
     <div class="flex items-center gap-3">
       <div class="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
         {auth.user?.name?.[0] || '?'}

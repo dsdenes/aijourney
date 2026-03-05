@@ -13,8 +13,6 @@ import { UsersService } from "../users/users.service";
 
 /** Emails that are automatically promoted to superadmin on first login */
 const DEFAULT_SUPERADMINS = [
-	"d.pal@mito.hu",
-	"paldaniel@gmail.com",
 	"dsdenes@gmail.com",
 ];
 
@@ -42,6 +40,7 @@ interface AuthUserResponse {
 	role: string;
 	globalRole: GlobalRole;
 	tenantId: string;
+	tenantName: string;
 	orgRole: OrgRole;
 	onboardingComplete: boolean;
 }
@@ -158,12 +157,28 @@ export class AuthService {
 				updates["globalRole"] = "superadmin";
 			}
 
+			// Demote non-superadmins who were previously superadmin
+			if (!isSuperadmin && existing.globalRole === "superadmin") {
+				updates["globalRole"] = "user";
+			}
+
 			// Backfill googleId if missing
 			if (!existing.googleId) {
 				updates["googleId"] = googleSub;
 			}
 
 			existing = await this.usersService.update(existing.id, updates);
+
+			// Resolve tenant name
+			let tenantName = "";
+			if (existing.tenantId) {
+				try {
+					const tenant = await this.tenantsService.getById(existing.tenantId);
+					tenantName = tenant.name;
+				} catch {
+					// Tenant may have been deleted
+				}
+			}
 
 			return {
 				userId: existing.id,
@@ -172,6 +187,7 @@ export class AuthService {
 				role: existing.role,
 				globalRole: existing.globalRole ?? "user",
 				tenantId: existing.tenantId ?? "",
+				tenantName,
 				orgRole: existing.orgRole ?? "member",
 				onboardingComplete: existing.onboardingComplete ?? false,
 			};
@@ -199,6 +215,15 @@ export class AuthService {
 			// Mark invitation as accepted
 			await this.invitationsService.accept(invitation.id);
 
+			// Resolve tenant name
+			let tenantName = "";
+			try {
+				const tenant = await this.tenantsService.getById(invitation.tenantId);
+				tenantName = tenant.name;
+			} catch {
+				// Tenant may have been deleted
+			}
+
 			this.logger.log(
 				`New user ${email} joined tenant ${invitation.tenantId} via invitation`,
 			);
@@ -210,6 +235,7 @@ export class AuthService {
 				role: newUser.role,
 				globalRole: newUser.globalRole ?? "user",
 				tenantId: newUser.tenantId ?? "",
+				tenantName,
 				orgRole: newUser.orgRole ?? "member",
 				onboardingComplete: newUser.onboardingComplete ?? false,
 			};
@@ -248,6 +274,7 @@ export class AuthService {
 			role: newUser.role,
 			globalRole: newUser.globalRole ?? "user",
 			tenantId: newUser.tenantId ?? "",
+			tenantName: tenant.name,
 			orgRole: newUser.orgRole ?? "owner",
 			onboardingComplete: newUser.onboardingComplete ?? false,
 		};

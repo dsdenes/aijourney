@@ -10,6 +10,7 @@ interface AuthUser {
 	role: string;
 	globalRole: string;
 	tenantId: string;
+	tenantName: string;
 	orgRole: string;
 	token: string;
 	onboardingComplete: boolean;
