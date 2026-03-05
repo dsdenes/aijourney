@@ -3,15 +3,15 @@ services:
   mongodb:
     image: mongo:8
     ports:
-      - "27017:27017"
+      - '27017:27017'
     volumes:
       - mongo_data:/data/db
       - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/01-init.js:ro
     environment:
       MONGO_INITDB_DATABASE: aijourney
-    command: ["mongod", "--wiredTigerCacheSizeGB", "0.5"]
+    command: ['mongod', '--wiredTigerCacheSizeGB', '0.5']
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok", "--quiet"]
+      test: ['CMD', 'mongosh', '--eval', "db.runCommand('ping').ok", '--quiet']
       interval: 5s
       timeout: 3s
       retries: 5
@@ -19,11 +19,11 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - '6379:6379'
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
       timeout: 3s
       retries: 5
@@ -34,7 +34,7 @@ services:
       context: .
       target: api
     ports:
-      - "3000:3000"
+      - '3000:3000'
     depends_on:
       mongodb:
         condition: service_healthy
@@ -42,22 +42,22 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: development
-      PORT: "3000"
+      PORT: '3000'
       MONGODB_URI: mongodb://mongodb:27017
       REDIS_URL: redis://redis:6379
       APP_URL: http://localhost:5173
       API_URL: http://localhost:3000
-      GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID:-}"
-      GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET:-}"
-      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
-      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
-      GROK_API_KEY: "${GROK_API_KEY:-}"
+      GOOGLE_CLIENT_ID: '${GOOGLE_CLIENT_ID:-}'
+      GOOGLE_CLIENT_SECRET: '${GOOGLE_CLIENT_SECRET:-}'
+      OPENAI_API_KEY: '${OPENAI_API_KEY:-}'
+      GEMINI_API_KEY: '${GEMINI_API_KEY:-}'
+      GROK_API_KEY: '${GROK_API_KEY:-}'
       KB_BUILDER_URL: http://kb-builder:3002
-      STRIPE_SECRET_KEY: "${STRIPE_SECRET_KEY:-}"
-      STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-}"
-      STRIPE_PRO_PRICE_ID: "${STRIPE_PRO_PRICE_ID:-}"
-      STRIPE_ENTERPRISE_PRICE_ID: "${STRIPE_ENTERPRISE_PRICE_ID:-}"
-      STRIPE_LLM_PACK_PRICE_ID: "${STRIPE_LLM_PACK_PRICE_ID:-}"
+      STRIPE_SECRET_KEY: '${STRIPE_SECRET_KEY:-}'
+      STRIPE_WEBHOOK_SECRET: '${STRIPE_WEBHOOK_SECRET:-}'
+      STRIPE_PRO_PRICE_ID: '${STRIPE_PRO_PRICE_ID:-}'
+      STRIPE_ENTERPRISE_PRICE_ID: '${STRIPE_ENTERPRISE_PRICE_ID:-}'
+      STRIPE_LLM_PACK_PRICE_ID: '${STRIPE_LLM_PACK_PRICE_ID:-}'
 
   worker:
     build:
@@ -75,25 +75,25 @@ services:
       context: .
       target: kb-builder
     ports:
-      - "3002:3002"
+      - '3002:3002'
     depends_on:
       mongodb:
         condition: service_healthy
     environment:
       NODE_ENV: development
-      KB_BUILDER_PORT: "3002"
+      KB_BUILDER_PORT: '3002'
       MONGODB_URI: mongodb://mongodb:27017
-      PINECONE_API_KEY: "${PINECONE_API_KEY:-}"
-      PINECONE_INDEX_NAME: "${PINECONE_INDEX_NAME:-aijourney-kb}"
+      PINECONE_API_KEY: '${PINECONE_API_KEY:-}'
+      PINECONE_INDEX_NAME: '${PINECONE_INDEX_NAME:-aijourney-kb}'
 
   web:
     build:
       context: .
       target: web
       args:
-        VITE_GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID:-}"
+        VITE_GOOGLE_CLIENT_ID: '${GOOGLE_CLIENT_ID:-}'
     ports:
-      - "5173:80"
+      - '5173:80'
     depends_on:
       - api
 

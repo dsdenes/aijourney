@@ -1,87 +1,87 @@
 import type {
-	PlannerAnswer,
-	PlannerQuestion,
-	PlannerRound,
-	PlannerStrategy,
-} from "@aijourney/shared";
-import { Inject, Injectable, Logger } from "@nestjs/common";
-import OpenAI from "openai";
-import { CompanyContextService } from "../company-context/company-context.service";
-import { AppConfigService } from "../config/config.service";
-import { QuotaService } from "../quotas/quotas.service";
+  PlannerAnswer,
+  PlannerQuestion,
+  PlannerRound,
+  PlannerStrategy,
+} from '@aijourney/shared';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import OpenAI from 'openai';
+import { CompanyContextService } from '../company-context/company-context.service';
+import { AppConfigService } from '../config/config.service';
+import { QuotaService } from '../quotas/quotas.service';
 
-const QUESTIONS_MODEL = "grok-4-1-fast-reasoning";
-const STRATEGY_MODEL = "gpt-5.2";
+const QUESTIONS_MODEL = 'grok-4-1-fast-reasoning';
+const STRATEGY_MODEL = 'gpt-5.2';
 
 @Injectable()
 export class AiPlannerService {
-	private readonly logger = new Logger(AiPlannerService.name);
-	private grokClient: OpenAI | null = null;
-	private openaiClient: OpenAI | null = null;
+  private readonly logger = new Logger(AiPlannerService.name);
+  private grokClient: OpenAI | null = null;
+  private openaiClient: OpenAI | null = null;
 
-	constructor(
-		@Inject(AppConfigService)
-		private readonly configService: AppConfigService,
-		@Inject(QuotaService)
-		private readonly quotaService: QuotaService,
-		@Inject(CompanyContextService)
-		private readonly companyContextService: CompanyContextService,
-	) {}
+  constructor(
+    @Inject(AppConfigService)
+    private readonly configService: AppConfigService,
+    @Inject(QuotaService)
+    private readonly quotaService: QuotaService,
+    @Inject(CompanyContextService)
+    private readonly companyContextService: CompanyContextService,
+  ) {}
 
-	private getGrokClient(): OpenAI {
-		if (!this.grokClient) {
-			const apiKey = process.env.GROK_API_KEY;
-			if (!apiKey) {
-				throw new Error("GROK_API_KEY environment variable is not set");
-			}
-			this.grokClient = new OpenAI({
-				apiKey,
-				baseURL: "https://api.x.ai/v1",
-			});
-		}
-		return this.grokClient;
-	}
+  private getGrokClient(): OpenAI {
+    if (!this.grokClient) {
+      const apiKey = process.env.GROK_API_KEY;
+      if (!apiKey) {
+        throw new Error('GROK_API_KEY environment variable is not set');
+      }
+      this.grokClient = new OpenAI({
+        apiKey,
+        baseURL: 'https://api.x.ai/v1',
+      });
+    }
+    return this.grokClient;
+  }
 
-	private getOpenAIClient(): OpenAI {
-		if (!this.openaiClient) {
-			const apiKey = process.env.OPENAI_API_KEY;
-			if (!apiKey) {
-				throw new Error("OPENAI_API_KEY environment variable is not set");
-			}
-			this.openaiClient = new OpenAI({ apiKey });
-		}
-		return this.openaiClient;
-	}
+  private getOpenAIClient(): OpenAI {
+    if (!this.openaiClient) {
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        throw new Error('OPENAI_API_KEY environment variable is not set');
+      }
+      this.openaiClient = new OpenAI({ apiKey });
+    }
+    return this.openaiClient;
+  }
 
-	/**
-	 * Generate 6 true/false specification questions for a given round.
-	 */
-	async generateQuestions(
-		goal: string,
-		round: PlannerRound,
-		previousAnswers: PlannerAnswer[],
-		tenantId?: string,
-	): Promise<PlannerQuestion[]> {
-		const previousContext =
-			previousAnswers.length > 0
-				? `\n\nThe user already answered these specification questions:\n${previousAnswers
-						.map((a) => {
-							let line = `- "${a.question}" → ${a.answer ? "YES" : "NO"}`;
-							if (a.context) line += ` (user note: "${a.context}")`;
-							return line;
-						})
-						.join(
-							"\n",
-						)}\n\nDo NOT repeat any of the above questions. Build on what you already know from the answers to ask deeper, more specific questions.`
-				: "";
+  /**
+   * Generate 6 true/false specification questions for a given round.
+   */
+  async generateQuestions(
+    goal: string,
+    round: PlannerRound,
+    previousAnswers: PlannerAnswer[],
+    tenantId?: string,
+  ): Promise<PlannerQuestion[]> {
+    const previousContext =
+      previousAnswers.length > 0
+        ? `\n\nThe user already answered these specification questions:\n${previousAnswers
+            .map((a) => {
+              let line = `- "${a.question}" → ${a.answer ? 'YES' : 'NO'}`;
+              if (a.context) line += ` (user note: "${a.context}")`;
+              return line;
+            })
+            .join(
+              '\n',
+            )}\n\nDo NOT repeat any of the above questions. Build on what you already know from the answers to ask deeper, more specific questions.`
+        : '';
 
-		const roundLabels: Record<PlannerRound, string> = {
-			1: "understanding the big picture — who is involved, what the goal is, how urgent it is, and what success looks like",
-			2: "getting more specific — based on what you know, ask about boundaries, preferences, quality expectations, and how the results will be used",
-			3: "final details — ask about special situations, what the finished result should look like, and any remaining concerns",
-		};
+    const roundLabels: Record<PlannerRound, string> = {
+      1: 'understanding the big picture — who is involved, what the goal is, how urgent it is, and what success looks like',
+      2: 'getting more specific — based on what you know, ask about boundaries, preferences, quality expectations, and how the results will be used',
+      3: 'final details — ask about special situations, what the finished result should look like, and any remaining concerns',
+    };
 
-		const systemMessage = `You are a friendly AI planning consultant. The user is a NON-TECHNICAL person who CANNOT code or build software. They want to use ChatGPT to help with a project by copy-pasting prompts. Your job is to ask exactly 6 yes/no questions to understand what they need.
+    const systemMessage = `You are a friendly AI planning consultant. The user is a NON-TECHNICAL person who CANNOT code or build software. They want to use ChatGPT to help with a project by copy-pasting prompts. Your job is to ask exactly 6 yes/no questions to understand what they need.
 
 This is round ${round} of 3. Focus on: ${roundLabels[round]}.${previousContext}
 
@@ -116,70 +116,64 @@ Respond in this exact JSON format (no markdown, no code fences):
   { "id": 6, "question": "..." }
 ]`;
 
-		// Inject company context if available
-		let fullSystemMessage = systemMessage;
-		if (tenantId) {
-			const companyCtx = await this.companyContextService.getFormattedContext(tenantId);
-			if (companyCtx) {
-				fullSystemMessage += `\n${companyCtx}`;
-			}
-		}
+    // Inject company context if available
+    let fullSystemMessage = systemMessage;
+    if (tenantId) {
+      const companyCtx = await this.companyContextService.getFormattedContext(tenantId);
+      if (companyCtx) {
+        fullSystemMessage += `\n${companyCtx}`;
+      }
+    }
 
-		this.logger.debug(
-			`Generating round ${round} questions for goal: ${goal.substring(0, 80)}...`,
-		);
+    this.logger.debug(`Generating round ${round} questions for goal: ${goal.substring(0, 80)}...`);
 
-		const response = await this.getGrokClient().chat.completions.create({
-			model: QUESTIONS_MODEL,
-			messages: [
-				{ role: "system", content: fullSystemMessage },
-				{ role: "user", content: `My project goal:\n\n${goal}` },
-			],
-			max_completion_tokens: 8000,
-		});
+    const response = await this.getGrokClient().chat.completions.create({
+      model: QUESTIONS_MODEL,
+      messages: [
+        { role: 'system', content: fullSystemMessage },
+        { role: 'user', content: `My project goal:\n\n${goal}` },
+      ],
+      max_completion_tokens: 8000,
+    });
 
-		const content = response.choices[0]?.message?.content?.trim();
-		if (!content) throw new Error("Empty response from Grok");
+    const content = response.choices[0]?.message?.content?.trim();
+    if (!content) throw new Error('Empty response from Grok');
 
-		this.logger.debug(`Round ${round} response: ${content.substring(0, 200)}`);
+    this.logger.debug(`Round ${round} response: ${content.substring(0, 200)}`);
 
-		try {
-			const cleaned = content
-				.replace(/^```(?:json)?\s*/, "")
-				.replace(/\s*```$/, "");
-			const questions = JSON.parse(cleaned) as PlannerQuestion[];
-			if (!Array.isArray(questions) || questions.length !== 6) {
-				throw new Error(
-					`Expected 6 questions, got ${Array.isArray(questions) ? questions.length : "non-array"}`,
-				);
-			}
-			return questions;
-		} catch (err) {
-			this.logger.error(`Failed to parse questions response: ${content}`);
-			throw new Error(
-				`Failed to parse specification questions: ${(err as Error).message}`,
-			);
-		}
-	}
+    try {
+      const cleaned = content.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+      const questions = JSON.parse(cleaned) as PlannerQuestion[];
+      if (!Array.isArray(questions) || questions.length !== 6) {
+        throw new Error(
+          `Expected 6 questions, got ${Array.isArray(questions) ? questions.length : 'non-array'}`,
+        );
+      }
+      return questions;
+    } catch (err) {
+      this.logger.error(`Failed to parse questions response: ${content}`);
+      throw new Error(`Failed to parse specification questions: ${(err as Error).message}`);
+    }
+  }
 
-	/**
-	 * Generate the final AI usage strategy using gpt-5.2 with high reasoning.
-	 */
-	async generateStrategy(
-		goal: string,
-		allAnswers: PlannerAnswer[],
-		feedback?: string,
-		tenantId?: string,
-	): Promise<PlannerStrategy> {
-		const specificationsText = allAnswers
-			.map((a) => `- "${a.question}" → ${a.answer ? "YES" : "NO"}`)
-			.join("\n");
+  /**
+   * Generate the final AI usage strategy using gpt-5.2 with high reasoning.
+   */
+  async generateStrategy(
+    goal: string,
+    allAnswers: PlannerAnswer[],
+    feedback?: string,
+    tenantId?: string,
+  ): Promise<PlannerStrategy> {
+    const specificationsText = allAnswers
+      .map((a) => `- "${a.question}" → ${a.answer ? 'YES' : 'NO'}`)
+      .join('\n');
 
-		const feedbackBlock = feedback
-			? `\n\nUser feedback on a previous plan (incorporate this):\n${feedback}`
-			: "";
+    const feedbackBlock = feedback
+      ? `\n\nUser feedback on a previous plan (incorporate this):\n${feedback}`
+      : '';
 
-		const systemMessage = `You are a friendly AI advisor helping a NON-TECHNICAL person who CANNOT code, program, or build anything technical. They can ONLY copy-paste prompts into ChatGPT. They have a ChatGPT Pro account with access to all models.
+    const systemMessage = `You are a friendly AI advisor helping a NON-TECHNICAL person who CANNOT code, program, or build anything technical. They can ONLY copy-paste prompts into ChatGPT. They have a ChatGPT Pro account with access to all models.
 
 CRITICAL RULES:
 - Every step must be achievable by pasting a prompt into ChatGPT
@@ -244,53 +238,43 @@ Respond in this exact JSON format (no markdown, no code fences):
   }]
 }`;
 
-		// Inject company context if available
-		let fullStrategySystemMessage = systemMessage;
-		if (tenantId) {
-			const companyCtx = await this.companyContextService.getFormattedContext(tenantId);
-			if (companyCtx) {
-				fullStrategySystemMessage += `\n${companyCtx}`;
-			}
-		}
+    // Inject company context if available
+    let fullStrategySystemMessage = systemMessage;
+    if (tenantId) {
+      const companyCtx = await this.companyContextService.getFormattedContext(tenantId);
+      if (companyCtx) {
+        fullStrategySystemMessage += `\n${companyCtx}`;
+      }
+    }
 
-		this.logger.debug(
-			`Generating strategy with gpt-5.2 for goal: ${goal.substring(0, 80)}...`,
-		);
+    this.logger.debug(`Generating strategy with gpt-5.2 for goal: ${goal.substring(0, 80)}...`);
 
-		const requestBody = {
-			model: STRATEGY_MODEL,
-			messages: [
-				{ role: "system" as const, content: fullStrategySystemMessage },
-				{
-					role: "user" as const,
-					content: `Project Goal:\n${goal}\n\nSpecification Answers:\n${specificationsText}${feedbackBlock}`,
-				},
-			],
-			max_completion_tokens: 16000,
-			reasoning_effort: "high" as const,
-		};
-		const response =
-			await this.getOpenAIClient().chat.completions.create(requestBody);
+    const requestBody = {
+      model: STRATEGY_MODEL,
+      messages: [
+        { role: 'system' as const, content: fullStrategySystemMessage },
+        {
+          role: 'user' as const,
+          content: `Project Goal:\n${goal}\n\nSpecification Answers:\n${specificationsText}${feedbackBlock}`,
+        },
+      ],
+      max_completion_tokens: 16000,
+      reasoning_effort: 'high' as const,
+    };
+    const response = await this.getOpenAIClient().chat.completions.create(requestBody);
 
-		const content = response.choices[0]?.message?.content?.trim();
-		if (!content) throw new Error("Empty response from gpt-5.2");
+    const content = response.choices[0]?.message?.content?.trim();
+    if (!content) throw new Error('Empty response from gpt-5.2');
 
-		this.logger.debug(`Strategy response: ${content.substring(0, 200)}`);
+    this.logger.debug(`Strategy response: ${content.substring(0, 200)}`);
 
-		const cleaned = content
-			.replace(/^```(?:json)?\s*/, "")
-			.replace(/\s*```$/, "");
-		const strategy = JSON.parse(cleaned) as PlannerStrategy;
+    const cleaned = content.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+    const strategy = JSON.parse(cleaned) as PlannerStrategy;
 
-		if (
-			!strategy.title ||
-			!strategy.steps ||
-			!strategy.tool ||
-			!strategy.steps[0]?.prompt
-		) {
-			throw new Error("Invalid strategy format returned from gpt-5.2");
-		}
+    if (!strategy.title || !strategy.steps || !strategy.tool || !strategy.steps[0]?.prompt) {
+      throw new Error('Invalid strategy format returned from gpt-5.2');
+    }
 
-		return strategy;
-	}
+    return strategy;
+  }
 }

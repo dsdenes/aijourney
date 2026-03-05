@@ -1,41 +1,42 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
-import OpenAI from "openai";
-import { CompanyContextService } from "../company-context/company-context.service";
-import { QuotaService } from "../quotas/quotas.service";
-import { PROMPTING_PRACTICES_CONTEXT } from "./prompting-practices-context";
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import OpenAI from 'openai';
+import { CompanyContextService } from '../company-context/company-context.service';
+import { QuotaService } from '../quotas/quotas.service';
+import { PROMPTING_PRACTICES_CONTEXT } from './prompting-practices-context';
 
-const MODEL = "grok-4-1-fast-reasoning";
+const MODEL = 'grok-4-1-fast-reasoning';
 
 @Injectable()
 export class PromptOptimizerService {
-	private readonly logger = new Logger(PromptOptimizerService.name);
-	private openai: OpenAI;
+  private readonly logger = new Logger(PromptOptimizerService.name);
+  private openai: OpenAI;
 
-	constructor(
-		@Inject(QuotaService) private readonly quotaService: QuotaService,
-		@Inject(CompanyContextService) private readonly companyContextService: CompanyContextService,
-	) {
-		const apiKey = process.env.GROK_API_KEY;
-		if (!apiKey) {
-			this.logger.warn(
-				"GROK_API_KEY is not set — prompt optimizer will fail at runtime",
-			);
-		}
-		this.openai = new OpenAI({
-			apiKey: apiKey || "missing",
-			baseURL: "https://api.x.ai/v1",
-		});
-	}
+  constructor(
+    @Inject(QuotaService) private readonly quotaService: QuotaService,
+    @Inject(CompanyContextService) private readonly companyContextService: CompanyContextService,
+  ) {
+    const apiKey = process.env.GROK_API_KEY;
+    if (!apiKey) {
+      this.logger.warn('GROK_API_KEY is not set — prompt optimizer will fail at runtime');
+    }
+    this.openai = new OpenAI({
+      apiKey: apiKey || 'missing',
+      baseURL: 'https://api.x.ai/v1',
+    });
+  }
 
-	/**
-	 * Step 1: Assess prompt quality (0–100) and reverse-engineer 3 likely goals.
-	 */
-	async analyzePrompt(prompt: string, tenantId?: string): Promise<{
-		score: number;
-		scoreExplanation: string;
-		goals: { id: number; label: string; description: string }[];
-	}> {
-		let systemMessage = `${PROMPTING_PRACTICES_CONTEXT}
+  /**
+   * Step 1: Assess prompt quality (0–100) and reverse-engineer 3 likely goals.
+   */
+  async analyzePrompt(
+    prompt: string,
+    tenantId?: string,
+  ): Promise<{
+    score: number;
+    scoreExplanation: string;
+    goals: { id: number; label: string; description: string }[];
+  }> {
+    let systemMessage = `${PROMPTING_PRACTICES_CONTEXT}
 
 You are an expert prompt quality analyst. The user will give you a prompt they wrote for an AI assistant.
 
@@ -55,58 +56,56 @@ Respond in this exact JSON format (no markdown, no code fences):
   ]
 }`;
 
-		// Inject company context if available
-		if (tenantId) {
-			const companyCtx = await this.companyContextService.getFormattedContext(tenantId);
-			if (companyCtx) {
-				systemMessage += `\n${companyCtx}`;
-			}
-		}
+    // Inject company context if available
+    if (tenantId) {
+      const companyCtx = await this.companyContextService.getFormattedContext(tenantId);
+      if (companyCtx) {
+        systemMessage += `\n${companyCtx}`;
+      }
+    }
 
-		this.logger.debug(`Analyzing prompt: ${prompt.substring(0, 80)}...`);
+    this.logger.debug(`Analyzing prompt: ${prompt.substring(0, 80)}...`);
 
-		const response = await this.openai.chat.completions.create({
-			model: MODEL,
-			messages: [
-				{ role: "system", content: systemMessage },
-				{
-					role: "user",
-					content: `Here is the prompt to analyze:\n\n${prompt}`,
-				},
-			],
-			max_completion_tokens: 8000,
-		});
+    const response = await this.openai.chat.completions.create({
+      model: MODEL,
+      messages: [
+        { role: 'system', content: systemMessage },
+        {
+          role: 'user',
+          content: `Here is the prompt to analyze:\n\n${prompt}`,
+        },
+      ],
+      max_completion_tokens: 8000,
+    });
 
-		const content = response.choices[0]?.message?.content?.trim();
-		if (!content) throw new Error("Empty response from Grok");
+    const content = response.choices[0]?.message?.content?.trim();
+    if (!content) throw new Error('Empty response from Grok');
 
-		this.logger.debug(`Analysis response: ${content.substring(0, 200)}`);
+    this.logger.debug(`Analysis response: ${content.substring(0, 200)}`);
 
-		try {
-			// Strip markdown code fences if present
-			const cleaned = content
-				.replace(/^```(?:json)?\s*/, "")
-				.replace(/\s*```$/, "");
-			return JSON.parse(cleaned);
-		} catch {
-			this.logger.error(`Failed to parse analysis response: ${content}`);
-			throw new Error("Failed to parse prompt analysis response");
-		}
-	}
+    try {
+      // Strip markdown code fences if present
+      const cleaned = content.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+      return JSON.parse(cleaned);
+    } catch {
+      this.logger.error(`Failed to parse analysis response: ${content}`);
+      throw new Error('Failed to parse prompt analysis response');
+    }
+  }
 
-	/**
-	 * Step 2: Given the original prompt and the chosen goal, optimize the prompt.
-	 */
-	async optimizePrompt(
-		originalPrompt: string,
-		goal: string,
-		tenantId?: string,
-	): Promise<{
-		optimizedPrompt: string;
-		changes: string[];
-		newScore: number;
-	}> {
-		let systemMessage = `${PROMPTING_PRACTICES_CONTEXT}
+  /**
+   * Step 2: Given the original prompt and the chosen goal, optimize the prompt.
+   */
+  async optimizePrompt(
+    originalPrompt: string,
+    goal: string,
+    tenantId?: string,
+  ): Promise<{
+    optimizedPrompt: string;
+    changes: string[];
+    newScore: number;
+  }> {
+    let systemMessage = `${PROMPTING_PRACTICES_CONTEXT}
 
 You are an expert prompt optimizer. The user wrote a prompt and has clarified their goal.
 
@@ -131,41 +130,39 @@ Respond in this exact JSON format (no markdown, no code fences):
   "newScore": <number 0-100>
 }`;
 
-		// Inject company context if available
-		if (tenantId) {
-			const companyCtx = await this.companyContextService.getFormattedContext(tenantId);
-			if (companyCtx) {
-				systemMessage += `\n${companyCtx}`;
-			}
-		}
+    // Inject company context if available
+    if (tenantId) {
+      const companyCtx = await this.companyContextService.getFormattedContext(tenantId);
+      if (companyCtx) {
+        systemMessage += `\n${companyCtx}`;
+      }
+    }
 
-		this.logger.debug(`Optimizing prompt with goal: ${goal}`);
+    this.logger.debug(`Optimizing prompt with goal: ${goal}`);
 
-		const response = await this.openai.chat.completions.create({
-			model: MODEL,
-			messages: [
-				{ role: "system", content: systemMessage },
-				{
-					role: "user",
-					content: `Original prompt:\n"${originalPrompt}"\n\nChosen goal:\n"${goal}"\n\nPlease optimize this prompt for the stated goal.`,
-				},
-			],
-			max_completion_tokens: 8000,
-		});
+    const response = await this.openai.chat.completions.create({
+      model: MODEL,
+      messages: [
+        { role: 'system', content: systemMessage },
+        {
+          role: 'user',
+          content: `Original prompt:\n"${originalPrompt}"\n\nChosen goal:\n"${goal}"\n\nPlease optimize this prompt for the stated goal.`,
+        },
+      ],
+      max_completion_tokens: 8000,
+    });
 
-		const content = response.choices[0]?.message?.content?.trim();
-		if (!content) throw new Error("Empty response from Grok");
+    const content = response.choices[0]?.message?.content?.trim();
+    if (!content) throw new Error('Empty response from Grok');
 
-		this.logger.debug(`Optimization response: ${content.substring(0, 200)}`);
+    this.logger.debug(`Optimization response: ${content.substring(0, 200)}`);
 
-		try {
-			const cleaned = content
-				.replace(/^```(?:json)?\s*/, "")
-				.replace(/\s*```$/, "");
-			return JSON.parse(cleaned);
-		} catch {
-			this.logger.error(`Failed to parse optimization response: ${content}`);
-			throw new Error("Failed to parse prompt optimization response");
-		}
-	}
+    try {
+      const cleaned = content.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+      return JSON.parse(cleaned);
+    } catch {
+      this.logger.error(`Failed to parse optimization response: ${content}`);
+      throw new Error('Failed to parse prompt optimization response');
+    }
+  }
 }

@@ -9,7 +9,7 @@ services:
       target: api
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - '3000:3000'
     depends_on:
       mongodb:
         condition: service_healthy
@@ -17,17 +17,17 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: production
-      PORT: "3000"
+      PORT: '3000'
       MONGODB_URI: mongodb://mongodb:27017
       REDIS_URL: redis://redis:6379
-      APP_URL: "https://ai.1p.hu"
-      API_URL: "https://ai.1p.hu/api"
-      GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID}"
-      GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET}"
-      OPENAI_API_KEY: "${OPENAI_API_KEY}"
-      GEMINI_API_KEY: "${GEMINI_API_KEY}"
-      GROK_API_KEY: "${GROK_API_KEY}"
-      KB_BUILDER_URL: "http://kb-builder:3002"
+      APP_URL: 'https://ai.1p.hu'
+      API_URL: 'https://ai.1p.hu/api'
+      GOOGLE_CLIENT_ID: '${GOOGLE_CLIENT_ID}'
+      GOOGLE_CLIENT_SECRET: '${GOOGLE_CLIENT_SECRET}'
+      OPENAI_API_KEY: '${OPENAI_API_KEY}'
+      GEMINI_API_KEY: '${GEMINI_API_KEY}'
+      GROK_API_KEY: '${GROK_API_KEY}'
+      KB_BUILDER_URL: 'http://kb-builder:3002'
 
   # ---------- Frontend ----------
   web:
@@ -35,10 +35,10 @@ services:
       context: .
       target: web
       args:
-        VITE_GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID}"
+        VITE_GOOGLE_CLIENT_ID: '${GOOGLE_CLIENT_ID}'
     restart: unless-stopped
     ports:
-      - "5173:80"
+      - '5173:80'
 
   # ---------- Worker ----------
   worker:
@@ -52,7 +52,7 @@ services:
     environment:
       NODE_ENV: production
       REDIS_URL: redis://redis:6379
-      OPENAI_API_KEY: "${OPENAI_API_KEY}"
+      OPENAI_API_KEY: '${OPENAI_API_KEY}'
       MONGODB_URI: mongodb://mongodb:27017
 
   # ---------- KB Builder ----------
@@ -66,12 +66,12 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: production
-      NODE_OPTIONS: "--max-old-space-size=3072"
-      OPENAI_API_KEY: "${OPENAI_API_KEY}"
-      KB_BUILDER_PORT: "3002"
+      NODE_OPTIONS: '--max-old-space-size=3072'
+      OPENAI_API_KEY: '${OPENAI_API_KEY}'
+      KB_BUILDER_PORT: '3002'
       MONGODB_URI: mongodb://mongodb:27017
-      PINECONE_API_KEY: "${PINECONE_API_KEY}"
-      PINECONE_INDEX_NAME: "${PINECONE_INDEX_NAME:-aijourney-kb}"
+      PINECONE_API_KEY: '${PINECONE_API_KEY}'
+      PINECONE_INDEX_NAME: '${PINECONE_INDEX_NAME:-aijourney-kb}'
 
   # ---------- Infrastructure ----------
   mongodb:
@@ -82,9 +82,9 @@ services:
       - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/01-init.js:ro
     environment:
       MONGO_INITDB_DATABASE: aijourney
-    command: ["mongod", "--wiredTigerCacheSizeGB", "0.5"]
+    command: ['mongod', '--wiredTigerCacheSizeGB', '0.5']
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok", "--quiet"]
+      test: ['CMD', 'mongosh', '--eval', "db.runCommand('ping').ok", '--quiet']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -95,11 +95,10 @@ services:
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
       timeout: 3s
       retries: 5
-
 
 volumes:
   mongo_data:

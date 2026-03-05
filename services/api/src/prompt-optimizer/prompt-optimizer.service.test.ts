@@ -1,263 +1,258 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PromptOptimizerService } from "./prompt-optimizer.service";
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { PromptOptimizerService } from './prompt-optimizer.service';
 
 // Mock openai (xAI Grok uses OpenAI-compatible SDK)
 const mockCreate = vi.fn();
 
-vi.mock("openai", () => ({
-	default: class OpenAI {
-		chat = { completions: { create: mockCreate } };
-	},
+vi.mock('openai', () => ({
+  default: class OpenAI {
+    chat = { completions: { create: mockCreate } };
+  },
 }));
 
-describe("PromptOptimizerService", () => {
-	let service: PromptOptimizerService;
+describe('PromptOptimizerService', () => {
+  let service: PromptOptimizerService;
 
-	beforeEach(() => {
-		vi.clearAllMocks();
-		process.env.GROK_API_KEY = "test-key";
-		service = new PromptOptimizerService();
-	});
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.GROK_API_KEY = 'test-key';
+    service = new PromptOptimizerService();
+  });
 
-	afterEach(() => {
-		delete process.env.GROK_API_KEY;
-	});
+  afterEach(() => {
+    delete process.env.GROK_API_KEY;
+  });
 
-	describe("analyzePrompt", () => {
-		it("should return parsed analysis with score and goals", async () => {
-			const mockResponse = {
-				score: 30,
-				scoreExplanation: "The prompt lacks specificity.",
-				goals: [
-					{
-						id: 1,
-						label: "Summarize a topic",
-						description: "Get a concise overview",
-					},
-					{ id: 2, label: "Generate content", description: "Create new text" },
-					{
-						id: 3,
-						label: "Explain concept",
-						description: "Break down a complex idea",
-					},
-				],
-			};
+  describe('analyzePrompt', () => {
+    it('should return parsed analysis with score and goals', async () => {
+      const mockResponse = {
+        score: 30,
+        scoreExplanation: 'The prompt lacks specificity.',
+        goals: [
+          {
+            id: 1,
+            label: 'Summarize a topic',
+            description: 'Get a concise overview',
+          },
+          { id: 2, label: 'Generate content', description: 'Create new text' },
+          {
+            id: 3,
+            label: 'Explain concept',
+            description: 'Break down a complex idea',
+          },
+        ],
+      };
 
-			mockCreate.mockResolvedValue({
-				choices: [{ message: { content: JSON.stringify(mockResponse) } }],
-			});
+      mockCreate.mockResolvedValue({
+        choices: [{ message: { content: JSON.stringify(mockResponse) } }],
+      });
 
-			const result = await service.analyzePrompt("Tell me about AI");
+      const result = await service.analyzePrompt('Tell me about AI');
 
-			expect(result.score).toBe(30);
-			expect(result.scoreExplanation).toBe("The prompt lacks specificity.");
-			expect(result.goals).toHaveLength(3);
-			expect(result.goals[0].label).toBe("Summarize a topic");
-		});
+      expect(result.score).toBe(30);
+      expect(result.scoreExplanation).toBe('The prompt lacks specificity.');
+      expect(result.goals).toHaveLength(3);
+      expect(result.goals[0].label).toBe('Summarize a topic');
+    });
 
-		it("should handle markdown-fenced JSON responses", async () => {
-			const mockResponse = {
-				score: 50,
-				scoreExplanation: "Decent but could be better.",
-				goals: [
-					{ id: 1, label: "Goal 1", description: "Desc 1" },
-					{ id: 2, label: "Goal 2", description: "Desc 2" },
-					{ id: 3, label: "Goal 3", description: "Desc 3" },
-				],
-			};
+    it('should handle markdown-fenced JSON responses', async () => {
+      const mockResponse = {
+        score: 50,
+        scoreExplanation: 'Decent but could be better.',
+        goals: [
+          { id: 1, label: 'Goal 1', description: 'Desc 1' },
+          { id: 2, label: 'Goal 2', description: 'Desc 2' },
+          { id: 3, label: 'Goal 3', description: 'Desc 3' },
+        ],
+      };
 
-			mockCreate.mockResolvedValue({
-				choices: [
-					{
-						message: {
-							content: "```json\n" + JSON.stringify(mockResponse) + "\n```",
-						},
-					},
-				],
-			});
+      mockCreate.mockResolvedValue({
+        choices: [
+          {
+            message: {
+              content: '```json\n' + JSON.stringify(mockResponse) + '\n```',
+            },
+          },
+        ],
+      });
 
-			const result = await service.analyzePrompt("Write code to sort an array");
+      const result = await service.analyzePrompt('Write code to sort an array');
 
-			expect(result.score).toBe(50);
-			expect(result.goals).toHaveLength(3);
-		});
+      expect(result.score).toBe(50);
+      expect(result.goals).toHaveLength(3);
+    });
 
-		it("should throw on empty Grok response", async () => {
-			mockCreate.mockResolvedValue({
-				choices: [{ message: { content: "" } }],
-			});
+    it('should throw on empty Grok response', async () => {
+      mockCreate.mockResolvedValue({
+        choices: [{ message: { content: '' } }],
+      });
 
-			await expect(service.analyzePrompt("test")).rejects.toThrow(
-				"Empty response from Grok",
-			);
-		});
+      await expect(service.analyzePrompt('test')).rejects.toThrow('Empty response from Grok');
+    });
 
-		it("should throw on invalid JSON response", async () => {
-			mockCreate.mockResolvedValue({
-				choices: [{ message: { content: "This is not JSON" } }],
-			});
+    it('should throw on invalid JSON response', async () => {
+      mockCreate.mockResolvedValue({
+        choices: [{ message: { content: 'This is not JSON' } }],
+      });
 
-			await expect(service.analyzePrompt("test")).rejects.toThrow(
-				"Failed to parse prompt analysis response",
-			);
-		});
+      await expect(service.analyzePrompt('test')).rejects.toThrow(
+        'Failed to parse prompt analysis response',
+      );
+    });
 
-		it("should call Grok with correct model and token limit", async () => {
-			mockCreate.mockResolvedValue({
-				choices: [
-					{
-						message: {
-							content: JSON.stringify({
-								score: 10,
-								scoreExplanation: "x",
-								goals: [],
-							}),
-						},
-					},
-				],
-			});
+    it('should call Grok with correct model and token limit', async () => {
+      mockCreate.mockResolvedValue({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                score: 10,
+                scoreExplanation: 'x',
+                goals: [],
+              }),
+            },
+          },
+        ],
+      });
 
-			await service.analyzePrompt("test prompt");
+      await service.analyzePrompt('test prompt');
 
-			expect(mockCreate).toHaveBeenCalledWith(
-				expect.objectContaining({
-					model: "grok-4-1-fast-reasoning",
-					max_completion_tokens: 8000,
-				}),
-			);
-		});
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: 'grok-4-1-fast-reasoning',
+          max_completion_tokens: 8000,
+        }),
+      );
+    });
 
-		it("should include the prompt in the user message", async () => {
-			mockCreate.mockResolvedValue({
-				choices: [
-					{
-						message: {
-							content: JSON.stringify({
-								score: 10,
-								scoreExplanation: "x",
-								goals: [],
-							}),
-						},
-					},
-				],
-			});
+    it('should include the prompt in the user message', async () => {
+      mockCreate.mockResolvedValue({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                score: 10,
+                scoreExplanation: 'x',
+                goals: [],
+              }),
+            },
+          },
+        ],
+      });
 
-			await service.analyzePrompt("My specific prompt text");
+      await service.analyzePrompt('My specific prompt text');
 
-			const callArgs = mockCreate.mock.calls[0][0];
-			const userMsg = callArgs.messages.find((m: any) => m.role === "user");
-			expect(userMsg.content).toContain("My specific prompt text");
-		});
-	});
+      const callArgs = mockCreate.mock.calls[0][0];
+      const userMsg = callArgs.messages.find((m: any) => m.role === 'user');
+      expect(userMsg.content).toContain('My specific prompt text');
+    });
+  });
 
-	describe("optimizePrompt", () => {
-		it("should return optimized prompt with changes and new score", async () => {
-			const mockResponse = {
-				optimizedPrompt: "You are an expert data analyst...",
-				changes: ["Added role", "Added format", "Added constraints"],
-				newScore: 88,
-			};
+  describe('optimizePrompt', () => {
+    it('should return optimized prompt with changes and new score', async () => {
+      const mockResponse = {
+        optimizedPrompt: 'You are an expert data analyst...',
+        changes: ['Added role', 'Added format', 'Added constraints'],
+        newScore: 88,
+      };
 
-			mockCreate.mockResolvedValue({
-				choices: [{ message: { content: JSON.stringify(mockResponse) } }],
-			});
+      mockCreate.mockResolvedValue({
+        choices: [{ message: { content: JSON.stringify(mockResponse) } }],
+      });
 
-			const result = await service.optimizePrompt(
-				"Analyze this data",
-				"Get statistical insights",
-			);
+      const result = await service.optimizePrompt('Analyze this data', 'Get statistical insights');
 
-			expect(result.optimizedPrompt).toContain("expert data analyst");
-			expect(result.changes).toHaveLength(3);
-			expect(result.newScore).toBe(88);
-		});
+      expect(result.optimizedPrompt).toContain('expert data analyst');
+      expect(result.changes).toHaveLength(3);
+      expect(result.newScore).toBe(88);
+    });
 
-		it("should throw on empty response", async () => {
-			mockCreate.mockResolvedValue({
-				choices: [{ message: { content: null } }],
-			});
+    it('should throw on empty response', async () => {
+      mockCreate.mockResolvedValue({
+        choices: [{ message: { content: null } }],
+      });
 
-			await expect(service.optimizePrompt("test", "goal")).rejects.toThrow(
-				"Empty response from Grok",
-			);
-		});
+      await expect(service.optimizePrompt('test', 'goal')).rejects.toThrow(
+        'Empty response from Grok',
+      );
+    });
 
-		it("should throw on invalid JSON in optimization response", async () => {
-			mockCreate.mockResolvedValue({
-				choices: [{ message: { content: "not json" } }],
-			});
+    it('should throw on invalid JSON in optimization response', async () => {
+      mockCreate.mockResolvedValue({
+        choices: [{ message: { content: 'not json' } }],
+      });
 
-			await expect(service.optimizePrompt("test", "goal")).rejects.toThrow(
-				"Failed to parse prompt optimization response",
-			);
-		});
+      await expect(service.optimizePrompt('test', 'goal')).rejects.toThrow(
+        'Failed to parse prompt optimization response',
+      );
+    });
 
-		it("should include original prompt and goal in the request", async () => {
-			mockCreate.mockResolvedValue({
-				choices: [
-					{
-						message: {
-							content: JSON.stringify({
-								optimizedPrompt: "x",
-								changes: [],
-								newScore: 90,
-							}),
-						},
-					},
-				],
-			});
+    it('should include original prompt and goal in the request', async () => {
+      mockCreate.mockResolvedValue({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                optimizedPrompt: 'x',
+                changes: [],
+                newScore: 90,
+              }),
+            },
+          },
+        ],
+      });
 
-			await service.optimizePrompt("Original prompt", "My chosen goal");
+      await service.optimizePrompt('Original prompt', 'My chosen goal');
 
-			const callArgs = mockCreate.mock.calls[0][0];
-			const userMsg = callArgs.messages.find((m: any) => m.role === "user");
-			expect(userMsg.content).toContain("Original prompt");
-			expect(userMsg.content).toContain("My chosen goal");
-		});
+      const callArgs = mockCreate.mock.calls[0][0];
+      const userMsg = callArgs.messages.find((m: any) => m.role === 'user');
+      expect(userMsg.content).toContain('Original prompt');
+      expect(userMsg.content).toContain('My chosen goal');
+    });
 
-		it("should use correct model and token limit for optimization", async () => {
-			mockCreate.mockResolvedValue({
-				choices: [
-					{
-						message: {
-							content: JSON.stringify({
-								optimizedPrompt: "x",
-								changes: [],
-								newScore: 90,
-							}),
-						},
-					},
-				],
-			});
+    it('should use correct model and token limit for optimization', async () => {
+      mockCreate.mockResolvedValue({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                optimizedPrompt: 'x',
+                changes: [],
+                newScore: 90,
+              }),
+            },
+          },
+        ],
+      });
 
-			await service.optimizePrompt("test", "goal");
+      await service.optimizePrompt('test', 'goal');
 
-			expect(mockCreate).toHaveBeenCalledWith(
-				expect.objectContaining({
-					model: "grok-4-1-fast-reasoning",
-					max_completion_tokens: 8000,
-				}),
-			);
-		});
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: 'grok-4-1-fast-reasoning',
+          max_completion_tokens: 8000,
+        }),
+      );
+    });
 
-		it("should handle markdown-fenced JSON in optimization response", async () => {
-			const response = {
-				optimizedPrompt: "Better prompt",
-				changes: ["Improved clarity"],
-				newScore: 75,
-			};
+    it('should handle markdown-fenced JSON in optimization response', async () => {
+      const response = {
+        optimizedPrompt: 'Better prompt',
+        changes: ['Improved clarity'],
+        newScore: 75,
+      };
 
-			mockCreate.mockResolvedValue({
-				choices: [
-					{
-						message: { content: "```\n" + JSON.stringify(response) + "\n```" },
-					},
-				],
-			});
+      mockCreate.mockResolvedValue({
+        choices: [
+          {
+            message: { content: '```\n' + JSON.stringify(response) + '\n```' },
+          },
+        ],
+      });
 
-			const result = await service.optimizePrompt("test", "goal");
+      const result = await service.optimizePrompt('test', 'goal');
 
-			expect(result.newScore).toBe(75);
-		});
-	});
+      expect(result.newScore).toBe(75);
+    });
+  });
 });

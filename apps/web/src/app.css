@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 @plugin "@tailwindcss/typography";
 
 @theme {
@@ -18,5 +18,5 @@
   --color-text-muted: #1e293b;
   --color-text-faint: #475569;
   --color-border: #cbd5e1;
-  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
 }

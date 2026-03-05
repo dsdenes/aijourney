@@ -26,16 +26,16 @@
 
 ## 1. Decisions & Constraints
 
-| Decision | Choice | Rationale |
-|---|---|---|
-| Tenant definition | **Company / Organization** | Each org is an isolated workspace with multiple users |
-| Data isolation | **Shared DB + `tenantId` on every document** | Simplest; single DB, row-level filtering; good enough for <100 tenants |
-| Auth / signup | **Invite-only per tenant** | Org admin sends email invites; invited users join on Google login |
-| Domain restriction | **Remove `@mito.hu` — any Google account** | Required for multi-tenant; any Google user can join if invited |
-| Billing provider | **Stripe** (Checkout + Customer Portal) | Industry standard for SaaS |
-| Pricing model | **Tiered plans + purchasable LLM call add-ons** | Free/Pro/Enterprise tiers; additional call packs buyable |
-| Quotas | **LLM token/call limits per tenant per month** | Enforced before each LLM API call |
-| MVP scope | Tenant isolation, per-tenant RBAC, billing, quotas, super-admin | No white-label branding in v1 |
+| Decision           | Choice                                                          | Rationale                                                              |
+| ------------------ | --------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Tenant definition  | **Company / Organization**                                      | Each org is an isolated workspace with multiple users                  |
+| Data isolation     | **Shared DB + `tenantId` on every document**                    | Simplest; single DB, row-level filtering; good enough for <100 tenants |
+| Auth / signup      | **Invite-only per tenant**                                      | Org admin sends email invites; invited users join on Google login      |
+| Domain restriction | **Remove `@mito.hu` — any Google account**                      | Required for multi-tenant; any Google user can join if invited         |
+| Billing provider   | **Stripe** (Checkout + Customer Portal)                         | Industry standard for SaaS                                             |
+| Pricing model      | **Tiered plans + purchasable LLM call add-ons**                 | Free/Pro/Enterprise tiers; additional call packs buyable               |
+| Quotas             | **LLM token/call limits per tenant per month**                  | Enforced before each LLM API call                                      |
+| MVP scope          | Tenant isolation, per-tenant RBAC, billing, quotas, super-admin | No white-label branding in v1                                          |
 
 ---
 
@@ -43,27 +43,28 @@
 
 ### 2.1 MongoDB Collections (13 total)
 
-| # | Collection | Has Repository | Active Usage |
-|---|---|---|---|
-| 1 | `users` | `UsersRepository` | High — auth, profile, admin |
-| 2 | `journeys` | `JourneysRepository` | Medium |
-| 3 | `steps` | *(none)* | Indexed only |
-| 4 | `kpis` | *(none)* | Indexed only |
-| 5 | `evidence` | *(none)* | Indexed only |
-| 6 | `run_requests` | `RunsRepository` | Medium |
-| 7 | `run_logs` | *(none)* | Indexed only |
-| 8 | `agent_runs` | `AgentRunsRepository` + KB Builder | High |
-| 9 | `articles` | KB Builder `article-repository.ts` | High |
-| 10 | `summaries` | KB Builder `summary-repository.ts` | High |
-| 11 | `events` | *(none)* | Indexed only |
-| 12 | `memory_facts` | `MemoryRepository` | New |
-| 13 | `memory_extractions` | `MemoryRepository` | New |
+| #   | Collection           | Has Repository                     | Active Usage                |
+| --- | -------------------- | ---------------------------------- | --------------------------- |
+| 1   | `users`              | `UsersRepository`                  | High — auth, profile, admin |
+| 2   | `journeys`           | `JourneysRepository`               | Medium                      |
+| 3   | `steps`              | _(none)_                           | Indexed only                |
+| 4   | `kpis`               | _(none)_                           | Indexed only                |
+| 5   | `evidence`           | _(none)_                           | Indexed only                |
+| 6   | `run_requests`       | `RunsRepository`                   | Medium                      |
+| 7   | `run_logs`           | _(none)_                           | Indexed only                |
+| 8   | `agent_runs`         | `AgentRunsRepository` + KB Builder | High                        |
+| 9   | `articles`           | KB Builder `article-repository.ts` | High                        |
+| 10  | `summaries`          | KB Builder `summary-repository.ts` | High                        |
+| 11  | `events`             | _(none)_                           | Indexed only                |
+| 12  | `memory_facts`       | `MemoryRepository`                 | New                         |
+| 13  | `memory_extractions` | `MemoryRepository`                 | New                         |
 
 **Every one of these collections needs a `tenantId` field added.**
 
 ### 2.2 Repositories Requiring Changes
 
 **API service** (`services/api/src/`):
+
 - `users/users.repository.ts` — 7 methods (getById, getByEmail, getByGoogleId, create, update, list, count)
 - `journeys/journeys.repository.ts` — CRUD methods
 - `runs/runs.repository.ts` — CRUD + status queries
@@ -71,11 +72,13 @@
 - `memory/memory.repository.ts` — facts CRUD + extractions + global stats
 
 **KB Builder service** (`services/kb-builder/src/`):
+
 - `article-repository.ts` — CRUD + batch operations
 - `summary-repository.ts` — CRUD + batch operations
 - `agent-run-logger.ts` — logging agent runs
 
 ### 2.3 Auth (Single-Tenant)
+
 - Hardcoded `@mito.hu` email validation in `createUserSchema`
 - Hardcoded `DEFAULT_ADMINS` array in `auth.service.ts`
 - Google OAuth via `POST /auth/token` code exchange
@@ -84,11 +87,13 @@
 - No tenant context in any auth middleware or guard
 
 ### 2.4 Config
+
 - `AppConfigService` validates: `MONGODB_URI`, `REDIS_URL`, `GOOGLE_CLIENT_ID/SECRET`, `APP_URL`, `API_URL`, `KB_BUILDER_URL`
 - No Stripe keys, no tenant config
 - LLM API keys (`OPENAI_API_KEY`, `GEMINI_API_KEY`, `GROK_API_KEY`) passed via Docker env but not in Zod schema
 
 ### 2.5 Frontend Auth
+
 - `auth.svelte.ts` store: `{ userId, email, name, role, token, onboardingComplete }`
 - No `tenantId`, `orgRole`, or tenant context in frontend state
 - API client sends `Authorization: Bearer <google_id_token>`
@@ -180,8 +185,8 @@ Stripe objects per tenant:
 ```typescript
 export interface Tenant {
   id: string;
-  name: string;                  // "Mito Kft."
-  slug: string;                  // "mito" — URL-friendly, unique
+  name: string; // "Mito Kft."
+  slug: string; // "mito" — URL-friendly, unique
   plan: TenantPlan;
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
@@ -192,7 +197,7 @@ export interface Tenant {
   updatedAt: string;
 }
 
-export type TenantPlan = "free" | "pro" | "enterprise";
+export type TenantPlan = 'free' | 'pro' | 'enterprise';
 
 export interface TenantSettings {
   displayName?: string;
@@ -201,18 +206,18 @@ export interface TenantSettings {
 }
 
 export interface TenantQuotas {
-  maxUsers: number;             // Plan-based: 3 / 25 / unlimited (-1)
-  maxLlmCallsPerMonth: number;  // Plan-based: 100 / 5,000 / 50,000
-  additionalLlmCalls: number;   // Purchased add-on packs (resets on use)
+  maxUsers: number; // Plan-based: 3 / 25 / unlimited (-1)
+  maxLlmCallsPerMonth: number; // Plan-based: 100 / 5,000 / 50,000
+  additionalLlmCalls: number; // Purchased add-on packs (resets on use)
 }
 
 export interface TenantUsage {
-  currentPeriodStart: string;    // ISO date — Stripe billing period start
-  llmCallsUsed: number;         // This period
+  currentPeriodStart: string; // ISO date — Stripe billing period start
+  llmCallsUsed: number; // This period
   lastResetAt: string;
 }
 
-export type OrgRole = "owner" | "admin" | "member";
+export type OrgRole = 'owner' | 'admin' | 'member';
 ```
 
 **Modify: `packages/shared/src/types/user.ts`**
@@ -220,8 +225,8 @@ export type OrgRole = "owner" | "admin" | "member";
 ```typescript
 export interface User {
   // ... existing fields ...
-  tenantId: string;              // NEW — references tenant.id
-  orgRole: OrgRole;              // NEW — role within the tenant
+  tenantId: string; // NEW — references tenant.id
+  orgRole: OrgRole; // NEW — role within the tenant
   // role: Role → change from "employee"|"admin" to "superadmin"|"user"
 }
 ```
@@ -232,16 +237,16 @@ export interface User {
 export interface Invitation {
   id: string;
   tenantId: string;
-  email: string;                 // Invited email (any Google account)
-  orgRole: OrgRole;              // Role they'll get when they join
-  invitedBy: string;             // userId of inviter
+  email: string; // Invited email (any Google account)
+  orgRole: OrgRole; // Role they'll get when they join
+  invitedBy: string; // userId of inviter
   status: InvitationStatus;
-  token: string;                 // Unique invite token (for email link)
+  token: string; // Unique invite token (for email link)
   expiresAt: string;
   createdAt: string;
 }
 
-export type InvitationStatus = "pending" | "accepted" | "expired" | "revoked";
+export type InvitationStatus = 'pending' | 'accepted' | 'expired' | 'revoked';
 ```
 
 ### 1.2 Shared Constants
@@ -250,33 +255,41 @@ export type InvitationStatus = "pending" | "accepted" | "expired" | "revoked";
 
 ```typescript
 // Global roles (system-wide)
-export const GLOBAL_ROLES = ["superadmin", "user"] as const;
+export const GLOBAL_ROLES = ['superadmin', 'user'] as const;
 export type GlobalRole = (typeof GLOBAL_ROLES)[number];
 
 // Org roles (per-tenant)
-export const ORG_ROLES = ["owner", "admin", "member"] as const;
+export const ORG_ROLES = ['owner', 'admin', 'member'] as const;
 export type OrgRole = (typeof ORG_ROLES)[number];
 
 // DEPRECATED — keep for backward compat during migration, then remove
-export const ROLES = ["employee", "admin"] as const;
+export const ROLES = ['employee', 'admin'] as const;
 export type Role = (typeof ROLES)[number];
 ```
 
 **New file: `packages/shared/src/constants/plans.ts`**
 
 ```typescript
-export const TENANT_PLANS = ["free", "pro", "enterprise"] as const;
+export const TENANT_PLANS = ['free', 'pro', 'enterprise'] as const;
 export type TenantPlan = (typeof TENANT_PLANS)[number];
 
-export const PLAN_LIMITS: Record<TenantPlan, {
-  maxUsers: number;
-  maxLlmCallsPerMonth: number;
-  hasKbBuilder: boolean;
-  hasPrioritySupport: boolean;
-}> = {
-  free:       { maxUsers: 3,  maxLlmCallsPerMonth: 100,   hasKbBuilder: false, hasPrioritySupport: false },
-  pro:        { maxUsers: 25, maxLlmCallsPerMonth: 5_000, hasKbBuilder: true,  hasPrioritySupport: true },
-  enterprise: { maxUsers: -1, maxLlmCallsPerMonth: 50_000, hasKbBuilder: true, hasPrioritySupport: true },
+export const PLAN_LIMITS: Record<
+  TenantPlan,
+  {
+    maxUsers: number;
+    maxLlmCallsPerMonth: number;
+    hasKbBuilder: boolean;
+    hasPrioritySupport: boolean;
+  }
+> = {
+  free: { maxUsers: 3, maxLlmCallsPerMonth: 100, hasKbBuilder: false, hasPrioritySupport: false },
+  pro: { maxUsers: 25, maxLlmCallsPerMonth: 5_000, hasKbBuilder: true, hasPrioritySupport: true },
+  enterprise: {
+    maxUsers: -1,
+    maxLlmCallsPerMonth: 50_000,
+    hasKbBuilder: true,
+    hasPrioritySupport: true,
+  },
 };
 
 export const LLM_CALL_PACK_SIZE = 1_000; // Additional calls per purchased pack
@@ -289,8 +302,12 @@ export const LLM_CALL_PACK_SIZE = 1_000; // Additional calls per purchased pack
 ```typescript
 export const createTenantSchema = z.object({
   name: z.string().min(1).max(200),
-  slug: z.string().min(2).max(50).regex(/^[a-z0-9-]+$/),
-  plan: z.enum(TENANT_PLANS).default("free"),
+  slug: z
+    .string()
+    .min(2)
+    .max(50)
+    .regex(/^[a-z0-9-]+$/),
+  plan: z.enum(TENANT_PLANS).default('free'),
 });
 
 export const updateTenantSchema = z.object({
@@ -304,12 +321,12 @@ export const updateTenantSchema = z.object({
 ```typescript
 export const createInvitationSchema = z.object({
   email: z.string().email(),
-  orgRole: z.enum(ORG_ROLES).default("member"),
+  orgRole: z.enum(ORG_ROLES).default('member'),
 });
 
 export const bulkInviteSchema = z.object({
   emails: z.array(z.string().email()).min(1).max(50),
-  orgRole: z.enum(ORG_ROLES).default("member"),
+  orgRole: z.enum(ORG_ROLES).default('member'),
 });
 ```
 
@@ -320,12 +337,12 @@ export const bulkInviteSchema = z.object({
 // ADD: tenantId, orgRole fields to createUserSchema
 export const createUserSchema = z.object({
   googleId: z.string().min(1),
-  email: z.string().email(),  // ← no domain restriction
+  email: z.string().email(), // ← no domain restriction
   name: z.string().min(1).max(200),
   avatarUrl: z.string().url().optional(),
-  role: z.enum(GLOBAL_ROLES).default("user"),
+  role: z.enum(GLOBAL_ROLES).default('user'),
   tenantId: z.string().min(1),
-  orgRole: z.enum(ORG_ROLES).default("member"),
+  orgRole: z.enum(ORG_ROLES).default('member'),
 });
 ```
 
@@ -334,6 +351,7 @@ export const createUserSchema = z.object({
 **New file: `services/api/src/tenants/tenants.repository.ts`**
 
 Methods:
+
 - `create(input)` — insert new tenant, generate ULID id
 - `getById(id)` — find by tenant ID
 - `getBySlug(slug)` — find by slug (for URL routing)
@@ -348,6 +366,7 @@ Methods:
 **New file: `services/api/src/invitations/invitations.repository.ts`**
 
 Methods:
+
 - `create(input)` — insert invitation with generated token + expiry
 - `getByToken(token)` — find by invite token (for accepting)
 - `getByEmail(email)` — find all pending invitations for an email
@@ -384,14 +403,14 @@ export abstract class TenantScopedRepository {
 
 **Changes per repository:**
 
-| Repository | Changes Required |
-|---|---|
-| `UsersRepository` | Add `tenantId` to all queries; `getByEmail` becomes `getByEmailAndTenant`; `getByGoogleId` stays global (for login resolution) |
-| `JourneysRepository` | Add `tenantId` to all CRUD |
-| `RunsRepository` | Add `tenantId` to all CRUD + status queries |
-| `AgentRunsRepository` | Add `tenantId` to all CRUD + stats |
-| `MemoryRepository` | Add `tenantId` to all facts/extractions queries |
-| KB Builder repos | Add `tenantId` to articles, summaries, agent_runs |
+| Repository            | Changes Required                                                                                                               |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `UsersRepository`     | Add `tenantId` to all queries; `getByEmail` becomes `getByEmailAndTenant`; `getByGoogleId` stays global (for login resolution) |
+| `JourneysRepository`  | Add `tenantId` to all CRUD                                                                                                     |
+| `RunsRepository`      | Add `tenantId` to all CRUD + status queries                                                                                    |
+| `AgentRunsRepository` | Add `tenantId` to all CRUD + stats                                                                                             |
+| `MemoryRepository`    | Add `tenantId` to all facts/extractions queries                                                                                |
+| KB Builder repos      | Add `tenantId` to articles, summaries, agent_runs                                                                              |
 
 ### 1.7 Tenant Context Middleware
 
@@ -422,12 +441,10 @@ export class TenantContextMiddleware implements NestMiddleware {
 **New decorator: `@TenantId()`** — parameter decorator to extract `req.tenantId`:
 
 ```typescript
-export const TenantId = createParamDecorator(
-  (_data: unknown, ctx: ExecutionContext) => {
-    const request = ctx.switchToHttp().getRequest();
-    return request.tenantId;
-  },
-);
+export const TenantId = createParamDecorator((_data: unknown, ctx: ExecutionContext) => {
+  const request = ctx.switchToHttp().getRequest();
+  return request.tenantId;
+});
 ```
 
 ### 1.8 MongoDB Indexes
@@ -447,35 +464,35 @@ db.summaries.createIndex({ tenantId: 1 });
 
 ### 1.9 Files to Create/Modify
 
-| Action | File | What |
-|---|---|---|
-| CREATE | `packages/shared/src/types/tenant.ts` | Tenant, TenantPlan, TenantSettings, TenantQuotas, TenantUsage, OrgRole |
-| CREATE | `packages/shared/src/types/invitation.ts` | Invitation, InvitationStatus |
-| CREATE | `packages/shared/src/constants/plans.ts` | TENANT_PLANS, PLAN_LIMITS, LLM_CALL_PACK_SIZE |
-| CREATE | `packages/shared/src/schemas/tenant.schema.ts` | createTenantSchema, updateTenantSchema |
-| CREATE | `packages/shared/src/schemas/invitation.schema.ts` | createInvitationSchema, bulkInviteSchema |
-| MODIFY | `packages/shared/src/types/user.ts` | Add tenantId, orgRole |
-| MODIFY | `packages/shared/src/constants/roles.ts` | Add GLOBAL_ROLES, ORG_ROLES |
-| MODIFY | `packages/shared/src/schemas/user.schema.ts` | Remove @mito.hu, add tenantId/orgRole |
-| MODIFY | `packages/shared/src/index.ts` | Export new types |
-| CREATE | `services/api/src/common/tenant-scoped.repository.ts` | Base class for tenant-scoped repos |
-| CREATE | `services/api/src/common/middleware/tenant-context.middleware.ts` | Middleware |
-| CREATE | `services/api/src/common/decorators/tenant-id.decorator.ts` | @TenantId() decorator |
-| CREATE | `services/api/src/tenants/tenants.repository.ts` | Tenant CRUD |
-| CREATE | `services/api/src/tenants/tenants.service.ts` | Tenant business logic |
-| CREATE | `services/api/src/tenants/tenants.module.ts` | Module |
-| CREATE | `services/api/src/invitations/invitations.repository.ts` | Invitation CRUD |
-| CREATE | `services/api/src/invitations/invitations.service.ts` | Invite logic + email |
-| CREATE | `services/api/src/invitations/invitations.controller.ts` | Invite API endpoints |
-| CREATE | `services/api/src/invitations/invitations.module.ts` | Module |
-| MODIFY | `services/api/src/users/users.repository.ts` | Add tenantId to all queries |
-| MODIFY | `services/api/src/journeys/journeys.repository.ts` | Add tenantId to all queries |
-| MODIFY | `services/api/src/runs/runs.repository.ts` | Add tenantId to all queries |
-| MODIFY | `services/api/src/agent-runs/agent-runs.repository.ts` | Add tenantId to all queries |
-| MODIFY | `services/api/src/memory/memory.repository.ts` | Add tenantId to all queries |
-| MODIFY | `services/api/src/app.module.ts` | Register TenantContextMiddleware, new modules |
-| MODIFY | `scripts/mongo-init.js` | Add tenants + invitations collections, compound indexes |
-| MODIFY | `scripts/seed-db.ts` | Add tenants + invitations indexes |
+| Action | File                                                              | What                                                                   |
+| ------ | ----------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| CREATE | `packages/shared/src/types/tenant.ts`                             | Tenant, TenantPlan, TenantSettings, TenantQuotas, TenantUsage, OrgRole |
+| CREATE | `packages/shared/src/types/invitation.ts`                         | Invitation, InvitationStatus                                           |
+| CREATE | `packages/shared/src/constants/plans.ts`                          | TENANT_PLANS, PLAN_LIMITS, LLM_CALL_PACK_SIZE                          |
+| CREATE | `packages/shared/src/schemas/tenant.schema.ts`                    | createTenantSchema, updateTenantSchema                                 |
+| CREATE | `packages/shared/src/schemas/invitation.schema.ts`                | createInvitationSchema, bulkInviteSchema                               |
+| MODIFY | `packages/shared/src/types/user.ts`                               | Add tenantId, orgRole                                                  |
+| MODIFY | `packages/shared/src/constants/roles.ts`                          | Add GLOBAL_ROLES, ORG_ROLES                                            |
+| MODIFY | `packages/shared/src/schemas/user.schema.ts`                      | Remove @mito.hu, add tenantId/orgRole                                  |
+| MODIFY | `packages/shared/src/index.ts`                                    | Export new types                                                       |
+| CREATE | `services/api/src/common/tenant-scoped.repository.ts`             | Base class for tenant-scoped repos                                     |
+| CREATE | `services/api/src/common/middleware/tenant-context.middleware.ts` | Middleware                                                             |
+| CREATE | `services/api/src/common/decorators/tenant-id.decorator.ts`       | @TenantId() decorator                                                  |
+| CREATE | `services/api/src/tenants/tenants.repository.ts`                  | Tenant CRUD                                                            |
+| CREATE | `services/api/src/tenants/tenants.service.ts`                     | Tenant business logic                                                  |
+| CREATE | `services/api/src/tenants/tenants.module.ts`                      | Module                                                                 |
+| CREATE | `services/api/src/invitations/invitations.repository.ts`          | Invitation CRUD                                                        |
+| CREATE | `services/api/src/invitations/invitations.service.ts`             | Invite logic + email                                                   |
+| CREATE | `services/api/src/invitations/invitations.controller.ts`          | Invite API endpoints                                                   |
+| CREATE | `services/api/src/invitations/invitations.module.ts`              | Module                                                                 |
+| MODIFY | `services/api/src/users/users.repository.ts`                      | Add tenantId to all queries                                            |
+| MODIFY | `services/api/src/journeys/journeys.repository.ts`                | Add tenantId to all queries                                            |
+| MODIFY | `services/api/src/runs/runs.repository.ts`                        | Add tenantId to all queries                                            |
+| MODIFY | `services/api/src/agent-runs/agent-runs.repository.ts`            | Add tenantId to all queries                                            |
+| MODIFY | `services/api/src/memory/memory.repository.ts`                    | Add tenantId to all queries                                            |
+| MODIFY | `services/api/src/app.module.ts`                                  | Register TenantContextMiddleware, new modules                          |
+| MODIFY | `scripts/mongo-init.js`                                           | Add tenants + invitations collections, compound indexes                |
+| MODIFY | `scripts/seed-db.ts`                                              | Add tenants + invitations indexes                                      |
 
 ---
 
@@ -486,11 +503,13 @@ db.summaries.createIndex({ tenantId: 1 });
 ### 2.1 Auth Flow Changes
 
 **Current flow:**
+
 ```
 Google Login → POST /auth/token → decode id_token → upsert user (must be @mito.hu) → return tokens
 ```
 
 **New flow:**
+
 ```
 Google Login → POST /auth/token → decode id_token →
   ├─ User exists? → look up tenantId → return tokens + tenant context
@@ -534,21 +553,23 @@ async validate(payload): Promise<RequestUser> {
 
 **New endpoints:**
 
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| `POST` | `/invitations` | orgRole: owner/admin | Create invitation (send email) |
-| `POST` | `/invitations/bulk` | orgRole: owner/admin | Invite multiple emails |
-| `GET` | `/invitations` | orgRole: owner/admin | List tenant's invitations |
-| `DELETE` | `/invitations/:id` | orgRole: owner/admin | Revoke invitation |
-| `GET` | `/invitations/accept/:token` | Public | Preview invitation (check token validity) |
-| `POST` | `/invitations/accept/:token` | Authenticated | Accept invitation (user joins tenant) |
+| Method   | Path                         | Auth                 | Description                               |
+| -------- | ---------------------------- | -------------------- | ----------------------------------------- |
+| `POST`   | `/invitations`               | orgRole: owner/admin | Create invitation (send email)            |
+| `POST`   | `/invitations/bulk`          | orgRole: owner/admin | Invite multiple emails                    |
+| `GET`    | `/invitations`               | orgRole: owner/admin | List tenant's invitations                 |
+| `DELETE` | `/invitations/:id`           | orgRole: owner/admin | Revoke invitation                         |
+| `GET`    | `/invitations/accept/:token` | Public               | Preview invitation (check token validity) |
+| `POST`   | `/invitations/accept/:token` | Authenticated        | Accept invitation (user joins tenant)     |
 
 **Email sending**: Use a simple transactional email service. Options:
+
 - **AWS SES** (already have AWS account) — cheapest, ~$0.10/1000 emails
 - **Resend** — developer-friendly, free tier 100 emails/day
 - Start with Resend for simplicity, migrate to SES for scale
 
 **Invitation email content:**
+
 ```
 Subject: You've been invited to join {tenantName} on AI Journey
 
@@ -568,9 +589,9 @@ interface AuthUser {
   userId: string;
   email: string;
   name: string;
-  role: GlobalRole;         // "superadmin" | "user"
+  role: GlobalRole; // "superadmin" | "user"
   tenantId: string;
-  orgRole: OrgRole;         // "owner" | "admin" | "member"
+  orgRole: OrgRole; // "owner" | "admin" | "member"
   tenantName: string;
   tenantPlan: TenantPlan;
   token: string;
@@ -579,6 +600,7 @@ interface AuthUser {
 ```
 
 **New page: `/invite/[token]`** — invitation acceptance flow:
+
 1. Show invitation details (tenant name, role)
 2. "Accept" button → Google login → `POST /invitations/accept/:token`
 3. Redirect to dashboard
@@ -598,21 +620,21 @@ The first tenant (Mito) must be created via a migration/seed script:
 
 ### 2.7 Files to Create/Modify
 
-| Action | File | What |
-|---|---|---|
-| MODIFY | `services/api/src/auth/auth.service.ts` | Remove domain restriction, add invitation-based join, add tenant context to response |
-| MODIFY | `services/api/src/auth/auth.controller.ts` | Return tenant context in auth responses |
-| MODIFY | `services/api/src/auth/jwt.strategy.ts` | Return tenantId + orgRole in validate() |
-| MODIFY | `packages/shared/src/schemas/user.schema.ts` | Remove `.endsWith("@mito.hu")` |
-| CREATE | `services/api/src/invitations/invitations.controller.ts` | CRUD + accept endpoints |
-| CREATE | `services/api/src/invitations/invitations.service.ts` | Business logic, email sending |
-| CREATE | `services/api/src/invitations/invitations.repository.ts` | MongoDB CRUD |
-| CREATE | `services/api/src/invitations/invitations.module.ts` | Module |
-| CREATE | `services/api/src/common/email/email.service.ts` | Transactional email via Resend/SES |
-| CREATE | `services/api/src/common/email/email.module.ts` | Module |
-| MODIFY | `apps/web/src/lib/stores/auth.svelte.ts` | Add tenantId, orgRole, tenantName, tenantPlan |
-| CREATE | `apps/web/src/routes/invite/[token]/+page.svelte` | Invitation acceptance page |
-| CREATE | `scripts/migrate-to-multi-tenant.ts` | Data migration script |
+| Action | File                                                     | What                                                                                 |
+| ------ | -------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| MODIFY | `services/api/src/auth/auth.service.ts`                  | Remove domain restriction, add invitation-based join, add tenant context to response |
+| MODIFY | `services/api/src/auth/auth.controller.ts`               | Return tenant context in auth responses                                              |
+| MODIFY | `services/api/src/auth/jwt.strategy.ts`                  | Return tenantId + orgRole in validate()                                              |
+| MODIFY | `packages/shared/src/schemas/user.schema.ts`             | Remove `.endsWith("@mito.hu")`                                                       |
+| CREATE | `services/api/src/invitations/invitations.controller.ts` | CRUD + accept endpoints                                                              |
+| CREATE | `services/api/src/invitations/invitations.service.ts`    | Business logic, email sending                                                        |
+| CREATE | `services/api/src/invitations/invitations.repository.ts` | MongoDB CRUD                                                                         |
+| CREATE | `services/api/src/invitations/invitations.module.ts`     | Module                                                                               |
+| CREATE | `services/api/src/common/email/email.service.ts`         | Transactional email via Resend/SES                                                   |
+| CREATE | `services/api/src/common/email/email.module.ts`          | Module                                                                               |
+| MODIFY | `apps/web/src/lib/stores/auth.svelte.ts`                 | Add tenantId, orgRole, tenantName, tenantPlan                                        |
+| CREATE | `apps/web/src/routes/invite/[token]/+page.svelte`        | Invitation acceptance page                                                           |
+| CREATE | `scripts/migrate-to-multi-tenant.ts`                     | Data migration script                                                                |
 
 ---
 
@@ -672,38 +694,38 @@ Replace the current flat role check with a two-tier system:
 
 ```typescript
 // services/api/src/auth/decorators/org-roles.decorator.ts
-export const OrgRoles = (...roles: OrgRole[]) => SetMetadata("orgRoles", roles);
+export const OrgRoles = (...roles: OrgRole[]) => SetMetadata('orgRoles', roles);
 
 // services/api/src/auth/decorators/global-roles.decorator.ts
-export const GlobalRoles = (...roles: GlobalRole[]) => SetMetadata("globalRoles", roles);
+export const GlobalRoles = (...roles: GlobalRole[]) => SetMetadata('globalRoles', roles);
 ```
 
 ### 3.3 Endpoint Authorization Matrix
 
-| Endpoint | Global Role | Org Role | Notes |
-|---|---|---|---|
-| `GET /health` | — | — | Public |
-| `POST /auth/token` | — | — | Public |
-| `GET /auth/me` | any | any | Authenticated |
-| `POST /invitations` | — | owner, admin | Tenant-scoped |
-| `GET /users` | — | owner, admin | Tenant-scoped list |
-| `PATCH /users/:id` | — | owner, admin | Or self-update |
-| `POST /ai-planner/*` | — | any | Tenant-scoped |
-| `POST /chat` | — | any | Tenant-scoped |
-| `POST /prompt-optimizer/*` | — | any | Tenant-scoped |
-| `GET /memory/facts/:userId` | — | any (own) | Or admin for others |
-| `GET /memory/stats` | superadmin | owner, admin | Tenant-scoped stats |
-| `GET /settings/*` | superadmin | owner, admin | Tenant settings |
-| `GET /superadmin/*` | superadmin | — | Super-admin only |
+| Endpoint                    | Global Role | Org Role     | Notes               |
+| --------------------------- | ----------- | ------------ | ------------------- |
+| `GET /health`               | —           | —            | Public              |
+| `POST /auth/token`          | —           | —            | Public              |
+| `GET /auth/me`              | any         | any          | Authenticated       |
+| `POST /invitations`         | —           | owner, admin | Tenant-scoped       |
+| `GET /users`                | —           | owner, admin | Tenant-scoped list  |
+| `PATCH /users/:id`          | —           | owner, admin | Or self-update      |
+| `POST /ai-planner/*`        | —           | any          | Tenant-scoped       |
+| `POST /chat`                | —           | any          | Tenant-scoped       |
+| `POST /prompt-optimizer/*`  | —           | any          | Tenant-scoped       |
+| `GET /memory/facts/:userId` | —           | any (own)    | Or admin for others |
+| `GET /memory/stats`         | superadmin  | owner, admin | Tenant-scoped stats |
+| `GET /settings/*`           | superadmin  | owner, admin | Tenant settings     |
+| `GET /superadmin/*`         | superadmin  | —            | Super-admin only    |
 
 ### 3.4 Files to Create/Modify
 
-| Action | File | What |
-|---|---|---|
-| CREATE | `services/api/src/auth/decorators/org-roles.decorator.ts` | @OrgRoles() |
-| CREATE | `services/api/src/auth/decorators/global-roles.decorator.ts` | @GlobalRoles() |
-| MODIFY | `services/api/src/auth/roles.guard.ts` | Two-tier role checking |
-| MODIFY | All controllers | Add appropriate @OrgRoles/@GlobalRoles decorators |
+| Action | File                                                         | What                                              |
+| ------ | ------------------------------------------------------------ | ------------------------------------------------- |
+| CREATE | `services/api/src/auth/decorators/org-roles.decorator.ts`    | @OrgRoles()                                       |
+| CREATE | `services/api/src/auth/decorators/global-roles.decorator.ts` | @GlobalRoles()                                    |
+| MODIFY | `services/api/src/auth/roles.guard.ts`                       | Two-tier role checking                            |
+| MODIFY | All controllers                                              | Add appropriate @OrgRoles/@GlobalRoles decorators |
 
 ---
 
@@ -765,15 +787,15 @@ export class QuotaService {
 
 Every controller/service that makes an LLM call must check quota first:
 
-| Service | LLM Provider | Where to Add Check |
-|---|---|---|
-| `AiPlannerService.generateQuestions()` | Grok (xAI) | Before Grok API call |
-| `AiPlannerService.generateStrategy()` | OpenAI gpt-5.2 | Before OpenAI call |
-| `ChatService.chat()` | Gemini | Before Gemini call |
-| `PromptOptimizerService.analyzePrompt()` | OpenAI gpt-5.2 | Before OpenAI call |
-| `PromptOptimizerService.optimizePrompt()` | OpenAI gpt-5.2 | Before OpenAI call |
-| `MemoryExtractionService.extractAndStore()` | OpenAI gpt-5.2-nano | Before OpenAI call |
-| KB Builder (multiple) | OpenAI | Before each call |
+| Service                                     | LLM Provider        | Where to Add Check   |
+| ------------------------------------------- | ------------------- | -------------------- |
+| `AiPlannerService.generateQuestions()`      | Grok (xAI)          | Before Grok API call |
+| `AiPlannerService.generateStrategy()`       | OpenAI gpt-5.2      | Before OpenAI call   |
+| `ChatService.chat()`                        | Gemini              | Before Gemini call   |
+| `PromptOptimizerService.analyzePrompt()`    | OpenAI gpt-5.2      | Before OpenAI call   |
+| `PromptOptimizerService.optimizePrompt()`   | OpenAI gpt-5.2      | Before OpenAI call   |
+| `MemoryExtractionService.extractAndStore()` | OpenAI gpt-5.2-nano | Before OpenAI call   |
+| KB Builder (multiple)                       | OpenAI              | Before each call     |
 
 **Implementation approach**: Create a `@CheckQuota()` decorator or inject `QuotaService` in each service. The quota check needs the `tenantId`, which flows from the request context.
 
@@ -781,27 +803,27 @@ Every controller/service that makes an LLM call must check quota first:
 
 **New endpoints:**
 
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| `GET` | `/usage` | any authenticated | Get own tenant's usage summary |
-| `GET` | `/usage/history` | orgRole: owner/admin | Monthly usage history |
-| `GET` | `/superadmin/usage` | superadmin | All tenants' usage |
+| Method | Path                | Auth                 | Description                    |
+| ------ | ------------------- | -------------------- | ------------------------------ |
+| `GET`  | `/usage`            | any authenticated    | Get own tenant's usage summary |
+| `GET`  | `/usage/history`    | orgRole: owner/admin | Monthly usage history          |
+| `GET`  | `/superadmin/usage` | superadmin           | All tenants' usage             |
 
 ### 4.5 Files to Create/Modify
 
-| Action | File | What |
-|---|---|---|
-| CREATE | `services/api/src/quotas/quota.service.ts` | Check + increment logic |
-| CREATE | `services/api/src/quotas/quota.module.ts` | Module |
-| CREATE | `services/api/src/quotas/quota-exceeded.error.ts` | Custom error class |
-| MODIFY | `services/api/src/ai-planner/ai-planner.service.ts` | Inject QuotaService, check before LLM calls |
-| MODIFY | `services/api/src/chat/chat.service.ts` | Inject QuotaService, check before LLM calls |
+| Action | File                                                            | What                                        |
+| ------ | --------------------------------------------------------------- | ------------------------------------------- |
+| CREATE | `services/api/src/quotas/quota.service.ts`                      | Check + increment logic                     |
+| CREATE | `services/api/src/quotas/quota.module.ts`                       | Module                                      |
+| CREATE | `services/api/src/quotas/quota-exceeded.error.ts`               | Custom error class                          |
+| MODIFY | `services/api/src/ai-planner/ai-planner.service.ts`             | Inject QuotaService, check before LLM calls |
+| MODIFY | `services/api/src/chat/chat.service.ts`                         | Inject QuotaService, check before LLM calls |
 | MODIFY | `services/api/src/prompt-optimizer/prompt-optimizer.service.ts` | Inject QuotaService, check before LLM calls |
-| MODIFY | `services/api/src/memory/memory-extraction.service.ts` | Inject QuotaService, check before LLM calls |
-| MODIFY | KB Builder services | Pass tenantId through queue, check quota |
-| CREATE | `services/api/src/usage/usage.controller.ts` | Usage API endpoints |
-| CREATE | `services/api/src/usage/usage.service.ts` | Usage aggregation |
-| CREATE | `services/api/src/usage/usage.module.ts` | Module |
+| MODIFY | `services/api/src/memory/memory-extraction.service.ts`          | Inject QuotaService, check before LLM calls |
+| MODIFY | KB Builder services                                             | Pass tenantId through queue, check quota    |
+| CREATE | `services/api/src/usage/usage.controller.ts`                    | Usage API endpoints                         |
+| CREATE | `services/api/src/usage/usage.service.ts`                       | Usage aggregation                           |
+| CREATE | `services/api/src/usage/usage.module.ts`                        | Module                                      |
 
 ---
 
@@ -864,24 +886,24 @@ export class BillingService {
 
 ### 5.4 Webhook Events to Handle
 
-| Stripe Event | Action |
-|---|---|
-| `checkout.session.completed` | Update tenant: set stripeSubscriptionId, plan, quotas |
-| `customer.subscription.updated` | Update plan tier if changed (upgrade/downgrade) |
-| `customer.subscription.deleted` | Downgrade tenant to free plan |
-| `invoice.paid` | Reset monthly usage counter |
-| `invoice.payment_failed` | Flag tenant, send warning email |
-| `payment_intent.succeeded` | For add-on packs: increment `additionalLlmCalls` |
+| Stripe Event                    | Action                                                |
+| ------------------------------- | ----------------------------------------------------- |
+| `checkout.session.completed`    | Update tenant: set stripeSubscriptionId, plan, quotas |
+| `customer.subscription.updated` | Update plan tier if changed (upgrade/downgrade)       |
+| `customer.subscription.deleted` | Downgrade tenant to free plan                         |
+| `invoice.paid`                  | Reset monthly usage counter                           |
+| `invoice.payment_failed`        | Flag tenant, send warning email                       |
+| `payment_intent.succeeded`      | For add-on packs: increment `additionalLlmCalls`      |
 
 ### 5.5 Billing API Endpoints
 
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| `POST` | `/billing/checkout` | orgRole: owner | Create Checkout Session (redirects to Stripe) |
-| `POST` | `/billing/add-on` | orgRole: owner | Buy additional LLM call packs |
-| `POST` | `/billing/portal` | orgRole: owner | Get Customer Portal URL |
-| `POST` | `/billing/webhook` | Public (Stripe sig) | Stripe webhook handler |
-| `GET` | `/billing/status` | orgRole: owner, admin | Current plan, next invoice, usage |
+| Method | Path                | Auth                  | Description                                   |
+| ------ | ------------------- | --------------------- | --------------------------------------------- |
+| `POST` | `/billing/checkout` | orgRole: owner        | Create Checkout Session (redirects to Stripe) |
+| `POST` | `/billing/add-on`   | orgRole: owner        | Buy additional LLM call packs                 |
+| `POST` | `/billing/portal`   | orgRole: owner        | Get Customer Portal URL                       |
+| `POST` | `/billing/webhook`  | Public (Stripe sig)   | Stripe webhook handler                        |
+| `GET`  | `/billing/status`   | orgRole: owner, admin | Current plan, next invoice, usage             |
 
 ### 5.6 Frontend Billing Pages
 
@@ -903,17 +925,17 @@ export class BillingService {
 
 ### 5.8 Files to Create/Modify
 
-| Action | File | What |
-|---|---|---|
-| CREATE | `services/api/src/billing/billing.service.ts` | Stripe integration |
-| CREATE | `services/api/src/billing/billing.controller.ts` | Checkout, portal, webhook endpoints |
-| CREATE | `services/api/src/billing/billing.module.ts` | Module |
-| MODIFY | `services/api/src/config/config.service.ts` | Add Stripe env vars |
-| MODIFY | `services/api/package.json` | Add `stripe` dependency |
-| MODIFY | `services/api/src/app.module.ts` | Register BillingModule |
-| MODIFY | `docker-compose.server.yml` | Add STRIPE_* env vars |
-| CREATE | `apps/web/src/routes/settings/billing/+page.svelte` | Billing management page |
-| CREATE | `apps/web/src/routes/settings/billing/success/+page.svelte` | Post-checkout success |
+| Action | File                                                        | What                                |
+| ------ | ----------------------------------------------------------- | ----------------------------------- |
+| CREATE | `services/api/src/billing/billing.service.ts`               | Stripe integration                  |
+| CREATE | `services/api/src/billing/billing.controller.ts`            | Checkout, portal, webhook endpoints |
+| CREATE | `services/api/src/billing/billing.module.ts`                | Module                              |
+| MODIFY | `services/api/src/config/config.service.ts`                 | Add Stripe env vars                 |
+| MODIFY | `services/api/package.json`                                 | Add `stripe` dependency             |
+| MODIFY | `services/api/src/app.module.ts`                            | Register BillingModule              |
+| MODIFY | `docker-compose.server.yml`                                 | Add STRIPE\_\* env vars             |
+| CREATE | `apps/web/src/routes/settings/billing/+page.svelte`         | Billing management page             |
+| CREATE | `apps/web/src/routes/settings/billing/success/+page.svelte` | Post-checkout success               |
 
 ---
 
@@ -923,16 +945,16 @@ export class BillingService {
 
 ### 6.1 Super-Admin API Endpoints
 
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/superadmin/tenants` | List all tenants with stats |
-| `GET` | `/superadmin/tenants/:id` | Tenant detail (users, usage, billing) |
-| `PATCH` | `/superadmin/tenants/:id` | Update tenant (plan, quotas override) |
-| `DELETE` | `/superadmin/tenants/:id` | Delete tenant (soft delete) |
-| `POST` | `/superadmin/tenants/:id/impersonate` | Get token to act as tenant user |
-| `GET` | `/superadmin/usage` | Global usage dashboard |
-| `GET` | `/superadmin/users` | List all users across tenants |
-| `PATCH` | `/superadmin/users/:id/role` | Promote/demote global role |
+| Method   | Path                                  | Description                           |
+| -------- | ------------------------------------- | ------------------------------------- |
+| `GET`    | `/superadmin/tenants`                 | List all tenants with stats           |
+| `GET`    | `/superadmin/tenants/:id`             | Tenant detail (users, usage, billing) |
+| `PATCH`  | `/superadmin/tenants/:id`             | Update tenant (plan, quotas override) |
+| `DELETE` | `/superadmin/tenants/:id`             | Delete tenant (soft delete)           |
+| `POST`   | `/superadmin/tenants/:id/impersonate` | Get token to act as tenant user       |
+| `GET`    | `/superadmin/usage`                   | Global usage dashboard                |
+| `GET`    | `/superadmin/users`                   | List all users across tenants         |
+| `PATCH`  | `/superadmin/users/:id/role`          | Promote/demote global role            |
 
 ### 6.2 Impersonation
 
@@ -959,17 +981,17 @@ The token is a signed JWT with `impersonatedBy: superadminUserId` claim. The Ten
 
 ### 6.4 Files to Create
 
-| Action | File | What |
-|---|---|---|
-| CREATE | `services/api/src/superadmin/superadmin.controller.ts` | All super-admin endpoints |
-| CREATE | `services/api/src/superadmin/superadmin.service.ts` | Cross-tenant queries |
-| CREATE | `services/api/src/superadmin/superadmin.module.ts` | Module |
-| CREATE | `apps/web/src/routes/superadmin/+layout.svelte` | Layout with navigation |
-| CREATE | `apps/web/src/routes/superadmin/+page.svelte` | Dashboard |
-| CREATE | `apps/web/src/routes/superadmin/tenants/+page.svelte` | Tenant list |
-| CREATE | `apps/web/src/routes/superadmin/tenants/[id]/+page.svelte` | Tenant detail |
-| CREATE | `apps/web/src/routes/superadmin/users/+page.svelte` | Global user list |
-| MODIFY | `apps/web/src/lib/components/Sidebar.svelte` | Add super-admin nav section |
+| Action | File                                                       | What                        |
+| ------ | ---------------------------------------------------------- | --------------------------- |
+| CREATE | `services/api/src/superadmin/superadmin.controller.ts`     | All super-admin endpoints   |
+| CREATE | `services/api/src/superadmin/superadmin.service.ts`        | Cross-tenant queries        |
+| CREATE | `services/api/src/superadmin/superadmin.module.ts`         | Module                      |
+| CREATE | `apps/web/src/routes/superadmin/+layout.svelte`            | Layout with navigation      |
+| CREATE | `apps/web/src/routes/superadmin/+page.svelte`              | Dashboard                   |
+| CREATE | `apps/web/src/routes/superadmin/tenants/+page.svelte`      | Tenant list                 |
+| CREATE | `apps/web/src/routes/superadmin/tenants/[id]/+page.svelte` | Tenant detail               |
+| CREATE | `apps/web/src/routes/superadmin/users/+page.svelte`        | Global user list            |
+| MODIFY | `apps/web/src/lib/components/Sidebar.svelte`               | Add super-admin nav section |
 
 ---
 
@@ -1015,6 +1037,7 @@ The token is a signed JWT with `impersonatedBy: superadminUserId` claim. The Ten
 **Modify: `apps/web/src/routes/settings/+layout.svelte`**
 
 Current tabs (admin-only):
+
 ```
 Overview | Agent Runs | Users | Vector DB | Summarization | KB Builder | KB Chat | Workers | Memory
 ```
@@ -1022,11 +1045,13 @@ Overview | Agent Runs | Users | Vector DB | Summarization | KB Builder | KB Chat
 New tabs (split by audience):
 
 **For org owner/admin (Settings):**
+
 ```
 Organization | Members | Billing | Usage
 ```
 
 **For superadmin (Settings → Platform section):**
+
 ```
 Overview | Agent Runs | All Users | Vector DB | Summarization | KB Builder | KB Chat | Workers | Memory
 ```
@@ -1051,13 +1076,13 @@ New:
 
 ### 7.7 Files to Create/Modify
 
-| Action | File | What |
-|---|---|---|
-| CREATE | `apps/web/src/routes/settings/organization/+page.svelte` | Org settings |
-| CREATE | `apps/web/src/routes/settings/members/+page.svelte` | Member management |
-| MODIFY | `apps/web/src/routes/settings/+layout.svelte` | Split tabs by role |
-| MODIFY | `apps/web/src/lib/components/Sidebar.svelte` | Add org + superadmin sections |
-| MODIFY | `apps/web/src/routes/settings/billing/+page.svelte` | Full billing page (from Phase 5) |
+| Action | File                                                     | What                             |
+| ------ | -------------------------------------------------------- | -------------------------------- |
+| CREATE | `apps/web/src/routes/settings/organization/+page.svelte` | Org settings                     |
+| CREATE | `apps/web/src/routes/settings/members/+page.svelte`      | Member management                |
+| MODIFY | `apps/web/src/routes/settings/+layout.svelte`            | Split tabs by role               |
+| MODIFY | `apps/web/src/lib/components/Sidebar.svelte`             | Add org + superadmin sections    |
+| MODIFY | `apps/web/src/routes/settings/billing/+page.svelte`      | Full billing page (from Phase 5) |
 
 ---
 
@@ -1131,41 +1156,42 @@ If migration fails:
 
 ### Unit Tests
 
-| Component | Test Focus |
-|---|---|
-| Tenant repository | CRUD operations, slug uniqueness |
-| Invitation repository | Token generation, expiry, status transitions |
-| Quota service | Check + increment, reset, exceeded error |
-| Billing service | Stripe mock: checkout, webhook event handling |
-| Roles guard | Two-tier role checking, superadmin override |
-| Tenant middleware | tenantId extraction, missing tenant handling |
-| All modified repositories | Verify tenantId is included in all queries |
+| Component                 | Test Focus                                    |
+| ------------------------- | --------------------------------------------- |
+| Tenant repository         | CRUD operations, slug uniqueness              |
+| Invitation repository     | Token generation, expiry, status transitions  |
+| Quota service             | Check + increment, reset, exceeded error      |
+| Billing service           | Stripe mock: checkout, webhook event handling |
+| Roles guard               | Two-tier role checking, superadmin override   |
+| Tenant middleware         | tenantId extraction, missing tenant handling  |
+| All modified repositories | Verify tenantId is included in all queries    |
 
 ### Integration Tests
 
-| Test | Description |
-|---|---|
-| Tenant isolation | Create 2 tenants with data, verify queries don't leak across |
-| Invitation flow | Invite → Google login → user auto-joins tenant |
-| Quota enforcement | Use up quota → next LLM call returns 429 |
-| Billing webhook | Simulate Stripe events → verify plan/quota changes |
-| RBAC | Member can't invite, admin can't delete org, owner can |
-| Migration script | Run against test data, verify all documents get tenantId |
+| Test              | Description                                                  |
+| ----------------- | ------------------------------------------------------------ |
+| Tenant isolation  | Create 2 tenants with data, verify queries don't leak across |
+| Invitation flow   | Invite → Google login → user auto-joins tenant               |
+| Quota enforcement | Use up quota → next LLM call returns 429                     |
+| Billing webhook   | Simulate Stripe events → verify plan/quota changes           |
+| RBAC              | Member can't invite, admin can't delete org, owner can       |
+| Migration script  | Run against test data, verify all documents get tenantId     |
 
 ### E2E Tests (Playwright)
 
-| Test | Description |
-|---|---|
-| Invite member → login → use features | Full invitation flow |
-| Upgrade plan | Owner upgrades via Stripe Checkout mock |
-| Quota exceeded | Use all calls → see "quota exceeded" error in UI |
-| Super-admin views all tenants | Login as superadmin, verify cross-tenant visibility |
+| Test                                 | Description                                         |
+| ------------------------------------ | --------------------------------------------------- |
+| Invite member → login → use features | Full invitation flow                                |
+| Upgrade plan                         | Owner upgrades via Stripe Checkout mock             |
+| Quota exceeded                       | Use all calls → see "quota exceeded" error in UI    |
+| Super-admin views all tenants        | Login as superadmin, verify cross-tenant visibility |
 
 ---
 
 ## Rollout Plan
 
 ### Phase 1 (Week 1-2): Data Model & Middleware
+
 - Implement shared types, tenant collection, migration script
 - Add tenantId to all repositories
 - Create tenant context middleware
@@ -1173,40 +1199,47 @@ If migration fails:
 - **Milestone**: All queries tenant-scoped, existing Mito functionality unchanged
 
 ### Phase 2 (Week 2-3): Auth & Invitations
+
 - Remove domain restriction
 - Implement invitation system
 - Create invite acceptance page
 - **Milestone**: Can invite non-mito.hu users, they can join
 
 ### Phase 3 (Week 3): RBAC
+
 - Implement two-tier role guards
 - Add decorators to all controllers
 - **Milestone**: Members restricted from admin actions
 
 ### Phase 4 (Week 3-4): Quotas
+
 - Implement quota service
 - Add checks to all LLM call sites
 - Create usage dashboard
 - **Milestone**: LLM calls metered and enforced per tenant
 
 ### Phase 5 (Week 4-5): Stripe Billing
+
 - Set up Stripe products/prices
 - Implement checkout + webhook + portal
 - Create billing page
 - **Milestone**: Tenants can self-service upgrade/downgrade
 
 ### Phase 6 (Week 5): Super-Admin
+
 - Implement super-admin API + pages
 - Add impersonation
 - **Milestone**: Platform manageable by superadmin
 
 ### Phase 7 (Week 5-6): Frontend Tenant Management
+
 - Organization settings page
 - Members management page
 - Sidebar/navigation restructuring
 - **Milestone**: Full self-service tenant management
 
 ### Production Deploy
+
 - Feature-flag the multi-tenant code path during development
 - Deploy Phase 1 first (backward compatible via migration)
 - Deploy remaining phases incrementally

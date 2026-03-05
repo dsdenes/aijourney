@@ -31,7 +31,7 @@ Add a new field to the existing `Tenant` interface:
 ```typescript
 export interface Tenant {
   // ... existing fields ...
-  companyContext?: string;  // Free-text company description (admin-authored)
+  companyContext?: string; // Free-text company description (admin-authored)
 }
 ```
 
@@ -97,6 +97,7 @@ export interface ResolvedCompanyContext {
 ### 2.3 New MongoDB collection: `company_documents`
 
 Indexes:
+
 - `{ tenantId: 1, createdAt: -1 }` — list documents per tenant
 - `{ tenantId: 1, extractionStatus: 1 }` — find pending/processing docs
 
@@ -128,7 +129,12 @@ SCW_ENDPOINT=https://s3.fr-par.scw.cloud
 Use `@aws-sdk/client-s3` configured with the Scaleway endpoint:
 
 ```typescript
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  DeleteObjectCommand,
+} from '@aws-sdk/client-s3';
 
 const s3 = new S3Client({
   region: config.SCW_REGION,
@@ -166,6 +172,7 @@ services/api/src/company-context/
 ### 4.2 Repository (`company-context.repository.ts`)
 
 MongoDB operations for `company_documents` collection:
+
 - `create(doc: CompanyDocument): Promise<CompanyDocument>`
 - `getById(tenantId: string, docId: string): Promise<CompanyDocument | undefined>`
 - `listByTenant(tenantId: string): Promise<CompanyDocument[]>`
@@ -177,6 +184,7 @@ MongoDB operations for `company_documents` collection:
 ### 4.3 Storage Service (`company-document-storage.service.ts`)
 
 Wraps Scaleway S3 operations:
+
 - `upload(tenantId: string, docId: string, filename: string, buffer: Buffer, mimeType: string): Promise<string>` — returns `storageKey`
 - `download(storageKey: string): Promise<Buffer>`
 - `delete(storageKey: string): Promise<void>`
@@ -190,6 +198,7 @@ const EXTRACTION_MODEL = 'gpt-5.2-mini';
 ```
 
 **Flow**:
+
 1. Download document from Scaleway
 2. Parse content:
    - **PDF**: Use `pdf-parse` npm package to extract text
@@ -233,16 +242,17 @@ Respond in JSON format:
 
 All endpoints require `@OrgRoles('owner', 'admin')` — only org admins can manage company context.
 
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/company-context` | Get current state: free-text + all documents with extraction status |
-| `PUT` | `/company-context/text` | Update free-text company context (saves to `tenant.companyContext`) |
-| `POST` | `/company-context/documents` | Upload a document (multipart/form-data) |
-| `DELETE` | `/company-context/documents/:docId` | Delete a document (removes from S3 + DB) |
-| `POST` | `/company-context/documents/:docId/re-extract` | Re-trigger extraction for a document |
-| `GET` | `/company-context/resolved` | Get the fully resolved context (free-text + all facts) — used internally |
+| Method   | Path                                           | Description                                                              |
+| -------- | ---------------------------------------------- | ------------------------------------------------------------------------ |
+| `GET`    | `/company-context`                             | Get current state: free-text + all documents with extraction status      |
+| `PUT`    | `/company-context/text`                        | Update free-text company context (saves to `tenant.companyContext`)      |
+| `POST`   | `/company-context/documents`                   | Upload a document (multipart/form-data)                                  |
+| `DELETE` | `/company-context/documents/:docId`            | Delete a document (removes from S3 + DB)                                 |
+| `POST`   | `/company-context/documents/:docId/re-extract` | Re-trigger extraction for a document                                     |
+| `GET`    | `/company-context/resolved`                    | Get the fully resolved context (free-text + all facts) — used internally |
 
 **Upload flow** (`POST /company-context/documents`):
+
 1. Validate MIME type + file size + document count limit
 2. Use `@UseInterceptors(FileInterceptor('file'))` from `@nestjs/platform-express` + `multer` for multipart parsing
 3. Upload to Scaleway via storage service
@@ -251,6 +261,7 @@ All endpoints require `@OrgRoles('owner', 'admin')` — only org admins can mana
 6. Return the document record immediately (extraction happens async)
 
 **Re-extract flow** (`POST /company-context/documents/:docId/re-extract`):
+
 1. Set `extractionStatus: 'pending'`, clear previous facts
 2. Enqueue extraction job
 3. Return updated document
@@ -262,6 +273,7 @@ Add a new queue `company-context-extraction` processed by the existing worker se
 **Recommendation**: Process inline in the API service (like memory extraction uses BullMQ but processes in the same service). The extraction is a single LLM call per document — lightweight enough that a BullMQ queue is fine but an inline async approach also works.
 
 **Job payload**:
+
 ```typescript
 interface CompanyContextExtractionJob {
   tenantId: string;
@@ -270,6 +282,7 @@ interface CompanyContextExtractionJob {
 ```
 
 **Worker logic**:
+
 1. Fetch document metadata from DB
 2. Download file content from Scaleway
 3. Parse text (PDF/DOCX/TXT)
@@ -280,6 +293,7 @@ interface CompanyContextExtractionJob {
 ### 4.7 Module Registration
 
 Register `CompanyContextModule` in `app.module.ts`. Imports:
+
 - `ConfigModule` (for Scaleway + OpenAI keys)
 - `TenantsModule` (for updating `tenant.companyContext`)
 - `MongodbModule` (for DB access)
@@ -300,6 +314,7 @@ async getResolvedContext(tenantId: string): Promise<ResolvedCompanyContext> {
 ```
 
 **Caching**: Cache the resolved context in Redis with key `company-context:{tenantId}`, TTL 5 minutes. Invalidate on:
+
 - PUT `/company-context/text` (free-text update)
 - Extraction completion (new facts added)
 - Document deletion
@@ -341,6 +356,7 @@ formatCompanyContext(ctx: ResolvedCompanyContext): string {
 ### 5.2 Injection Points
 
 Every service that makes LLM calls needs to:
+
 1. Import `CompanyContextService`
 2. Call `getResolvedContext(tenantId)` (cached in Redis)
 3. Append the formatted company context to the system prompt
@@ -539,12 +555,12 @@ The `/org/company-context` page has two sections:
 
 ## 7. New Dependencies
 
-| Package | Purpose | Where |
-|---|---|---|
-| `@aws-sdk/client-s3` | Scaleway Object Storage (S3-compatible) | `services/api` |
-| `pdf-parse` | Extract text from PDF files | `services/api` |
-| `mammoth` | Extract text from DOCX files | `services/api` |
-| `multer` | Already available via `@nestjs/platform-express` | `services/api` |
+| Package              | Purpose                                          | Where          |
+| -------------------- | ------------------------------------------------ | -------------- |
+| `@aws-sdk/client-s3` | Scaleway Object Storage (S3-compatible)          | `services/api` |
+| `pdf-parse`          | Extract text from PDF files                      | `services/api` |
+| `mammoth`            | Extract text from DOCX files                     | `services/api` |
+| `multer`             | Already available via `@nestjs/platform-express` | `services/api` |
 
 ---
 
@@ -558,74 +574,72 @@ Add:
 
 ```typescript
 // company_documents collection indexes
-await db.collection('company_documents').createIndex(
-  { tenantId: 1, createdAt: -1 },
-  { name: 'tenantId_createdAt' }
-);
-await db.collection('company_documents').createIndex(
-  { tenantId: 1, extractionStatus: 1 },
-  { name: 'tenantId_extractionStatus' }
-);
+await db
+  .collection('company_documents')
+  .createIndex({ tenantId: 1, createdAt: -1 }, { name: 'tenantId_createdAt' });
+await db
+  .collection('company_documents')
+  .createIndex({ tenantId: 1, extractionStatus: 1 }, { name: 'tenantId_extractionStatus' });
 ```
 
 ---
 
 ## 9. Files to Create
 
-| # | File | Description |
-|---|---|---|
-| 1 | `packages/shared/src/types/company-context.ts` | Shared types: `CompanyDocument`, `CompanyFact`, `ResolvedCompanyContext` |
-| 2 | `services/api/src/company-context/company-context.module.ts` | NestJS module |
-| 3 | `services/api/src/company-context/company-context.controller.ts` | REST endpoints (6 endpoints) |
-| 4 | `services/api/src/company-context/company-context.service.ts` | Business logic + context resolution + caching |
-| 5 | `services/api/src/company-context/company-context.repository.ts` | MongoDB for `company_documents` |
-| 6 | `services/api/src/company-context/company-document-storage.service.ts` | Scaleway S3 operations |
-| 7 | `services/api/src/company-context/company-context-extraction.service.ts` | LLM fact extraction |
-| 8 | `apps/web/src/routes/org/company-context/+page.svelte` | Frontend page |
+| #   | File                                                                     | Description                                                              |
+| --- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| 1   | `packages/shared/src/types/company-context.ts`                           | Shared types: `CompanyDocument`, `CompanyFact`, `ResolvedCompanyContext` |
+| 2   | `services/api/src/company-context/company-context.module.ts`             | NestJS module                                                            |
+| 3   | `services/api/src/company-context/company-context.controller.ts`         | REST endpoints (6 endpoints)                                             |
+| 4   | `services/api/src/company-context/company-context.service.ts`            | Business logic + context resolution + caching                            |
+| 5   | `services/api/src/company-context/company-context.repository.ts`         | MongoDB for `company_documents`                                          |
+| 6   | `services/api/src/company-context/company-document-storage.service.ts`   | Scaleway S3 operations                                                   |
+| 7   | `services/api/src/company-context/company-context-extraction.service.ts` | LLM fact extraction                                                      |
+| 8   | `apps/web/src/routes/org/company-context/+page.svelte`                   | Frontend page                                                            |
 
 ## 10. Files to Modify
 
-| # | File | Change |
-|---|---|---|
-| 1 | `packages/shared/src/types/tenant.ts` | Add `companyContext?: string` to `Tenant` |
-| 2 | `packages/shared/src/index.ts` | Export new types from `company-context.ts` |
-| 3 | `services/api/src/app.module.ts` | Register `CompanyContextModule` |
-| 4 | `services/api/src/chat/chat.service.ts` | Inject company context into Gemini system prompt |
-| 5 | `services/api/src/chat/chat.controller.ts` | Pass `tenantId` to service |
-| 6 | `services/api/src/ai-planner/ai-planner.service.ts` | Inject company context into Grok prompt (both `generateQuestions` and `generateStrategy`) |
-| 7 | `services/api/src/ai-planner/ai-planner.controller.ts` | Pass `tenantId` to service methods |
-| 8 | `services/api/src/prompt-optimizer/prompt-optimizer.service.ts` | Inject company context into Grok prompt (both `analyzePrompt` and `optimizePrompt`) |
-| 9 | `services/api/src/prompt-optimizer/prompt-optimizer.controller.ts` | Pass `tenantId` to service methods |
-| 10 | `services/api/src/article-recs/article-recs.service.ts` | Inject company context into `selectArticleForUser` prompt |
-| 11 | `apps/web/src/routes/org/+layout.svelte` | Add "Company Context" tab |
-| 12 | `apps/web/src/lib/components/Sidebar.svelte` | Add "Company Settings" link in Organization section |
-| 13 | `scripts/seed-db.ts` | Add `company_documents` indexes |
-| 14 | `.env.example` | Add Scaleway env vars |
+| #   | File                                                               | Change                                                                                    |
+| --- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| 1   | `packages/shared/src/types/tenant.ts`                              | Add `companyContext?: string` to `Tenant`                                                 |
+| 2   | `packages/shared/src/index.ts`                                     | Export new types from `company-context.ts`                                                |
+| 3   | `services/api/src/app.module.ts`                                   | Register `CompanyContextModule`                                                           |
+| 4   | `services/api/src/chat/chat.service.ts`                            | Inject company context into Gemini system prompt                                          |
+| 5   | `services/api/src/chat/chat.controller.ts`                         | Pass `tenantId` to service                                                                |
+| 6   | `services/api/src/ai-planner/ai-planner.service.ts`                | Inject company context into Grok prompt (both `generateQuestions` and `generateStrategy`) |
+| 7   | `services/api/src/ai-planner/ai-planner.controller.ts`             | Pass `tenantId` to service methods                                                        |
+| 8   | `services/api/src/prompt-optimizer/prompt-optimizer.service.ts`    | Inject company context into Grok prompt (both `analyzePrompt` and `optimizePrompt`)       |
+| 9   | `services/api/src/prompt-optimizer/prompt-optimizer.controller.ts` | Pass `tenantId` to service methods                                                        |
+| 10  | `services/api/src/article-recs/article-recs.service.ts`            | Inject company context into `selectArticleForUser` prompt                                 |
+| 11  | `apps/web/src/routes/org/+layout.svelte`                           | Add "Company Context" tab                                                                 |
+| 12  | `apps/web/src/lib/components/Sidebar.svelte`                       | Add "Company Settings" link in Organization section                                       |
+| 13  | `scripts/seed-db.ts`                                               | Add `company_documents` indexes                                                           |
+| 14  | `.env.example`                                                     | Add Scaleway env vars                                                                     |
 
 ---
 
 ## 11. Implementation Order
 
-| Phase | Tasks | Dependencies |
-|---|---|---|
-| **Phase 1** | Shared types + Tenant schema update | None |
-| **Phase 2** | Repository + Storage service (Scaleway S3) | Phase 1 |
-| **Phase 3** | Extraction service (LLM) | Phase 2 |
-| **Phase 4** | Controller + Service (REST API) | Phase 2 + 3 |
-| **Phase 5** | Module registration + seed indexes | Phase 4 |
-| **Phase 6** | Context injection into all 6 LLM call sites | Phase 4 |
-| **Phase 7** | Frontend page + sidebar/tab updates | Phase 4 |
-| **Phase 8** | Testing + validation | All phases |
+| Phase       | Tasks                                       | Dependencies |
+| ----------- | ------------------------------------------- | ------------ |
+| **Phase 1** | Shared types + Tenant schema update         | None         |
+| **Phase 2** | Repository + Storage service (Scaleway S3)  | Phase 1      |
+| **Phase 3** | Extraction service (LLM)                    | Phase 2      |
+| **Phase 4** | Controller + Service (REST API)             | Phase 2 + 3  |
+| **Phase 5** | Module registration + seed indexes          | Phase 4      |
+| **Phase 6** | Context injection into all 6 LLM call sites | Phase 4      |
+| **Phase 7** | Frontend page + sidebar/tab updates         | Phase 4      |
+| **Phase 8** | Testing + validation                        | All phases   |
 
 ---
 
 ## 12. Testing Strategy
 
-| Layer | What to Test |
-|---|---|
-| **Unit** | Extraction prompt parsing, fact deduplication, `formatCompanyContext()` output |
-| **Integration** | Upload → extract → resolve flow, Redis cache invalidation |
-| **Manual** | Upload real PDF/DOCX → verify facts → check injection in Chat/Planner/Optimizer |
+| Layer           | What to Test                                                                    |
+| --------------- | ------------------------------------------------------------------------------- |
+| **Unit**        | Extraction prompt parsing, fact deduplication, `formatCompanyContext()` output  |
+| **Integration** | Upload → extract → resolve flow, Redis cache invalidation                       |
+| **Manual**      | Upload real PDF/DOCX → verify facts → check injection in Chat/Planner/Optimizer |
 
 ---
 

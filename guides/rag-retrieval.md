@@ -2,10 +2,10 @@
 
 A retrieval subsystem **MUST** optimize for:
 
-* **High recall under tight latency** (find *all* plausible evidence fast, then let re-ranking decide).
-* **Robustness to wording variance** (synonyms, paraphrases, typos).
-* **Deterministic behavior under constraints** (filters, ACL, recency, languages).
-* **Measurability** (offline + online metrics, plus segmented debugging).
+- **High recall under tight latency** (find _all_ plausible evidence fast, then let re-ranking decide).
+- **Robustness to wording variance** (synonyms, paraphrases, typos).
+- **Deterministic behavior under constraints** (filters, ACL, recency, languages).
+- **Measurability** (offline + online metrics, plus segmented debugging).
 
 A retrieval subsystem **SHOULD** be designed as a pipeline:
 
@@ -21,15 +21,15 @@ Use this as a literal decision procedure.
 
 **If queries contain many exact identifiers** (error codes, SKUs, ticket IDs, API names, proper nouns):
 
-* **MUST include lexical retrieval (BM25)**. BM25 is a strong baseline for exact matching. ([Microsoft][1])
+- **MUST include lexical retrieval (BM25)**. BM25 is a strong baseline for exact matching. ([Microsoft][1])
 
 **If queries are mostly natural language** (“how do I…”, “why is…”, paraphrased):
 
-* **MUST include semantic retrieval (dense vectors)** (or learned sparse / late interaction if you can afford it).
+- **MUST include semantic retrieval (dense vectors)** (or learned sparse / late interaction if you can afford it).
 
 **If you have both** (most real systems):
 
-* **MUST do hybrid retrieval** (lexical + semantic), then fuse and re-rank. ([docs.opensearch.org][2])
+- **MUST do hybrid retrieval** (lexical + semantic), then fuse and re-rank. ([docs.opensearch.org][2])
 
 ### Step 2 — Pick the primary candidate generator(s)
 
@@ -49,7 +49,7 @@ Choose one of these candidate pools (you can combine them):
 
 **Default recommendation (production-pragmatic):**
 
-* Start with **BM25 + dense vectors**, then add **RRF fusion** and a **cross-encoder reranker**. This is usually the best cost/quality frontier before SPLADE/ColBERT. (See steps below.)
+- Start with **BM25 + dense vectors**, then add **RRF fusion** and a **cross-encoder reranker**. This is usually the best cost/quality frontier before SPLADE/ColBERT. (See steps below.)
 
 ### Step 3 — Decide how you’ll fuse multiple retrievers
 
@@ -57,8 +57,8 @@ If you combine BM25 + dense (and maybe more), you need fusion.
 
 **You SHOULD default to Reciprocal Rank Fusion (RRF)** because it is simple, robust to score scale mismatch, and empirically strong. ([cormack.uwaterloo.ca][7])
 
-* RRF combines ranked lists by summing something like `1 / (k + rank)` across systems; higher consensus → higher final rank. ([cormack.uwaterloo.ca][7])
-* This is particularly useful when mixing BM25 and semantic scores that aren’t directly comparable. ([OpenSearch][8])
+- RRF combines ranked lists by summing something like `1 / (k + rank)` across systems; higher consensus → higher final rank. ([cormack.uwaterloo.ca][7])
+- This is particularly useful when mixing BM25 and semantic scores that aren’t directly comparable. ([OpenSearch][8])
 
 If you are on OpenSearch, there is first-class hybrid + RRF support in modern versions (via neural search / pipelines). ([docs.opensearch.org][2])
 
@@ -68,9 +68,9 @@ Re-ranking is where you buy precision.
 
 **You MUST add a re-ranker** if any of these are true:
 
-* Your corpus is large/noisy (logs, wikis, tickets, long PDFs).
-* Your “top-K” candidates often include near-misses.
-* You need better “top-3/top-5” quality than “top-50” recall.
+- Your corpus is large/noisy (logs, wikis, tickets, long PDFs).
+- Your “top-K” candidates often include near-misses.
+- You need better “top-3/top-5” quality than “top-50” recall.
 
 **Cross-encoder re-ranking (BERT-style)** is a standard strong choice: it directly scores (query, passage) pairs and is known to materially improve ranking quality. ([arXiv][9])
 
@@ -82,13 +82,13 @@ Re-ranking is where you buy precision.
 
 **BM25 setup MUST include:**
 
-* Appropriate **tokenization** and **normalization** (case-folding, Unicode normalization).
-* Domain-aware **analyzers** (e.g., keep `SeatDynamicPricingClient` as a token; don’t destroy IDs).
-* Field strategy: title/heading vs body with boosts (if your engine supports it).
+- Appropriate **tokenization** and **normalization** (case-folding, Unicode normalization).
+- Domain-aware **analyzers** (e.g., keep `SeatDynamicPricingClient` as a token; don’t destroy IDs).
+- Field strategy: title/heading vs body with boosts (if your engine supports it).
 
 **BM25 tuning SHOULD be last**, not first:
 
-* Defaults (`k1`, `b`) are often fine; fix analyzers, fields, and content structure before parameter chasing. ([Elastic][10])
+- Defaults (`k1`, `b`) are often fine; fix analyzers, fields, and content structure before parameter chasing. ([Elastic][10])
 
 **BM25 MUST support phrase/proximity queries** if your domain contains “nearly exact” sequences (error messages, legal citations). (Most Lucene-based stacks can do this via query types.)
 
@@ -96,19 +96,19 @@ Re-ranking is where you buy precision.
 
 **Dense retrieval MUST define:**
 
-* embedding model
-* similarity metric (cosine / dot / L2)
-* ANN index type and parameters
+- embedding model
+- similarity metric (cosine / dot / L2)
+- ANN index type and parameters
 
 **Index choice (rule of thumb):**
 
-* **HNSW** when you want high recall, easy ops, and fast incremental inserts; it’s a widely used graph-based ANN method. ([arXiv][4])
-* **Faiss IVF/PQ variants** when you want memory/latency tradeoffs, and especially if you want GPU acceleration or billion-scale patterns. ([arXiv][11])
+- **HNSW** when you want high recall, easy ops, and fast incremental inserts; it’s a widely used graph-based ANN method. ([arXiv][4])
+- **Faiss IVF/PQ variants** when you want memory/latency tradeoffs, and especially if you want GPU acceleration or billion-scale patterns. ([arXiv][11])
 
 **ANN tuning MUST be treated as a recall/latency dial:**
 
-* Increase search effort (e.g., HNSW `efSearch`) to improve recall at higher latency.
-* Set a retrieval budget: “p95 retrieval latency ≤ X ms” and tune to it.
+- Increase search effort (e.g., HNSW `efSearch`) to improve recall at higher latency.
+- Set a retrieval budget: “p95 retrieval latency ≤ X ms” and tune to it.
 
 ### 3) Learned sparse (SPLADE) — when BM25 isn’t enough but you like inverted indexes
 
@@ -116,8 +116,8 @@ SPLADE-style retrieval learns sparse vectors over the vocabulary and can act lik
 
 **Use SPLADE when:**
 
-* Exact matching matters **and** users paraphrase heavily.
-* You can afford extra model compute at indexing time (and sometimes query time).
+- Exact matching matters **and** users paraphrase heavily.
+- You can afford extra model compute at indexing time (and sometimes query time).
 
 **Operational note:** learned sparse still typically plugs into inverted-index style retrieval, which many teams find operationally familiar (compared to purely vector-native stacks). (Implementation varies by stack.)
 
@@ -128,8 +128,8 @@ ColBERTv2 targets quality + space improvements with compression/denoising ideas.
 
 **Use ColBERT when:**
 
-* Dense single-vector retrieval misses nuanced relevance.
-* You can afford larger indexes and more complex retrieval infra.
+- Dense single-vector retrieval misses nuanced relevance.
+- You can afford larger indexes and more complex retrieval infra.
 
 ---
 
@@ -139,8 +139,8 @@ ColBERTv2 targets quality + space improvements with compression/denoising ideas.
 
 **You SHOULD generate multiple query variants** (paraphrases, decompositions), retrieve per-variant, then fuse with RRF.
 
-* This increases recall and reduces sensitivity to phrasing.
-* The fusion step can be implemented exactly as RRF. ([cormack.uwaterloo.ca][7])
+- This increases recall and reduces sensitivity to phrasing.
+- The fusion step can be implemented exactly as RRF. ([cormack.uwaterloo.ca][7])
 
 ### HyDE (Hypothetical Document Embeddings)
 
@@ -148,9 +148,9 @@ HyDE generates a hypothetical “ideal” document for the query, embeds it, and
 
 **HyDE SHOULD be considered when:**
 
-* You have weak/no relevance labels.
-* Your dense retriever is underperforming zero-shot.
-* You can afford an LLM call for query expansion.
+- You have weak/no relevance labels.
+- Your dense retriever is underperforming zero-shot.
+- You can afford an LLM call for query expansion.
 
 **Safety note:** HyDE’s hypothetical text can be wrong; it’s used only as a retrieval pivot, then grounded by nearest-neighbor search. ([arXiv][13])
 
@@ -168,10 +168,10 @@ If you need a robust starting point that usually works:
 
 **Why this baseline is sane:**
 
-* BM25 catches exact mentions. ([staff.city.ac.uk][14])
-* Dense catches paraphrases.
-* RRF avoids painful score normalization. ([cormack.uwaterloo.ca][7])
-* Cross-encoder re-ranking buys precision. ([arXiv][9])
+- BM25 catches exact mentions. ([staff.city.ac.uk][14])
+- Dense catches paraphrases.
+- RRF avoids painful score normalization. ([cormack.uwaterloo.ca][7])
+- Cross-encoder re-ranking buys precision. ([arXiv][9])
 
 ---
 
@@ -187,10 +187,10 @@ If you need a robust starting point that usually works:
 
 ### Typical failure modes (and fixes)
 
-* **Good answers exist but aren’t retrieved** → increase recall: bigger K, better analyzers, add BM25 if missing, add query expansion / HyDE. ([arXiv][13])
-* **Retrieved set is noisy** → add/strengthen reranker; improve chunking boundaries; add metadata filters.
-* **Hybrid results are unstable** → use rank-based fusion (RRF) instead of score mixing. ([cormack.uwaterloo.ca][7])
-* **Vector retrieval misses exact entities** → ensure BM25 branch exists; ensure tokenization preserves identifiers.
+- **Good answers exist but aren’t retrieved** → increase recall: bigger K, better analyzers, add BM25 if missing, add query expansion / HyDE. ([arXiv][13])
+- **Retrieved set is noisy** → add/strengthen reranker; improve chunking boundaries; add metadata filters.
+- **Hybrid results are unstable** → use rank-based fusion (RRF) instead of score mixing. ([cormack.uwaterloo.ca][7])
+- **Vector retrieval misses exact entities** → ensure BM25 branch exists; ensure tokenization preserves identifiers.
 
 ---
 
@@ -200,20 +200,20 @@ If you need a robust starting point that usually works:
 
 You **MUST** maintain a small, versioned evaluation set:
 
-* 50–200 representative queries
-* for each, a small set of known-relevant passages (or doc IDs)
-* segmented buckets (IDs-heavy queries vs conceptual queries, etc.)
+- 50–200 representative queries
+- for each, a small set of known-relevant passages (or doc IDs)
+- segmented buckets (IDs-heavy queries vs conceptual queries, etc.)
 
 Compute:
 
-* **Recall@K** (most important for candidate generation)
-* **nDCG@K / MRR@K** (more rank-sensitive; useful post-fusion/post-rerank)
+- **Recall@K** (most important for candidate generation)
+- **nDCG@K / MRR@K** (more rank-sensitive; useful post-fusion/post-rerank)
 
 If you lack labels, you **SHOULD**:
 
-* bootstrap with human review on top-K outputs
-* or use weak supervision (click logs, support resolutions)
-* or use a benchmark harness mindset like BEIR to reason about generalization tradeoffs across retriever classes. ([arXiv][15])
+- bootstrap with human review on top-K outputs
+- or use weak supervision (click logs, support resolutions)
+- or use a benchmark harness mindset like BEIR to reason about generalization tradeoffs across retriever classes. ([arXiv][15])
 
 BEIR explicitly compares lexical, dense, sparse, late-interaction, and reranking approaches in a zero-shot setup and is useful as a conceptual reference point. ([arXiv][15])
 
@@ -221,9 +221,9 @@ BEIR explicitly compares lexical, dense, sparse, late-interaction, and reranking
 
 You SHOULD monitor:
 
-* retrieval latency p50/p95
-* “answerable@K” proxy (did top-K include at least one passage judged relevant?)
-* downstream grounding rates / citation rates (if your app exposes that)
+- retrieval latency p50/p95
+- “answerable@K” proxy (did top-K include at least one passage judged relevant?)
+- downstream grounding rates / citation rates (if your app exposes that)
 
 ---
 
@@ -240,19 +240,19 @@ When an agent is asked “stand up retrieval for RAG”, it **MUST** do:
 
 ---
 
-[1]: https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/okapi_trec3.pdf?utm_source=chatgpt.com "Okapi at TREC{3"
-[2]: https://docs.opensearch.org/latest/vector-search/ai-search/hybrid-search/index/?utm_source=chatgpt.com "Hybrid search"
-[3]: https://www.elastic.co/blog/practical-bm25-part-2-the-bm25-algorithm-and-its-variables?utm_source=chatgpt.com "Practical BM25 - Part 2: The BM25 Algorithm and its ..."
-[4]: https://arxiv.org/abs/1603.09320?utm_source=chatgpt.com "Efficient and robust approximate nearest neighbor search using Hierarchical Navigable Small World graphs"
-[5]: https://arxiv.org/abs/2109.10086?utm_source=chatgpt.com "SPLADE v2: Sparse Lexical and Expansion Model for Information Retrieval"
-[6]: https://arxiv.org/abs/2004.12832?utm_source=chatgpt.com "ColBERT: Efficient and Effective Passage Search via ..."
-[7]: https://cormack.uwaterloo.ca/cormacksigir09-rrf.pdf?utm_source=chatgpt.com "Reciprocal Rank Fusion outperforms Condorcet and ..."
-[8]: https://opensearch.org/blog/building-effective-hybrid-search-in-opensearch-techniques-and-best-practices/?utm_source=chatgpt.com "Building effective hybrid search in OpenSearch"
-[9]: https://arxiv.org/abs/1901.04085?utm_source=chatgpt.com "Passage Re-ranking with BERT"
-[10]: https://www.elastic.co/blog/practical-bm25-part-3-considerations-for-picking-b-and-k1-in-elasticsearch?utm_source=chatgpt.com "Practical BM25 - Part 3: Considerations for Picking b and ..."
-[11]: https://arxiv.org/pdf/2401.08281?utm_source=chatgpt.com "The Faiss library"
-[12]: https://aclanthology.org/2022.naacl-main.272/?utm_source=chatgpt.com "Effective and Efficient Retrieval via Lightweight Late ..."
-[13]: https://arxiv.org/abs/2212.10496?utm_source=chatgpt.com "Precise Zero-Shot Dense Retrieval without Relevance Labels"
-[14]: https://www.staff.city.ac.uk/~sbrp622/papers/foundations_bm25_review.pdf?utm_source=chatgpt.com "The Probabilistic Relevance Framework: BM25 and Beyond"
-[15]: https://arxiv.org/abs/2104.08663?utm_source=chatgpt.com "BEIR: A Heterogenous Benchmark for Zero-shot Evaluation of Information Retrieval Models"
-[16]: https://www.elastic.co/guide/en/elasticsearch/reference/8.19/index-modules-similarity.html?utm_source=chatgpt.com "Similarity module | Elasticsearch Guide [8.19]"
+[1]: https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/okapi_trec3.pdf?utm_source=chatgpt.com 'Okapi at TREC{3'
+[2]: https://docs.opensearch.org/latest/vector-search/ai-search/hybrid-search/index/?utm_source=chatgpt.com 'Hybrid search'
+[3]: https://www.elastic.co/blog/practical-bm25-part-2-the-bm25-algorithm-and-its-variables?utm_source=chatgpt.com 'Practical BM25 - Part 2: The BM25 Algorithm and its ...'
+[4]: https://arxiv.org/abs/1603.09320?utm_source=chatgpt.com 'Efficient and robust approximate nearest neighbor search using Hierarchical Navigable Small World graphs'
+[5]: https://arxiv.org/abs/2109.10086?utm_source=chatgpt.com 'SPLADE v2: Sparse Lexical and Expansion Model for Information Retrieval'
+[6]: https://arxiv.org/abs/2004.12832?utm_source=chatgpt.com 'ColBERT: Efficient and Effective Passage Search via ...'
+[7]: https://cormack.uwaterloo.ca/cormacksigir09-rrf.pdf?utm_source=chatgpt.com 'Reciprocal Rank Fusion outperforms Condorcet and ...'
+[8]: https://opensearch.org/blog/building-effective-hybrid-search-in-opensearch-techniques-and-best-practices/?utm_source=chatgpt.com 'Building effective hybrid search in OpenSearch'
+[9]: https://arxiv.org/abs/1901.04085?utm_source=chatgpt.com 'Passage Re-ranking with BERT'
+[10]: https://www.elastic.co/blog/practical-bm25-part-3-considerations-for-picking-b-and-k1-in-elasticsearch?utm_source=chatgpt.com 'Practical BM25 - Part 3: Considerations for Picking b and ...'
+[11]: https://arxiv.org/pdf/2401.08281?utm_source=chatgpt.com 'The Faiss library'
+[12]: https://aclanthology.org/2022.naacl-main.272/?utm_source=chatgpt.com 'Effective and Efficient Retrieval via Lightweight Late ...'
+[13]: https://arxiv.org/abs/2212.10496?utm_source=chatgpt.com 'Precise Zero-Shot Dense Retrieval without Relevance Labels'
+[14]: https://www.staff.city.ac.uk/~sbrp622/papers/foundations_bm25_review.pdf?utm_source=chatgpt.com 'The Probabilistic Relevance Framework: BM25 and Beyond'
+[15]: https://arxiv.org/abs/2104.08663?utm_source=chatgpt.com 'BEIR: A Heterogenous Benchmark for Zero-shot Evaluation of Information Retrieval Models'
+[16]: https://www.elastic.co/guide/en/elasticsearch/reference/8.19/index-modules-similarity.html?utm_source=chatgpt.com 'Similarity module | Elasticsearch Guide [8.19]'

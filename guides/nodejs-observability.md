@@ -24,15 +24,15 @@ The Collector is the vendor-agnostic control plane for receiving, processing, an
 
 ### 1.2 Deployment topologies
 
-* **Kubernetes**: per-node DaemonSet Agent (edge) + optional centralized Gateway tier (recommended for tail sampling, heavy processing).
-* **VMs**: local agent (systemd) or sidecar.
-* **Serverless**: platform distribution (e.g., AWS ADOT for Lambda) or direct OTLP to an endpoint/gateway.
+- **Kubernetes**: per-node DaemonSet Agent (edge) + optional centralized Gateway tier (recommended for tail sampling, heavy processing).
+- **VMs**: local agent (systemd) or sidecar.
+- **Serverless**: platform distribution (e.g., AWS ADOT for Lambda) or direct OTLP to an endpoint/gateway.
 
 ### 1.3 Cloud backends you MUST support (examples included later)
 
-* Amazon Web Services native stack (X-Ray, CloudWatch, AMP, OpenSearch).
-* Google Cloud native stack (Cloud Trace/Logging/Monitoring, Managed Prometheus).
-* Microsoft Azure native stack (Azure Monitor / Application Insights).
+- Amazon Web Services native stack (X-Ray, CloudWatch, AMP, OpenSearch).
+- Google Cloud native stack (Cloud Trace/Logging/Monitoring, Managed Prometheus).
+- Microsoft Azure native stack (Azure Monitor / Application Insights).
 
 ---
 
@@ -42,11 +42,11 @@ The Collector is the vendor-agnostic control plane for receiving, processing, an
 
 **Every process MUST set resource attributes** (at minimum):
 
-* `service.name` (stable, unique)
-* `service.version` (build/version)
-* `deployment.environment.name` (e.g., `prod`, `staging`)
-* `service.instance.id` (instance/container id)
-* cloud/runtime attributes via resource detection (host, k8s, cloud)
+- `service.name` (stable, unique)
+- `service.version` (build/version)
+- `deployment.environment.name` (e.g., `prod`, `staging`)
+- `service.instance.id` (instance/container id)
+- cloud/runtime attributes via resource detection (host, k8s, cloud)
 
 Resource semantic conventions define standard attributes; use them instead of inventing your own keys. ([OpenTelemetry][4])
 
@@ -54,26 +54,26 @@ Resource semantic conventions define standard attributes; use them instead of in
 
 ### 2.2 Span naming and attributes
 
-* Span names MUST be **low cardinality** and describe the operation, not the instance.
+- Span names MUST be **low cardinality** and describe the operation, not the instance.
+  - ✅ `HTTP GET /orders/{id}`
+  - ❌ `HTTP GET /orders/123456`
 
-  * ✅ `HTTP GET /orders/{id}`
-  * ❌ `HTTP GET /orders/123456`
-* Attributes MUST follow OpenTelemetry semantic conventions (HTTP, DB, messaging, RPC, etc.). ([OpenTelemetry][3])
-* Errors MUST be represented via span status and/or exception events (do not rely on log parsing alone).
+- Attributes MUST follow OpenTelemetry semantic conventions (HTTP, DB, messaging, RPC, etc.). ([OpenTelemetry][3])
+- Errors MUST be represented via span status and/or exception events (do not rely on log parsing alone).
 
 ### 2.3 Metric naming and cardinality rules
 
-* Prefer **semantic convention metrics** when available; otherwise:
+- Prefer **semantic convention metrics** when available; otherwise:
+  - Metric names SHOULD be `namespace.subsystem.metric` (lowercase, dot-separated).
+  - Every metric MUST have a unit and description.
 
-  * Metric names SHOULD be `namespace.subsystem.metric` (lowercase, dot-separated).
-  * Every metric MUST have a unit and description.
-* **High-cardinality dimensions MUST be explicitly approved** (e.g., user id, full URL, order id are usually forbidden).
-* Request metrics MUST be aggregatable by `service.name`, `deployment.environment.name`, and route template.
+- **High-cardinality dimensions MUST be explicitly approved** (e.g., user id, full URL, order id are usually forbidden).
+- Request metrics MUST be aggregatable by `service.name`, `deployment.environment.name`, and route template.
 
 ### 2.4 Logs: structure + correlation
 
-* Logs MUST be structured (JSON), not free-form strings.
-* Logs SHOULD be emitted via your standard logger (pino/winston/etc.), and MUST include trace correlation fields when a span context exists.
+- Logs MUST be structured (JSON), not free-form strings.
+- Logs SHOULD be emitted via your standard logger (pino/winston/etc.), and MUST include trace correlation fields when a span context exists.
   OpenTelemetry’s log model supports correlation via TraceId and SpanId in log records. ([OpenTelemetry][6])
 
 > Note: the OpenTelemetry logging library for Node.js is still evolving; do not block implementation on “native OTel logs”. Use structured logs + trace/span injection now. ([OpenTelemetry][7])
@@ -86,9 +86,9 @@ Resource semantic conventions define standard attributes; use them instead of in
 
 Use the upstream OpenTelemetry JS SDK:
 
-* `@opentelemetry/sdk-node`
-* `@opentelemetry/auto-instrumentations-node`
-* OTLP exporters for traces + metrics (HTTP or gRPC)
+- `@opentelemetry/sdk-node`
+- `@opentelemetry/auto-instrumentations-node`
+- OTLP exporters for traces + metrics (HTTP or gRPC)
 
 OpenTelemetry provides a standard OTLP exporter configuration model and environment variables for endpoints/headers/timeouts. ([OpenTelemetry][8])
 
@@ -102,24 +102,22 @@ Create `src/telemetry.ts` and import it as the **first import** in your main ent
 
 ```ts
 // src/telemetry.ts
-import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
-import { NodeSDK } from "@opentelemetry/sdk-node";
-import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
-import { Resource } from "@opentelemetry/resources";
-import { SemanticResourceAttributes } from "@opentelemetry/semantic-conventions";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
-import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
-import { PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
+import { diag, DiagConsoleLogger, DiagLogLevel } from '@opentelemetry/api';
+import { NodeSDK } from '@opentelemetry/sdk-node';
+import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
+import { Resource } from '@opentelemetry/resources';
+import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
+import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 
 // Keep SDK diagnostics bounded in prod.
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.INFO);
 
 const resource = new Resource({
-  [SemanticResourceAttributes.SERVICE_NAME]:
-    process.env.OTEL_SERVICE_NAME ?? "my-service",
-  [SemanticResourceAttributes.SERVICE_VERSION]:
-    process.env.npm_package_version ?? "0.0.0",
-  "deployment.environment.name": process.env.DEPLOYMENT_ENV ?? "dev",
+  [SemanticResourceAttributes.SERVICE_NAME]: process.env.OTEL_SERVICE_NAME ?? 'my-service',
+  [SemanticResourceAttributes.SERVICE_VERSION]: process.env.npm_package_version ?? '0.0.0',
+  'deployment.environment.name': process.env.DEPLOYMENT_ENV ?? 'dev',
 });
 
 // OTLP exporter config comes from OTEL_EXPORTER_OTLP_* env vars by default.
@@ -139,7 +137,7 @@ const sdk = new NodeSDK({
 
 sdk.start();
 
-process.on("SIGTERM", async () => {
+process.on('SIGTERM', async () => {
   await sdk.shutdown();
 });
 ```
@@ -165,13 +163,13 @@ node dist/index.js
 
 You MUST choose and document sampling as a policy, not a default accident.
 
-* **Head sampling in SDK**: simplest; lowest collector complexity.
-* **Tail sampling in Collector**: better fidelity (keep “bad traces”), but higher memory/latency cost and requires careful scaling. ([OpenTelemetry][11])
+- **Head sampling in SDK**: simplest; lowest collector complexity.
+- **Tail sampling in Collector**: better fidelity (keep “bad traces”), but higher memory/latency cost and requires careful scaling. ([OpenTelemetry][11])
 
 **Default recommendation**:
 
-* Dev/staging: `always_on` (or high ratio).
-* Prod: ratio sampling (e.g., 0.05–0.2) + “keep errors” strategy via tail sampling gateway when you can operate it.
+- Dev/staging: `always_on` (or high ratio).
+- Prod: ratio sampling (e.g., 0.05–0.2) + “keep errors” strategy via tail sampling gateway when you can operate it.
 
 ---
 
@@ -182,8 +180,8 @@ Even if you don’t emit OTel log records directly, you MUST correlate app logs 
 ### 4.1 Pino example (trace_id/span_id injection)
 
 ```ts
-import pino from "pino";
-import { context, trace } from "@opentelemetry/api";
+import pino from 'pino';
+import { context, trace } from '@opentelemetry/api';
 
 export const logger = pino({
   mixin() {
@@ -201,12 +199,12 @@ This aligns with the OpenTelemetry log correlation model (TraceId/SpanId). ([Ope
 
 Every log record MUST include:
 
-* `timestamp` (RFC3339)
-* `level` (debug/info/warn/error)
-* `msg`
-* `service.name`, `deployment.environment.name` (directly or via resource promotion)
-* `trace_id`, `span_id` when present
-* `error` object fields when applicable: `type`, `message`, `stack`
+- `timestamp` (RFC3339)
+- `level` (debug/info/warn/error)
+- `msg`
+- `service.name`, `deployment.environment.name` (directly or via resource promotion)
+- `trace_id`, `span_id` when present
+- `error` object fields when applicable: `type`, `message`, `stack`
 
 ---
 
@@ -216,10 +214,10 @@ Every log record MUST include:
 
 Collector configs commonly include secrets (tokens, keys, TLS private keys). You MUST:
 
-* store config securely (secret store/encrypted volume),
-* enable encryption and authentication on receivers/exporters,
-* minimize enabled components to reduce attack surface,
-* avoid running Collector as root unless required. ([OpenTelemetry][12])
+- store config securely (secret store/encrypted volume),
+- enable encryption and authentication on receivers/exporters,
+- minimize enabled components to reduce attack surface,
+- avoid running Collector as root unless required. ([OpenTelemetry][12])
 
 ### 5.2 Baseline pipeline (MUST)
 
@@ -270,8 +268,8 @@ service:
 
 To get robust request metrics even when service metric coverage is incomplete, you SHOULD derive RED metrics from spans using the `spanmetrics` connector.
 
-* Connectors bridge pipelines (exporter from one, receiver to another). ([OpenTelemetry][14])
-* `spanmetrics` connector exists in collector-contrib and replaces older processor patterns. ([GitHub][15])
+- Connectors bridge pipelines (exporter from one, receiver to another). ([OpenTelemetry][14])
+- `spanmetrics` connector exists in collector-contrib and replaces older processor patterns. ([GitHub][15])
 
 Example (conceptual):
 
@@ -312,16 +310,16 @@ You MUST implement:
 
 You MUST implement **two related policies**:
 
-* **Fast burn**: short window, high threshold (catch outages quickly)
-* **Slow burn**: long window, lower threshold (catch chronic degradation)
+- **Fast burn**: short window, high threshold (catch outages quickly)
+- **Slow burn**: long window, lower threshold (catch chronic degradation)
 
 Google’s SLO burn-rate guidance explicitly recommends paired fast/slow policies and gives practical starting thresholds (e.g., 10× baseline for 1–2h lookback and 2× baseline for 24h lookback). ([Google Cloud Documentation][16])
 
 ### 6.3 Alert hygiene (MUST)
 
-* Every alert MUST have: description, severity, owner, runbook, dashboard link.
-* Alerts MUST be deduplicated and routed (paging vs ticket vs email).
-* Alerts SHOULD be based on **rate** and **percentiles**, not raw counts.
+- Every alert MUST have: description, severity, owner, runbook, dashboard link.
+- Alerts MUST be deduplicated and routed (paging vs ticket vs email).
+- Alerts SHOULD be based on **rate** and **percentiles**, not raw counts.
 
 ---
 
@@ -331,18 +329,18 @@ Google’s SLO burn-rate guidance explicitly recommends paired fast/slow policie
 
 You MUST provide a repeatable local stack:
 
-* Collector (docker)
-* Trace backend (e.g., Jaeger/Tempo) **or** OTLP debug exporter
-* Metrics backend (Prometheus) **or** OTLP debug exporter
-* Log sink (stdout/file) or Loki
+- Collector (docker)
+- Trace backend (e.g., Jaeger/Tempo) **or** OTLP debug exporter
+- Metrics backend (Prometheus) **or** OTLP debug exporter
+- Log sink (stdout/file) or Loki
 
 ### 7.2 Unit tests (SHOULD)
 
 You SHOULD test:
 
-* span creation for key operations,
-* mandatory attributes (`service.name`, route template, dependency attributes),
-* error spans on failure paths.
+- span creation for key operations,
+- mandatory attributes (`service.name`, route template, dependency attributes),
+- error spans on failure paths.
 
 ### 7.3 Integration tests (MUST)
 
@@ -356,9 +354,9 @@ You MUST run a CI integration test that:
 
 You SHOULD measure overhead under load:
 
-* p95 latency delta with telemetry on/off,
-* CPU/memory overhead,
-* Collector export queue behavior.
+- p95 latency delta with telemetry on/off,
+- CPU/memory overhead,
+- Collector export queue behavior.
 
 Telemetry must remain best-effort; production latency SLOs must not be violated.
 
@@ -377,8 +375,8 @@ Below are “known good” patterns; adapt to your environment (K8s/VM/serverles
 **Traces**: Collector `awsxray` exporter (converts OTel spans to X-Ray segments). ([GitHub][18])
 **Metrics**: either:
 
-* `prometheusremotewrite` to AMP (recommended if you standardize on PromQL/Grafana), or
-* CloudWatch EMF exporter (`awsemf`) for CloudWatch metrics. ([GitHub][19])
+- `prometheusremotewrite` to AMP (recommended if you standardize on PromQL/Grafana), or
+- CloudWatch EMF exporter (`awsemf`) for CloudWatch metrics. ([GitHub][19])
   **Logs**: `awscloudwatchlogs` exporter (CloudWatch Logs). ([aws-otel.github.io][20])
 
 Minimal example (illustrative component names; validate against your distribution build):
@@ -399,19 +397,19 @@ exporters:
   awscloudwatchlogs:
     region: ${AWS_REGION}
     log_group_name: /otel/${DEPLOYMENT_ENV}/app
-    log_stream_name: "{service.name}/{service.instance.id}"
+    log_stream_name: '{service.name}/{service.instance.id}'
 
 service:
   pipelines:
-    traces:  { receivers: [otlp], processors: [memory_limiter, batch], exporters: [awsxray] }
+    traces: { receivers: [otlp], processors: [memory_limiter, batch], exporters: [awsxray] }
     metrics: { receivers: [otlp], processors: [memory_limiter, batch], exporters: [awsemf] }
-    logs:    { receivers: [otlp], processors: [memory_limiter, batch], exporters: [awscloudwatchlogs] }
+    logs: { receivers: [otlp], processors: [memory_limiter, batch], exporters: [awscloudwatchlogs] }
 ```
 
 **Alerting**:
 
-* Implement SLO burn-rate alerts using your metrics backend (AMP/CloudWatch).
-* Route critical burn alerts to paging; route slow burn to ticketing.
+- Implement SLO burn-rate alerts using your metrics backend (AMP/CloudWatch).
+- Route critical burn alerts to paging; route slow burn to ticketing.
 
 ---
 
@@ -425,14 +423,14 @@ Two viable patterns:
 
 #### Pattern A — Direct OTLP traces to telemetry.googleapis.com (traces), metrics to Managed Prometheus
 
-* Traces: app/collector OTLP exporter endpoint → `telemetry.googleapis.com` (OTLP).
-* Metrics: Collector uses Google Managed Prometheus exporter or Prometheus remote write (per Google docs).
+- Traces: app/collector OTLP exporter endpoint → `telemetry.googleapis.com` (OTLP).
+- Metrics: Collector uses Google Managed Prometheus exporter or Prometheus remote write (per Google docs).
 
 (Use when you want the lowest moving parts for traces, and PromQL for metrics.)
 
 #### Pattern B — Collector googlecloud exporter (traces+metrics+logs)
 
-* Use the Collector’s Google Cloud exporter to map signals into Cloud Trace/Monitoring/Logging. ([GitHub][24])
+- Use the Collector’s Google Cloud exporter to map signals into Cloud Trace/Monitoring/Logging. ([GitHub][24])
 
 Collector skeleton (conceptual):
 
@@ -450,14 +448,14 @@ exporters:
 
 service:
   pipelines:
-    traces:  { receivers: [otlp], processors: [memory_limiter, batch], exporters: [googlecloud] }
+    traces: { receivers: [otlp], processors: [memory_limiter, batch], exporters: [googlecloud] }
     metrics: { receivers: [otlp], processors: [memory_limiter, batch], exporters: [googlecloud] }
-    logs:    { receivers: [otlp], processors: [memory_limiter, batch], exporters: [googlecloud] }
+    logs: { receivers: [otlp], processors: [memory_limiter, batch], exporters: [googlecloud] }
 ```
 
 **Alerting**:
 
-* Burn-rate alerts: implement the paired fast/slow policy per Google’s SLO guidance. ([Google Cloud Documentation][16])
+- Burn-rate alerts: implement the paired fast/slow policy per Google’s SLO guidance. ([Google Cloud Documentation][16])
 
 ---
 
@@ -471,7 +469,7 @@ Microsoft’s Node package `@azure/monitor-opentelemetry` is designed for Azure 
 
 ```ts
 // MUST be the first import in your app
-import { useAzureMonitor } from "@azure/monitor-opentelemetry";
+import { useAzureMonitor } from '@azure/monitor-opentelemetry';
 
 useAzureMonitor({
   azureMonitorExporterOptions: {
@@ -496,8 +494,8 @@ exporters:
 
 **Alerting**:
 
-* Implement SLO alerts (burn-rate) based on request metrics (either derived via spanmetrics → Prometheus, or emitted directly).
-* Add “telemetry health” alerts (exporter errors, drop counts).
+- Implement SLO alerts (burn-rate) based on request metrics (either derived via spanmetrics → Prometheus, or emitted directly).
+- Add “telemetry health” alerts (exporter errors, drop counts).
 
 ---
 
@@ -505,19 +503,19 @@ exporters:
 
 ### 9.1 PII and secrets (MUST)
 
-* Spans/logs MUST NOT include secrets, auth tokens, full payment details, or sensitive personal identifiers.
-* Collector SHOULD scrub sensitive attributes at ingestion if you cannot guarantee app compliance. (Use attribute processors or dedicated scrubbing.)
+- Spans/logs MUST NOT include secrets, auth tokens, full payment details, or sensitive personal identifiers.
+- Collector SHOULD scrub sensitive attributes at ingestion if you cannot guarantee app compliance. (Use attribute processors or dedicated scrubbing.)
 
 Collector security best practices explicitly call out scrubbing sensitive data and secure handling of credentials. ([OpenTelemetry][12])
 
 ### 9.2 Component governance (MUST)
 
-* You MUST document component stability (Collector is “mixed” stability overall; individual components vary). ([OpenTelemetry][1])
-* You MUST pin versions for:
+- You MUST document component stability (Collector is “mixed” stability overall; individual components vary). ([OpenTelemetry][1])
+- You MUST pin versions for:
+  - OTel JS SDK + instrumentations
+  - Collector distribution
 
-  * OTel JS SDK + instrumentations
-  * Collector distribution
-* You SHOULD upgrade on a controlled cadence (monthly/quarterly) and rerun telemetry contract tests.
+- You SHOULD upgrade on a controlled cadence (monthly/quarterly) and rerun telemetry contract tests.
 
 ---
 
@@ -525,54 +523,54 @@ Collector security best practices explicitly call out scrubbing sensitive data a
 
 ### Phase A — Foundation (MUST)
 
-* [ ] Add OTel SDK bootstrap (`telemetry.ts`) and ensure it runs before other imports. ([Microsoft Learn][9])
-* [ ] Set resource attributes (`service.name`, `service.version`, `deployment.environment.name`). ([OpenTelemetry][4])
-* [ ] Export traces+metrics via OTLP to local Collector. ([OpenTelemetry][8])
-* [ ] Structured logs with trace_id/span_id injection. ([OpenTelemetry][6])
+- [ ] Add OTel SDK bootstrap (`telemetry.ts`) and ensure it runs before other imports. ([Microsoft Learn][9])
+- [ ] Set resource attributes (`service.name`, `service.version`, `deployment.environment.name`). ([OpenTelemetry][4])
+- [ ] Export traces+metrics via OTLP to local Collector. ([OpenTelemetry][8])
+- [ ] Structured logs with trace_id/span_id injection. ([OpenTelemetry][6])
 
 ### Phase B — Collector (MUST)
 
-* [ ] Enable OTLP receiver (grpc+http).
-* [ ] Add `memory_limiter` + `batch` processors and place batch after sampling/dropping logic. ([Grafana Labs][13])
-* [ ] Secure receiver/exporter channels; store secrets safely; minimize components. ([OpenTelemetry][12])
-* [ ] Export to selected backend(s) (AWS/GCP/Azure templates above).
+- [ ] Enable OTLP receiver (grpc+http).
+- [ ] Add `memory_limiter` + `batch` processors and place batch after sampling/dropping logic. ([Grafana Labs][13])
+- [ ] Secure receiver/exporter channels; store secrets safely; minimize components. ([OpenTelemetry][12])
+- [ ] Export to selected backend(s) (AWS/GCP/Azure templates above).
 
 ### Phase C — Signals and alerts (MUST)
 
-* [ ] Dashboards: latency p50/p95/p99, RPS, error rate, saturation, top endpoints.
-* [ ] SLO burn-rate alerts (fast+slow). ([Google Cloud Documentation][16])
-* [ ] Collector health alerts (drop counts, export errors, queue size).
+- [ ] Dashboards: latency p50/p95/p99, RPS, error rate, saturation, top endpoints.
+- [ ] SLO burn-rate alerts (fast+slow). ([Google Cloud Documentation][16])
+- [ ] Collector health alerts (drop counts, export errors, queue size).
 
 ### Phase D — Verification (MUST)
 
-* [ ] CI integration test asserting required telemetry fields exist and export succeeds.
-* [ ] Load test overhead budget documented.
+- [ ] CI integration test asserting required telemetry fields exist and export succeeds.
+- [ ] Load test overhead budget documented.
 
 ---
 
-[1]: https://opentelemetry.io/docs/collector/?utm_source=chatgpt.com "Collector"
-[2]: https://sre.google/sre-book/monitoring-distributed-systems/?utm_source=chatgpt.com "Chapter 6 - Monitoring Distributed Systems"
-[3]: https://opentelemetry.io/docs/concepts/semantic-conventions/?utm_source=chatgpt.com "Semantic Conventions"
-[4]: https://opentelemetry.io/docs/specs/semconv/resource/?utm_source=chatgpt.com "Resource semantic conventions"
-[5]: https://opentelemetry.io/docs/specs/semconv/resource/deployment-environment/ "Deployment | OpenTelemetry"
-[6]: https://opentelemetry.io/docs/specs/otel/logs/ "OpenTelemetry Logging | OpenTelemetry"
-[7]: https://opentelemetry.io/docs/languages/js/getting-started/nodejs/ "Node.js | OpenTelemetry"
-[8]: https://opentelemetry.io/docs/languages/sdk-configuration/otlp-exporter/?utm_source=chatgpt.com "OTLP Exporter Configuration"
-[9]: https://learn.microsoft.com/en-us/javascript/api/overview/azure/monitor-opentelemetry-readme?view=azure-node-latest "Azure Monitor OpenTelemetry for JavaScript | Microsoft Learn"
-[10]: https://opentelemetry.io/docs/zero-code/js/ "JavaScript zero-code instrumentation | OpenTelemetry"
-[11]: https://opentelemetry.io/docs/collector/scaling/?utm_source=chatgpt.com "Scaling the Collector"
-[12]: https://opentelemetry.io/docs/security/config-best-practices/ "Collector configuration best practices | OpenTelemetry"
-[13]: https://grafana.com/docs/agent/latest/flow/reference/components/otelcol.processor.batch/?utm_source=chatgpt.com "otelcol.processor.batch | Grafana Agent documentation"
-[14]: https://opentelemetry.io/docs/collector/extend/custom-component/connector/?utm_source=chatgpt.com "Build a connector"
-[15]: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/connector/spanmetricsconnector/README.md?utm_source=chatgpt.com "Span Metrics Connector - opentelemetry-collector-contrib"
-[16]: https://docs.cloud.google.com/stackdriver/docs/solutions/slo-monitoring/alerting-on-budget-burn-rate "Alerting on your burn rate  |  Google Cloud Observability  |  Google Cloud Documentation"
-[17]: https://docs.aws.amazon.com/xray/latest/devguide/xray-services-adot.html "AWS Distro for OpenTelemetry and AWS X-Ray - AWS X-Ray"
-[18]: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/awsxrayexporter/README.md?utm_source=chatgpt.com "AWS X-Ray Tracing Exporter"
-[19]: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/awsemfexporter/README.md?utm_source=chatgpt.com "README.md - AWS CloudWatch EMF Exporter"
-[20]: https://aws-otel.github.io/docs/getting-started/adot-eks-add-on/config-container-logs?utm_source=chatgpt.com "Container Logs Collector Configuration"
-[21]: https://cloud.google.com/blog/products/management-tools/opentelemetry-now-in-google-cloud-observability "OpenTelemetry now in Google Cloud Observability | Google Cloud Blog"
-[22]: https://docs.cloud.google.com/stackdriver/docs/managed-prometheus?utm_source=chatgpt.com "Google Cloud Managed Service for Prometheus"
-[23]: https://docs.cloud.google.com/stackdriver/docs/instrumentation/opentelemetry-collector-gce?utm_source=chatgpt.com "Deploy Google-Built OpenTelemetry Collector on Compute ..."
-[24]: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/googlecloudexporter/README.md?utm_source=chatgpt.com "Google Cloud Exporter - opentelemetry-collector-contrib"
-[25]: https://learn.microsoft.com/en-us/azure/azure-monitor/app/opentelemetry-configuration?utm_source=chatgpt.com "Configure Azure Monitor OpenTelemetry"
-[26]: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/azuremonitorexporter/README.md?utm_source=chatgpt.com "Azure Monitor Exporter - opentelemetry-collector-contrib"
+[1]: https://opentelemetry.io/docs/collector/?utm_source=chatgpt.com 'Collector'
+[2]: https://sre.google/sre-book/monitoring-distributed-systems/?utm_source=chatgpt.com 'Chapter 6 - Monitoring Distributed Systems'
+[3]: https://opentelemetry.io/docs/concepts/semantic-conventions/?utm_source=chatgpt.com 'Semantic Conventions'
+[4]: https://opentelemetry.io/docs/specs/semconv/resource/?utm_source=chatgpt.com 'Resource semantic conventions'
+[5]: https://opentelemetry.io/docs/specs/semconv/resource/deployment-environment/ 'Deployment | OpenTelemetry'
+[6]: https://opentelemetry.io/docs/specs/otel/logs/ 'OpenTelemetry Logging | OpenTelemetry'
+[7]: https://opentelemetry.io/docs/languages/js/getting-started/nodejs/ 'Node.js | OpenTelemetry'
+[8]: https://opentelemetry.io/docs/languages/sdk-configuration/otlp-exporter/?utm_source=chatgpt.com 'OTLP Exporter Configuration'
+[9]: https://learn.microsoft.com/en-us/javascript/api/overview/azure/monitor-opentelemetry-readme?view=azure-node-latest 'Azure Monitor OpenTelemetry for JavaScript | Microsoft Learn'
+[10]: https://opentelemetry.io/docs/zero-code/js/ 'JavaScript zero-code instrumentation | OpenTelemetry'
+[11]: https://opentelemetry.io/docs/collector/scaling/?utm_source=chatgpt.com 'Scaling the Collector'
+[12]: https://opentelemetry.io/docs/security/config-best-practices/ 'Collector configuration best practices | OpenTelemetry'
+[13]: https://grafana.com/docs/agent/latest/flow/reference/components/otelcol.processor.batch/?utm_source=chatgpt.com 'otelcol.processor.batch | Grafana Agent documentation'
+[14]: https://opentelemetry.io/docs/collector/extend/custom-component/connector/?utm_source=chatgpt.com 'Build a connector'
+[15]: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/connector/spanmetricsconnector/README.md?utm_source=chatgpt.com 'Span Metrics Connector - opentelemetry-collector-contrib'
+[16]: https://docs.cloud.google.com/stackdriver/docs/solutions/slo-monitoring/alerting-on-budget-burn-rate 'Alerting on your burn rate  |  Google Cloud Observability  |  Google Cloud Documentation'
+[17]: https://docs.aws.amazon.com/xray/latest/devguide/xray-services-adot.html 'AWS Distro for OpenTelemetry and AWS X-Ray - AWS X-Ray'
+[18]: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/awsxrayexporter/README.md?utm_source=chatgpt.com 'AWS X-Ray Tracing Exporter'
+[19]: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/awsemfexporter/README.md?utm_source=chatgpt.com 'README.md - AWS CloudWatch EMF Exporter'
+[20]: https://aws-otel.github.io/docs/getting-started/adot-eks-add-on/config-container-logs?utm_source=chatgpt.com 'Container Logs Collector Configuration'
+[21]: https://cloud.google.com/blog/products/management-tools/opentelemetry-now-in-google-cloud-observability 'OpenTelemetry now in Google Cloud Observability | Google Cloud Blog'
+[22]: https://docs.cloud.google.com/stackdriver/docs/managed-prometheus?utm_source=chatgpt.com 'Google Cloud Managed Service for Prometheus'
+[23]: https://docs.cloud.google.com/stackdriver/docs/instrumentation/opentelemetry-collector-gce?utm_source=chatgpt.com 'Deploy Google-Built OpenTelemetry Collector on Compute ...'
+[24]: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/googlecloudexporter/README.md?utm_source=chatgpt.com 'Google Cloud Exporter - opentelemetry-collector-contrib'
+[25]: https://learn.microsoft.com/en-us/azure/azure-monitor/app/opentelemetry-configuration?utm_source=chatgpt.com 'Configure Azure Monitor OpenTelemetry'
+[26]: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/exporter/azuremonitorexporter/README.md?utm_source=chatgpt.com 'Azure Monitor Exporter - opentelemetry-collector-contrib'

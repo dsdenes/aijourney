@@ -1,11 +1,11 @@
-import { Inject, Injectable, type NestMiddleware } from "@nestjs/common";
-import type { NextFunction, Request, Response } from "express";
-import { UsersRepository } from "../../users/users.repository";
+import { Inject, Injectable, type NestMiddleware } from '@nestjs/common';
+import type { NextFunction, Request, Response } from 'express';
+import { UsersRepository } from '../../users/users.repository';
 
 export interface RequestWithTenant extends Request {
-	tenantId?: string;
-	orgRole?: string;
-	globalRole?: string;
+  tenantId?: string;
+  orgRole?: string;
+  globalRole?: string;
 }
 
 /**
@@ -16,29 +16,29 @@ export interface RequestWithTenant extends Request {
  */
 @Injectable()
 export class TenantContextMiddleware implements NestMiddleware {
-	constructor(
-		@Inject(UsersRepository)
-		private readonly usersRepo: UsersRepository,
-	) {}
+  constructor(
+    @Inject(UsersRepository)
+    private readonly usersRepo: UsersRepository,
+  ) {}
 
-	async use(req: RequestWithTenant, _res: Response, next: NextFunction) {
-		const user = (req as unknown as Record<string, unknown>).user as
-			| { userId: string; email: string }
-			| undefined;
+  async use(req: RequestWithTenant, _res: Response, next: NextFunction) {
+    const user = (req as unknown as Record<string, unknown>).user as
+      | { userId: string; email: string }
+      | undefined;
 
-		if (user?.email) {
-			try {
-				const dbUser = await this.usersRepo.getByEmail(user.email);
-				if (dbUser) {
-					req.tenantId = dbUser.tenantId;
-					req.orgRole = dbUser.orgRole;
-					req.globalRole = dbUser.globalRole;
-				}
-			} catch {
-				// User might not exist yet — tenant context will be empty
-			}
-		}
+    if (user?.email) {
+      try {
+        const dbUser = await this.usersRepo.getByEmail(user.email);
+        if (dbUser) {
+          req.tenantId = dbUser.tenantId;
+          req.orgRole = dbUser.orgRole;
+          req.globalRole = dbUser.globalRole;
+        }
+      } catch {
+        // User might not exist yet — tenant context will be empty
+      }
+    }
 
-		next();
-	}
+    next();
+  }
 }

@@ -42,13 +42,13 @@ This plan targets a **single MVP environment** with cost-optimized infrastructur
 
 ### Non-Negotiables
 
-| # | Constraint | Enforcement Mechanism |
-|---|---|---|
-| 1 | Google Workspace SSO restricted to `mito.hu` domain | Amazon Cognito federation + app-level domain check |
-| 2 | All LLM runs are manually started/stopped | RunRequest → Approval → Execution state machine |
-| 3 | Measurable journeys with KPIs | Per-step outcome rubrics, journey progress %, org-level dashboards |
-| 4 | No unattended background LLM execution | Concurrency caps, per-run token/time budgets, audit logs |
-| 5 | Cost governance | Per-run budgets, daily cost alarms, model routing rules |
+| #   | Constraint                                          | Enforcement Mechanism                                              |
+| --- | --------------------------------------------------- | ------------------------------------------------------------------ |
+| 1   | Google Workspace SSO restricted to `mito.hu` domain | Amazon Cognito federation + app-level domain check                 |
+| 2   | All LLM runs are manually started/stopped           | RunRequest → Approval → Execution state machine                    |
+| 3   | Measurable journeys with KPIs                       | Per-step outcome rubrics, journey progress %, org-level dashboards |
+| 4   | No unattended background LLM execution              | Concurrency caps, per-run token/time budgets, audit logs           |
+| 5   | Cost governance                                     | Per-run budgets, daily cost alarms, model routing rules            |
 
 ### Two Backend Subsystems
 
@@ -133,17 +133,17 @@ MVP cost strategy:
 
 ### Communication Patterns
 
-| Source | Target | Protocol | Auth |
-|---|---|---|---|
-| Svelte frontend | API Service | HTTPS REST | Cognito JWT |
-| API Service | Orchestration Svc | BullMQ (ElastiCache Redis) | Internal network |
-| Orchestration Svc | OpenAI | HTTPS | API key (Secrets Manager) |
-| Orchestration Svc | Bedrock KB | AWS SDK | IAM task role |
-| KB Builder Svc | Crawler targets | HTTPS | N/A (public) |
-| KB Builder Svc | S3 | AWS SDK | IAM task role |
-| KB Builder Svc | Bedrock KB Ingest | AWS SDK | IAM task role |
-| All services | DynamoDB | AWS SDK (HTTPS) | IAM task role |
-| All services | ElastiCache | Redis protocol | Auth token (Secrets Manager) |
+| Source            | Target            | Protocol                   | Auth                         |
+| ----------------- | ----------------- | -------------------------- | ---------------------------- |
+| Svelte frontend   | API Service       | HTTPS REST                 | Cognito JWT                  |
+| API Service       | Orchestration Svc | BullMQ (ElastiCache Redis) | Internal network             |
+| Orchestration Svc | OpenAI            | HTTPS                      | API key (Secrets Manager)    |
+| Orchestration Svc | Bedrock KB        | AWS SDK                    | IAM task role                |
+| KB Builder Svc    | Crawler targets   | HTTPS                      | N/A (public)                 |
+| KB Builder Svc    | S3                | AWS SDK                    | IAM task role                |
+| KB Builder Svc    | Bedrock KB Ingest | AWS SDK                    | IAM task role                |
+| All services      | DynamoDB          | AWS SDK (HTTPS)            | IAM task role                |
+| All services      | ElastiCache       | Redis protocol             | Auth token (Secrets Manager) |
 
 ---
 
@@ -351,63 +351,64 @@ All tables use **on-demand billing** (pay-per-request) — ideal for MVP with un
 
 #### `users`
 
-| Key | Attribute | Type |
-|---|---|---|
-| **PK** | `id` | String (ULID) |
+| Key    | Attribute | Type          |
+| ------ | --------- | ------------- |
+| **PK** | `id`      | String (ULID) |
 
 ```typescript
 interface User {
-  id: string;                    // ULID
-  googleId: string;              // Google Workspace unique ID
-  email: string;                 // Must end with @mito.hu
+  id: string; // ULID
+  googleId: string; // Google Workspace unique ID
+  email: string; // Must end with @mito.hu
   name: string;
   avatarUrl?: string;
   role: 'employee' | 'admin';
   department?: string;
   jobTitle?: string;
-  jobDescription?: string;       // Free-text from onboarding
+  jobDescription?: string; // Free-text from onboarding
   onboardingComplete: boolean;
   preferences: {
-    tools?: string[];            // Tools they use
-    workflows?: string[];        // Key workflows
+    tools?: string[]; // Tools they use
+    workflows?: string[]; // Key workflows
     comfortLevel?: 'beginner' | 'intermediate' | 'advanced';
     goals?: string[];
   };
-  createdAt: string;             // ISO 8601
+  createdAt: string; // ISO 8601
   updatedAt: string;
   lastLoginAt: string;
 }
 ```
 
 **GSIs**:
+
 - `email-index`: PK=`email` — unique lookup by email
 - `googleId-index`: PK=`googleId` — unique lookup by Google ID
 
 #### `journeys`
 
-| Key | Attribute | Type |
-|---|---|---|
-| **PK** | `id` | String (ULID) |
+| Key    | Attribute | Type          |
+| ------ | --------- | ------------- |
+| **PK** | `id`      | String (ULID) |
 
 ```typescript
 interface Journey {
-  id: string;                    // ULID
-  userId: string;                // FK → users.id
-  version: number;               // Incremented on regeneration
+  id: string; // ULID
+  userId: string; // FK → users.id
+  version: number; // Incremented on regeneration
   title: string;
   description: string;
   status: 'draft' | 'active' | 'completed' | 'archived';
   currentLevel: 'L0' | 'L1' | 'L2' | 'L3' | 'L4';
   competencyAreas: string[];
   generatedBy: {
-    runRequestId: string;        // FK → run_requests.id
+    runRequestId: string; // FK → run_requests.id
     model: string;
     promptVersion: string;
   };
   metadata: {
     estimatedDurationWeeks: number;
     difficultyProgression: string;
-    roleCategory: string;        // engineering, PM, design, HR, finance, sales
+    roleCategory: string; // engineering, PM, design, HR, finance, sales
   };
   createdAt: string;
   updatedAt: string;
@@ -415,28 +416,29 @@ interface Journey {
 ```
 
 **GSIs**:
+
 - `userId-status-index`: PK=`userId`, SK=`status` — list journeys by user and status
 - `userId-createdAt-index`: PK=`userId`, SK=`createdAt` — list journeys by user chronologically
 
 #### `steps`
 
-| Key | Attribute | Type |
-|---|---|---|
+| Key    | Attribute   | Type          |
+| ------ | ----------- | ------------- |
 | **PK** | `journeyId` | String (ULID) |
-| **SK** | `id` | String (ULID) |
+| **SK** | `id`        | String (ULID) |
 
 Steps use the journey as PK to enable efficient `Query` for all steps in a journey.
 
 ```typescript
 interface Step {
-  id: string;                    // ULID
-  journeyId: string;             // PK — FK → journeys.id
+  id: string; // ULID
+  journeyId: string; // PK — FK → journeys.id
   level: 'L0' | 'L1' | 'L2' | 'L3' | 'L4';
-  order: number;                 // Within level
+  order: number; // Within level
   title: string;
   description: string;
-  task: string;                  // What the user should do
-  expectedOutput: string;        // What "done" looks like
+  task: string; // What the user should do
+  expectedOutput: string; // What "done" looks like
   evidenceType: 'file' | 'screenshot' | 'url' | 'text' | 'metric';
   kpiTargets: {
     kpiId: string;
@@ -455,18 +457,19 @@ interface Step {
 ```
 
 **GSIs**:
+
 - `journeyId-level-order-index`: PK=`journeyId`, SK=`level#order` (composite sort key) — ordered step listing
 
 #### `kpis`
 
-| Key | Attribute | Type |
-|---|---|---|
-| **PK** | `id` | String (ULID) |
+| Key    | Attribute | Type          |
+| ------ | --------- | ------------- |
+| **PK** | `id`      | String (ULID) |
 
 ```typescript
 interface KPI {
-  id: string;                    // ULID
-  name: string;                  // e.g., "Output Quality Score"
+  id: string; // ULID
+  name: string; // e.g., "Output Quality Score"
   description: string;
   category: 'step_outcome' | 'journey_progress' | 'org_level';
   measurementType: 'numeric' | 'percentage' | 'boolean' | 'rubric';
@@ -478,30 +481,31 @@ interface KPI {
   unit?: string;
   direction: 'higher_is_better' | 'lower_is_better' | 'target';
   targetValue?: number;
-  isGlobal: boolean;             // true = org-level standard KPI
+  isGlobal: boolean; // true = org-level standard KPI
   createdAt: string;
 }
 ```
 
 **GSIs**:
+
 - `category-index`: PK=`category` — list KPIs by category
 - `isGlobal-index`: PK=`isGlobal` — list global KPIs
 
 #### `evidence`
 
-| Key | Attribute | Type |
-|---|---|---|
-| **PK** | `stepId` | String (ULID) |
-| **SK** | `id` | String (ULID) |
+| Key    | Attribute | Type          |
+| ------ | --------- | ------------- |
+| **PK** | `stepId`  | String (ULID) |
+| **SK** | `id`      | String (ULID) |
 
 ```typescript
 interface Evidence {
-  id: string;                    // ULID
-  stepId: string;                // PK — FK → steps.id
+  id: string; // ULID
+  stepId: string; // PK — FK → steps.id
   userId: string;
   type: 'file' | 'screenshot' | 'url' | 'text' | 'metric';
   content: {
-    s3Key?: string;              // For file/screenshot uploads
+    s3Key?: string; // For file/screenshot uploads
     url?: string;
     text?: string;
     metricValue?: number;
@@ -522,24 +526,32 @@ interface Evidence {
 ```
 
 **GSIs**:
+
 - `userId-submittedAt-index`: PK=`userId`, SK=`submittedAt` — user's evidence timeline
 - `reviewStatus-index`: PK=`reviewStatus` — list pending reviews
 
 #### `run_requests`
 
-| Key | Attribute | Type |
-|---|---|---|
-| **PK** | `id` | String (ULID) |
+| Key    | Attribute | Type          |
+| ------ | --------- | ------------- |
+| **PK** | `id`      | String (ULID) |
 
 ```typescript
 interface RunRequest {
-  id: string;                    // ULID
-  userId: string;                // Who initiated
+  id: string; // ULID
+  userId: string; // Who initiated
   purpose: 'summarization' | 'personalization' | 'kb_chat' | 'kb_ingestion';
-  status: 'PENDING' | 'APPROVED' | 'RUNNING' | 'COMPLETED' | 'FAILED'
-        | 'CANCEL_REQUESTED' | 'CANCELLED' | 'REJECTED';
+  status:
+    | 'PENDING'
+    | 'APPROVED'
+    | 'RUNNING'
+    | 'COMPLETED'
+    | 'FAILED'
+    | 'CANCEL_REQUESTED'
+    | 'CANCELLED'
+    | 'REJECTED';
   inputs: {
-    prompt?: string;             // Hashed or redacted for audit
+    prompt?: string; // Hashed or redacted for audit
     promptHash: string;
     context?: Record<string, unknown>;
     sourceDocIds?: string[];
@@ -574,29 +586,39 @@ interface RunRequest {
 ```
 
 **GSIs**:
+
 - `userId-status-index`: PK=`userId`, SK=`status` — user's runs by status
 - `status-createdAt-index`: PK=`status`, SK=`createdAt` — admin queue view
 - `purpose-status-index`: PK=`purpose`, SK=`status` — runs by type
 
 #### `run_logs`
 
-| Key | Attribute | Type |
-|---|---|---|
-| **PK** | `runRequestId` | String (ULID) |
-| **SK** | `timestamp` | String (ISO 8601) |
+| Key    | Attribute      | Type              |
+| ------ | -------------- | ----------------- |
+| **PK** | `runRequestId` | String (ULID)     |
+| **SK** | `timestamp`    | String (ISO 8601) |
 
 Immutable append-only table — no updates or deletes.
 
 ```typescript
 interface RunLog {
-  runRequestId: string;          // PK
-  timestamp: string;             // SK (ISO 8601)
-  event: 'created' | 'approved' | 'rejected' | 'started' | 'progress'
-       | 'cancel_requested' | 'cancelled' | 'completed' | 'failed'
-       | 'budget_warning' | 'budget_exceeded';
+  runRequestId: string; // PK
+  timestamp: string; // SK (ISO 8601)
+  event:
+    | 'created'
+    | 'approved'
+    | 'rejected'
+    | 'started'
+    | 'progress'
+    | 'cancel_requested'
+    | 'cancelled'
+    | 'completed'
+    | 'failed'
+    | 'budget_warning'
+    | 'budget_exceeded';
   actor: {
     userId?: string;
-    system?: string;             // 'worker', 'budget-enforcer', etc.
+    system?: string; // 'worker', 'budget-enforcer', etc.
   };
   details: Record<string, unknown>;
   tokensUsedSoFar?: number;
@@ -608,21 +630,28 @@ No GSIs needed — always queried by `runRequestId` with timestamp range.
 
 #### `articles`
 
-| Key | Attribute | Type |
-|---|---|---|
-| **PK** | `id` | String (ULID) |
+| Key    | Attribute | Type          |
+| ------ | --------- | ------------- |
+| **PK** | `id`      | String (ULID) |
 
 ```typescript
 interface Article {
-  id: string;                    // ULID
-  url: string;                   // Canonical URL
+  id: string; // ULID
+  url: string; // Canonical URL
   title: string;
-  source: string;                // Domain or author attribution
+  source: string; // Domain or author attribution
   fetchedAt: string;
-  contentHash: string;           // SHA-256 of extracted text
-  s3Key: string;                 // Raw HTML/text in S3
-  status: 'fetched' | 'extracted' | 'deduped' | 'quality_passed'
-        | 'quality_failed' | 'summarized' | 'ingested' | 'rejected';
+  contentHash: string; // SHA-256 of extracted text
+  s3Key: string; // Raw HTML/text in S3
+  status:
+    | 'fetched'
+    | 'extracted'
+    | 'deduped'
+    | 'quality_passed'
+    | 'quality_failed'
+    | 'summarized'
+    | 'ingested'
+    | 'rejected';
   qualityScore?: number;
   metadata: {
     publishedAt?: string;
@@ -636,35 +665,36 @@ interface Article {
     similarTo?: string;
     similarityScore?: number;
   };
-  ingestionRunId?: string;       // FK → run_requests.id
+  ingestionRunId?: string; // FK → run_requests.id
   createdAt: string;
   updatedAt: string;
 }
 ```
 
 **GSIs**:
+
 - `url-index`: PK=`url` — unique lookup by URL
 - `status-index`: PK=`status` — list articles in pipeline stage
 - `contentHash-index`: PK=`contentHash` — deduplication lookup
 
 #### `summaries`
 
-| Key | Attribute | Type |
-|---|---|---|
+| Key    | Attribute   | Type          |
+| ------ | ----------- | ------------- |
 | **PK** | `articleId` | String (ULID) |
-| **SK** | `id` | String (ULID) |
+| **SK** | `id`        | String (ULID) |
 
 ```typescript
 interface Summary {
-  id: string;                    // ULID
-  articleId: string;             // PK — FK → articles.id
+  id: string; // ULID
+  articleId: string; // PK — FK → articles.id
   runRequestId: string;
   version: number;
   content: {
     title: string;
     keyPoints: string[];
-    dos: string[];               // Best practices
-    donts: string[];             // Anti-patterns
+    dos: string[]; // Best practices
+    donts: string[]; // Anti-patterns
     tags: string[];
     difficulty: 'beginner' | 'intermediate' | 'advanced';
     roleRelevance: {
@@ -688,23 +718,24 @@ No additional GSIs needed — always queried by `articleId`.
 
 #### `events`
 
-| Key | Attribute | Type |
-|---|---|---|
-| **PK** | `userId` | String (ULID) |
+| Key    | Attribute           | Type               |
+| ------ | ------------------- | ------------------ |
+| **PK** | `userId`            | String (ULID)      |
 | **SK** | `timestamp#eventId` | String (composite) |
 
 ```typescript
 interface UserEvent {
-  userId: string;                // PK
-  timestamp: string;             // Part of SK (ISO 8601)
-  eventId: string;               // Part of SK (ULID, for uniqueness)
-  event: string;                 // e.g., 'journey.started', 'step.completed', 'kb.query'
+  userId: string; // PK
+  timestamp: string; // Part of SK (ISO 8601)
+  eventId: string; // Part of SK (ULID, for uniqueness)
+  event: string; // e.g., 'journey.started', 'step.completed', 'kb.query'
   properties: Record<string, unknown>;
   sessionId: string;
 }
 ```
 
 **GSIs**:
+
 - `event-timestamp-index`: PK=`event`, SK=`timestamp` — query events by type across all users
 
 ### 4.2 DynamoDB Design Notes
@@ -712,6 +743,7 @@ interface UserEvent {
 **Single-table vs multi-table**: This plan uses **multi-table** design (one table per entity) for simplicity and developer ergonomics. Single-table design is more efficient for Fargate → DynamoDB queries but significantly harder to maintain. For an MVP with on-demand billing and low traffic, multi-table is the right trade-off.
 
 **Access patterns covered by table + GSI design**:
+
 - Get user by ID, email, or Google ID ✅
 - List journeys by user ✅
 - Get all steps for a journey (ordered) ✅
@@ -722,6 +754,7 @@ interface UserEvent {
 - List articles by pipeline status ✅
 
 **DynamoDB limits to watch**:
+
 - Item size max: 400 KB (summaries with long content may need S3 offloading)
 - GSI eventual consistency (acceptable for MVP)
 - No cross-table transactions (use application-level saga for multi-table writes)
@@ -759,26 +792,26 @@ session:{sessionId}               # Cached session data
 
 #### Levels
 
-| Level | Name | Description | Typical Duration |
-|---|---|---|---|
-| L0 | Awareness | Understand what AI tools exist, basic concepts | 1–2 weeks |
-| L1 | Exploration | Try basic AI tasks with guidance | 2–3 weeks |
-| L2 | Integration | Incorporate AI into daily workflows | 3–4 weeks |
-| L3 | Optimization | Measure impact, refine techniques, mentor others | 4–6 weeks |
-| L4 | Innovation | Design new AI-powered workflows, share org-wide | Ongoing |
+| Level | Name         | Description                                      | Typical Duration |
+| ----- | ------------ | ------------------------------------------------ | ---------------- |
+| L0    | Awareness    | Understand what AI tools exist, basic concepts   | 1–2 weeks        |
+| L1    | Exploration  | Try basic AI tasks with guidance                 | 2–3 weeks        |
+| L2    | Integration  | Incorporate AI into daily workflows              | 3–4 weeks        |
+| L3    | Optimization | Measure impact, refine techniques, mentor others | 4–6 weeks        |
+| L4    | Innovation   | Design new AI-powered workflows, share org-wide  | Ongoing          |
 
 #### Competency Areas
 
-| Area | Description | Applicable Roles |
-|---|---|---|
-| Prompt Engineering | Effective prompt construction and iteration | All |
-| Code Generation | Using AI for writing, reviewing, debugging code | Engineering |
-| Document Generation | AI-assisted writing, summarization, formatting | All |
-| Data Analysis | AI-powered data exploration and insight extraction | PM, Finance, Sales |
-| Design Assistance | AI tools for design ideation and iteration | Design |
-| Process Automation | Automating repetitive tasks with AI | All |
-| Information Synthesis | Using AI to research, summarize, and synthesize | All |
-| Critical Evaluation | Assessing AI outputs for accuracy and bias | All |
+| Area                  | Description                                        | Applicable Roles   |
+| --------------------- | -------------------------------------------------- | ------------------ |
+| Prompt Engineering    | Effective prompt construction and iteration        | All                |
+| Code Generation       | Using AI for writing, reviewing, debugging code    | Engineering        |
+| Document Generation   | AI-assisted writing, summarization, formatting     | All                |
+| Data Analysis         | AI-powered data exploration and insight extraction | PM, Finance, Sales |
+| Design Assistance     | AI tools for design ideation and iteration         | Design             |
+| Process Automation    | Automating repetitive tasks with AI                | All                |
+| Information Synthesis | Using AI to research, summarize, and synthesize    | All                |
+| Critical Evaluation   | Assessing AI outputs for accuracy and bias         | All                |
 
 ### 5.2 Step Template
 
@@ -825,35 +858,35 @@ Every step follows a deterministic structure:
 
 ### 6.1 Technology Choices
 
-| Decision | Choice | Rationale |
-|---|---|---|
-| Framework | SvelteKit (Svelte 5) | SSR capability, file-based routing, runes reactivity, excellent DX |
-| Rendering | Static + CSR (adapter-static) | Simple hosting on S3/CloudFront; API handles all dynamic data |
-| Styling | Tailwind CSS v4 | CSS-first config, `@theme` directive, zero-JS runtime, oxide engine |
-| State | Svelte 5 runes ($state, $derived, $effect) | Built-in fine-grained reactivity, replaces stores for component state |
-| Auth | Cognito-hosted UI → JWT → API validation | Offload SSO complexity to managed service |
-| Charts | Chart.js via svelte-chartjs | KPI progress visualization |
-| Stores | Svelte stores (for shared cross-component state) | Native, no extra dependency |
-| Testing | Vitest + Playwright | Unit + E2E |
+| Decision  | Choice                                           | Rationale                                                             |
+| --------- | ------------------------------------------------ | --------------------------------------------------------------------- |
+| Framework | SvelteKit (Svelte 5)                             | SSR capability, file-based routing, runes reactivity, excellent DX    |
+| Rendering | Static + CSR (adapter-static)                    | Simple hosting on S3/CloudFront; API handles all dynamic data         |
+| Styling   | Tailwind CSS v4                                  | CSS-first config, `@theme` directive, zero-JS runtime, oxide engine   |
+| State     | Svelte 5 runes ($state, $derived, $effect)       | Built-in fine-grained reactivity, replaces stores for component state |
+| Auth      | Cognito-hosted UI → JWT → API validation         | Offload SSO complexity to managed service                             |
+| Charts    | Chart.js via svelte-chartjs                      | KPI progress visualization                                            |
+| Stores    | Svelte stores (for shared cross-component state) | Native, no extra dependency                                           |
+| Testing   | Vitest + Playwright                              | Unit + E2E                                                            |
 
 > **Decision needed (Phase 0)**: Static (SPA) vs SSR. Recommendation: start with static/SPA to simplify hosting. Switch to SSR only if SEO or initial load performance requires it.
 
 ### 6.2 Routes & Pages
 
-| Route | Page | Auth Required | Role |
-|---|---|---|---|
-| `/login` | SSO redirect to Cognito | No | — |
-| `/callback` | Handle Cognito callback, create session | No | — |
-| `/onboarding` | Job description + preferences intake | Yes | Employee |
-| `/dashboard` | Journey overview, KPI summary, recent activity | Yes | Employee |
-| `/journey/:id` | Journey detail with level tabs and step list | Yes | Employee |
-| `/journey/:id/step/:stepId` | Individual step with task, evidence upload, KPI form | Yes | Employee |
-| `/kb` | NotebookLM-like chat interface | Yes | Employee |
-| `/profile` | Edit profile, view history | Yes | Employee |
-| `/admin/runs` | Run queue with approve/reject/stop controls | Yes | Admin |
-| `/admin/ingestion` | KB ingestion pipeline control | Yes | Admin |
-| `/admin/users` | User list, role management | Yes | Admin |
-| `/admin/analytics` | Org-level KPI dashboards | Yes | Admin |
+| Route                       | Page                                                 | Auth Required | Role     |
+| --------------------------- | ---------------------------------------------------- | ------------- | -------- |
+| `/login`                    | SSO redirect to Cognito                              | No            | —        |
+| `/callback`                 | Handle Cognito callback, create session              | No            | —        |
+| `/onboarding`               | Job description + preferences intake                 | Yes           | Employee |
+| `/dashboard`                | Journey overview, KPI summary, recent activity       | Yes           | Employee |
+| `/journey/:id`              | Journey detail with level tabs and step list         | Yes           | Employee |
+| `/journey/:id/step/:stepId` | Individual step with task, evidence upload, KPI form | Yes           | Employee |
+| `/kb`                       | NotebookLM-like chat interface                       | Yes           | Employee |
+| `/profile`                  | Edit profile, view history                           | Yes           | Employee |
+| `/admin/runs`               | Run queue with approve/reject/stop controls          | Yes           | Admin    |
+| `/admin/ingestion`          | KB ingestion pipeline control                        | Yes           | Admin    |
+| `/admin/users`              | User list, role management                           | Yes           | Admin    |
+| `/admin/analytics`          | Org-level KPI dashboards                             | Yes           | Admin    |
 
 ### 6.3 Component Architecture
 
@@ -928,6 +961,7 @@ The KB chat follows a "NotebookLM-like" single-input pattern:
 ```
 
 Key behaviors:
+
 - **Start** button creates a RunRequest (auto-approved for user's own chat runs).
 - **Stop** button sets `CANCEL_REQUESTED` on the RunRequest.
 - Token count, duration, and estimated cost shown per response.
@@ -957,103 +991,103 @@ Key behaviors:
 
 ### 7.1 Technology Choices
 
-| Decision | Choice | Rationale |
-|---|---|---|
-| Runtime | Node.js 24 LTS | Latest LTS, native fetch, performance improvements |
-| Framework | NestJS | Modular architecture, built-in DI, guards/interceptors, enterprise patterns |
-| Language | TypeScript (strict mode) | Type safety across stack |
-| Database | DynamoDB (on-demand) | Fully managed, zero ops, pay-per-request, free tier |
-| DB Client | @aws-sdk/lib-dynamodb | Official AWS SDK v3 DynamoDB Document Client |
-| Validation | Zod + nestjs-zod | Shared schemas with frontend, excellent TS integration |
-| Queue | @nestjs/bullmq (BullMQ 5) | Redis-backed, reliable, good dashboard (Bull Board) |
-| Cache/Queue | ElastiCache (Redis) | Managed Redis for BullMQ, rate limits, locks |
-| Auth | @nestjs/passport + passport-jwt + jwks-rsa | Validate Cognito JWTs via NestJS guards |
-| Observability | @opentelemetry/sdk-node + auto-instrumentations | Distributed tracing, metrics, log correlation |
-| Testing | Vitest | Fast, native ESM, compatible with shared package |
-| API Docs | @nestjs/swagger | Auto-generated OpenAPI from decorators + Zod schemas |
+| Decision      | Choice                                          | Rationale                                                                   |
+| ------------- | ----------------------------------------------- | --------------------------------------------------------------------------- |
+| Runtime       | Node.js 24 LTS                                  | Latest LTS, native fetch, performance improvements                          |
+| Framework     | NestJS                                          | Modular architecture, built-in DI, guards/interceptors, enterprise patterns |
+| Language      | TypeScript (strict mode)                        | Type safety across stack                                                    |
+| Database      | DynamoDB (on-demand)                            | Fully managed, zero ops, pay-per-request, free tier                         |
+| DB Client     | @aws-sdk/lib-dynamodb                           | Official AWS SDK v3 DynamoDB Document Client                                |
+| Validation    | Zod + nestjs-zod                                | Shared schemas with frontend, excellent TS integration                      |
+| Queue         | @nestjs/bullmq (BullMQ 5)                       | Redis-backed, reliable, good dashboard (Bull Board)                         |
+| Cache/Queue   | ElastiCache (Redis)                             | Managed Redis for BullMQ, rate limits, locks                                |
+| Auth          | @nestjs/passport + passport-jwt + jwks-rsa      | Validate Cognito JWTs via NestJS guards                                     |
+| Observability | @opentelemetry/sdk-node + auto-instrumentations | Distributed tracing, metrics, log correlation                               |
+| Testing       | Vitest                                          | Fast, native ESM, compatible with shared package                            |
+| API Docs      | @nestjs/swagger                                 | Auto-generated OpenAPI from decorators + Zod schemas                        |
 
 ### 7.2 API Endpoints
 
 #### Auth
 
-| Method | Path | Description | Auth |
-|---|---|---|---|
-| `POST` | `/api/auth/token` | Exchange Cognito auth code for session | No |
-| `POST` | `/api/auth/refresh` | Refresh access token | Cookie |
-| `POST` | `/api/auth/logout` | Clear session | Yes |
-| `GET` | `/api/auth/me` | Get current user profile | Yes |
+| Method | Path                | Description                            | Auth   |
+| ------ | ------------------- | -------------------------------------- | ------ |
+| `POST` | `/api/auth/token`   | Exchange Cognito auth code for session | No     |
+| `POST` | `/api/auth/refresh` | Refresh access token                   | Cookie |
+| `POST` | `/api/auth/logout`  | Clear session                          | Yes    |
+| `GET`  | `/api/auth/me`      | Get current user profile               | Yes    |
 
 #### Users
 
-| Method | Path | Description | Auth |
-|---|---|---|---|
-| `GET` | `/api/users` | List users (admin) | Admin |
-| `GET` | `/api/users/:id` | Get user profile | Owner/Admin |
-| `PATCH` | `/api/users/:id` | Update profile / onboarding | Owner/Admin |
-| `PATCH` | `/api/users/:id/role` | Change user role | Admin |
+| Method  | Path                  | Description                 | Auth        |
+| ------- | --------------------- | --------------------------- | ----------- |
+| `GET`   | `/api/users`          | List users (admin)          | Admin       |
+| `GET`   | `/api/users/:id`      | Get user profile            | Owner/Admin |
+| `PATCH` | `/api/users/:id`      | Update profile / onboarding | Owner/Admin |
+| `PATCH` | `/api/users/:id/role` | Change user role            | Admin       |
 
 #### Journeys
 
-| Method | Path | Description | Auth |
-|---|---|---|---|
-| `GET` | `/api/journeys` | List user's journeys | Yes |
-| `GET` | `/api/journeys/:id` | Get journey with steps | Yes (owner) |
-| `POST` | `/api/journeys/generate` | Create RunRequest for journey generation | Yes |
-| `PATCH` | `/api/journeys/:id` | Update journey status | Yes (owner) |
-| `POST` | `/api/journeys/:id/regenerate` | Create RunRequest for regeneration | Yes (owner) |
+| Method  | Path                           | Description                              | Auth        |
+| ------- | ------------------------------ | ---------------------------------------- | ----------- |
+| `GET`   | `/api/journeys`                | List user's journeys                     | Yes         |
+| `GET`   | `/api/journeys/:id`            | Get journey with steps                   | Yes (owner) |
+| `POST`  | `/api/journeys/generate`       | Create RunRequest for journey generation | Yes         |
+| `PATCH` | `/api/journeys/:id`            | Update journey status                    | Yes (owner) |
+| `POST`  | `/api/journeys/:id/regenerate` | Create RunRequest for regeneration       | Yes (owner) |
 
 #### Steps
 
-| Method | Path | Description | Auth |
-|---|---|---|---|
-| `GET` | `/api/journeys/:jid/steps` | List steps for journey | Yes (owner) |
-| `GET` | `/api/journeys/:jid/steps/:sid` | Get step detail | Yes (owner) |
-| `PATCH` | `/api/journeys/:jid/steps/:sid` | Update step status | Yes (owner) |
+| Method  | Path                            | Description            | Auth        |
+| ------- | ------------------------------- | ---------------------- | ----------- |
+| `GET`   | `/api/journeys/:jid/steps`      | List steps for journey | Yes (owner) |
+| `GET`   | `/api/journeys/:jid/steps/:sid` | Get step detail        | Yes (owner) |
+| `PATCH` | `/api/journeys/:jid/steps/:sid` | Update step status     | Yes (owner) |
 
 #### Evidence
 
-| Method | Path | Description | Auth |
-|---|---|---|---|
-| `POST` | `/api/steps/:sid/evidence` | Submit evidence (multipart) | Yes (owner) |
-| `GET` | `/api/steps/:sid/evidence` | List evidence for step | Yes (owner) |
-| `PATCH` | `/api/evidence/:eid/review` | Review evidence (peer/admin) | Reviewer |
+| Method  | Path                        | Description                  | Auth        |
+| ------- | --------------------------- | ---------------------------- | ----------- |
+| `POST`  | `/api/steps/:sid/evidence`  | Submit evidence (multipart)  | Yes (owner) |
+| `GET`   | `/api/steps/:sid/evidence`  | List evidence for step       | Yes (owner) |
+| `PATCH` | `/api/evidence/:eid/review` | Review evidence (peer/admin) | Reviewer    |
 
 #### KPIs
 
-| Method | Path | Description | Auth |
-|---|---|---|---|
-| `GET` | `/api/kpis` | List KPI definitions | Yes |
-| `GET` | `/api/users/:id/kpi-summary` | Get user's KPI aggregation | Owner/Admin |
-| `GET` | `/api/admin/kpi-dashboard` | Org-level KPI overview | Admin |
+| Method | Path                         | Description                | Auth        |
+| ------ | ---------------------------- | -------------------------- | ----------- |
+| `GET`  | `/api/kpis`                  | List KPI definitions       | Yes         |
+| `GET`  | `/api/users/:id/kpi-summary` | Get user's KPI aggregation | Owner/Admin |
+| `GET`  | `/api/admin/kpi-dashboard`   | Org-level KPI overview     | Admin       |
 
 #### Run Requests
 
-| Method | Path | Description | Auth |
-|---|---|---|---|
-| `POST` | `/api/runs` | Create run request | Yes |
-| `GET` | `/api/runs` | List user's run requests | Yes |
-| `GET` | `/api/runs/:id` | Get run detail + logs | Yes (owner/admin) |
-| `POST` | `/api/runs/:id/approve` | Approve run | Admin (or auto) |
-| `POST` | `/api/runs/:id/reject` | Reject run | Admin |
-| `POST` | `/api/runs/:id/cancel` | Request cancellation | Owner/Admin |
-| `GET` | `/api/admin/runs` | List all runs (with filters) | Admin |
+| Method | Path                    | Description                  | Auth              |
+| ------ | ----------------------- | ---------------------------- | ----------------- |
+| `POST` | `/api/runs`             | Create run request           | Yes               |
+| `GET`  | `/api/runs`             | List user's run requests     | Yes               |
+| `GET`  | `/api/runs/:id`         | Get run detail + logs        | Yes (owner/admin) |
+| `POST` | `/api/runs/:id/approve` | Approve run                  | Admin (or auto)   |
+| `POST` | `/api/runs/:id/reject`  | Reject run                   | Admin             |
+| `POST` | `/api/runs/:id/cancel`  | Request cancellation         | Owner/Admin       |
+| `GET`  | `/api/admin/runs`       | List all runs (with filters) | Admin             |
 
 #### KB Chat
 
-| Method | Path | Description | Auth |
-|---|---|---|---|
-| `POST` | `/api/kb/query` | Create KB chat run request | Yes |
-| `GET` | `/api/kb/history` | Get user's chat history | Yes |
+| Method | Path              | Description                | Auth |
+| ------ | ----------------- | -------------------------- | ---- |
+| `POST` | `/api/kb/query`   | Create KB chat run request | Yes  |
+| `GET`  | `/api/kb/history` | Get user's chat history    | Yes  |
 
 #### Admin — Ingestion
 
-| Method | Path | Description | Auth |
-|---|---|---|---|
-| `GET` | `/api/admin/ingestion/candidates` | List crawled article candidates | Admin |
-| `POST` | `/api/admin/ingestion/approve` | Approve articles for ingestion | Admin |
-| `POST` | `/api/admin/ingestion/start` | Start ingestion pipeline run | Admin |
-| `POST` | `/api/admin/ingestion/stop` | Stop ingestion pipeline | Admin |
-| `GET` | `/api/admin/ingestion/status` | Pipeline status | Admin |
+| Method | Path                              | Description                     | Auth  |
+| ------ | --------------------------------- | ------------------------------- | ----- |
+| `GET`  | `/api/admin/ingestion/candidates` | List crawled article candidates | Admin |
+| `POST` | `/api/admin/ingestion/approve`    | Approve articles for ingestion  | Admin |
+| `POST` | `/api/admin/ingestion/start`      | Start ingestion pipeline run    | Admin |
+| `POST` | `/api/admin/ingestion/stop`       | Stop ingestion pipeline         | Admin |
+| `GET`  | `/api/admin/ingestion/status`     | Pipeline status                 | Admin |
 
 ### 7.3 NestJS Module & Guard Architecture
 
@@ -1092,14 +1126,15 @@ All significant user actions emit events for adoption metrics (stored in DynamoD
 interface UserEvent {
   userId: string;
   timestamp: string;
-  eventId: string;               // ULID
-  event: string;                 // e.g., 'journey.started', 'step.completed', 'kb.query'
+  eventId: string; // ULID
+  event: string; // e.g., 'journey.started', 'step.completed', 'kb.query'
   properties: Record<string, unknown>;
   sessionId: string;
 }
 ```
 
 Events emitted:
+
 - `auth.login`, `auth.logout`
 - `onboarding.completed`
 - `journey.generated`, `journey.regenerated`, `journey.activated`
@@ -1174,11 +1209,11 @@ Events emitted:
 // Pseudocode
 class Crawler {
   // Configuration
-  seeds: SeedConfig[];           // URL patterns with depth limits
-  allowlist: string[];           // Allowed domains
-  maxDepth: number;              // Default: 2
-  maxPagesPerSeed: number;       // Default: 50
-  politeDelayMs: number;         // Default: 2000 (robots.txt aware)
+  seeds: SeedConfig[]; // URL patterns with depth limits
+  allowlist: string[]; // Allowed domains
+  maxDepth: number; // Default: 2
+  maxPagesPerSeed: number; // Default: 50
+  politeDelayMs: number; // Default: 2000 (robots.txt aware)
   userAgent: string;
 
   async crawl(seed: SeedConfig): Promise<CrawlResult[]> {
@@ -1197,6 +1232,7 @@ class Crawler {
 ```
 
 **Initial seed list**:
+
 ```json
 {
   "seeds": [
@@ -1207,9 +1243,7 @@ class Crawler {
       "priority": "high"
     }
   ],
-  "allowlist": [
-    "simonwillison.net"
-  ]
+  "allowlist": ["simonwillison.net"]
 }
 ```
 
@@ -1260,10 +1294,10 @@ class Deduplicator {
 class QualityFilter {
   criteria = {
     minWordCount: 200,
-    minContentLength: 500,       // characters
-    maxAge: 365 * 3,             // days (3 years)
+    minContentLength: 500, // characters
+    maxAge: 365 * 3, // days (3 years)
     allowedDomains: Set<string>, // from admin config
-    recencyBoost: true,          // newer articles score higher
+    recencyBoost: true, // newer articles score higher
   };
 
   async filter(articleId: ObjectId): Promise<boolean> {
@@ -1312,6 +1346,7 @@ class Summarizer {
 ```
 
 **Summarization prompt template**:
+
 ```
 SYSTEM:
 You are an AI knowledge curator. Your task is to create a structured summary
@@ -1365,14 +1400,14 @@ class BedrockIngestor {
 
 ### 8.8 Admin Ingestion UI Controls
 
-| Control | Action | Implementation |
-|---|---|---|
-| **Start Crawl** | Begin crawling from seeds | Creates RunRequest (purpose=kb_ingestion), requires admin approval |
-| **Stop Crawl** | Cancel active crawl | Sets CANCEL_REQUESTED, worker stops between pages |
-| **Review Candidates** | View extracted articles before summarization | List articles with status=quality_passed, admin approves/rejects |
-| **Start Summarization** | Process approved articles | Creates RunRequest per batch, admin clicks Start |
-| **Start Ingestion** | Push summaries to Bedrock KB | Creates RunRequest, admin approval |
-| **Pipeline Status** | View progress + stats | Real-time status from ElastiCache Redis + DynamoDB |
+| Control                 | Action                                       | Implementation                                                     |
+| ----------------------- | -------------------------------------------- | ------------------------------------------------------------------ |
+| **Start Crawl**         | Begin crawling from seeds                    | Creates RunRequest (purpose=kb_ingestion), requires admin approval |
+| **Stop Crawl**          | Cancel active crawl                          | Sets CANCEL_REQUESTED, worker stops between pages                  |
+| **Review Candidates**   | View extracted articles before summarization | List articles with status=quality_passed, admin approves/rejects   |
+| **Start Summarization** | Process approved articles                    | Creates RunRequest per batch, admin clicks Start                   |
+| **Start Ingestion**     | Push summaries to Bedrock KB                 | Creates RunRequest, admin approval                                 |
+| **Pipeline Status**     | View progress + stats                        | Real-time status from ElastiCache Redis + DynamoDB                 |
 
 ### 8.9 Deliverables Checklist
 
@@ -1444,13 +1479,13 @@ class BedrockIngestor {
 
 ### 9.2 Intake Questions
 
-| # | Question | Field | Required | Type |
-|---|---|---|---|---|
-| 1 | "Describe your job in a few words" | `jobDescription` | Yes | Free text (max 500 chars) |
-| 2 | "What tools do you use daily?" | `preferences.tools` | No | Multi-select + custom |
-| 3 | "Describe your key workflows" | `preferences.workflows` | No | Free text (max 300 chars) |
-| 4 | "How comfortable are you with AI tools?" | `preferences.comfortLevel` | Yes | Single select: beginner/intermediate/advanced |
-| 5 | "What are your goals with AI?" | `preferences.goals` | No | Multi-select + custom |
+| #   | Question                                 | Field                      | Required | Type                                          |
+| --- | ---------------------------------------- | -------------------------- | -------- | --------------------------------------------- |
+| 1   | "Describe your job in a few words"       | `jobDescription`           | Yes      | Free text (max 500 chars)                     |
+| 2   | "What tools do you use daily?"           | `preferences.tools`        | No       | Multi-select + custom                         |
+| 3   | "Describe your key workflows"            | `preferences.workflows`    | No       | Free text (max 300 chars)                     |
+| 4   | "How comfortable are you with AI tools?" | `preferences.comfortLevel` | Yes      | Single select: beginner/intermediate/advanced |
+| 5   | "What are your goals with AI?"           | `preferences.goals`        | No       | Multi-select + custom                         |
 
 ### 9.3 Retrieval Strategy
 
@@ -1459,17 +1494,14 @@ async function retrieveContext(userProfile: UserProfile): Promise<RetrievedConte
   // 1. Build retrieval query from user profile:
   //    "AI best practices for {jobDescription} role, {comfortLevel} level,
   //     using {tools}, for {goals}"
-
   // 2. Query Bedrock KB with:
   //    - numberOfResults: 10
   //    - Filter by roleRelevance matching user's role category
   //    - Filter by difficulty matching comfort level
-
   // 3. Post-process results:
   //    - Deduplicate overlapping passages
   //    - Rank by relevance score
   //    - Cap at ~4000 tokens of context
-
   // Return: retrieved passages with source attribution
 }
 ```
@@ -1512,22 +1544,22 @@ Generate a journey with:
 
 ### 9.5 Evaluator Checks
 
-| Check | Rule | Action on Failure |
-|---|---|---|
+| Check         | Rule                                              | Action on Failure                 |
+| ------------- | ------------------------------------------------- | --------------------------------- |
 | Measurability | Every step has ≥1 KPI with numeric/boolean target | Reject, log, request regeneration |
-| Completeness | All levels have minimum step count | Reject, log, request regeneration |
-| Safety | No harmful, biased, or policy-violating content | Reject, flag for admin review |
-| Citations | Recommended practices cite KB sources | Warn, but allow (mark uncited) |
-| Progression | L(n+1) steps build on L(n) skills | Warn, allow |
-| Role fit | ≥70% of steps are relevant to user's role | Reject, request regeneration |
-| Budget | Output tokens within per-run budget | Truncate or split |
+| Completeness  | All levels have minimum step count                | Reject, log, request regeneration |
+| Safety        | No harmful, biased, or policy-violating content   | Reject, flag for admin review     |
+| Citations     | Recommended practices cite KB sources             | Warn, but allow (mark uncited)    |
+| Progression   | L(n+1) steps build on L(n) skills                 | Warn, allow                       |
+| Role fit      | ≥70% of steps are relevant to user's role         | Reject, request regeneration      |
+| Budget        | Output tokens within per-run budget               | Truncate or split                 |
 
 ### 9.6 Regenerate and Refine Controls
 
-| Action | Trigger | Behavior |
-|---|---|---|
-| **Regenerate** | User clicks "Regenerate Journey" | Creates new RunRequest, generates new journey (version+1), keeps old version |
-| **Refine** | User provides feedback text + clicks "Refine" | Creates RunRequest with previous journey + feedback as context, generates updated version |
+| Action         | Trigger                                       | Behavior                                                                                  |
+| -------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **Regenerate** | User clicks "Regenerate Journey"              | Creates new RunRequest, generates new journey (version+1), keeps old version              |
+| **Refine**     | User provides feedback text + clicks "Refine" | Creates RunRequest with previous journey + feedback as context, generates updated version |
 
 Both actions are manual (require explicit user click → RunRequest → execution).
 
@@ -1550,10 +1582,10 @@ Both actions are manual (require explicit user click → RunRequest → executio
 
 ### 10.1 Environment Strategy (MVP — Single Environment)
 
-| Environment | Purpose | Scale | Deploy |
-|---|---|---|---|
-| `mvp` | Development + production (single stack) | Minimal (1 task each) | Auto on merge to `main` |
-| `local` | Local development via Docker Compose | DynamoDB Local + Redis | Manual (`docker compose up`) |
+| Environment | Purpose                                 | Scale                  | Deploy                       |
+| ----------- | --------------------------------------- | ---------------------- | ---------------------------- |
+| `mvp`       | Development + production (single stack) | Minimal (1 task each)  | Auto on merge to `main`      |
+| `local`     | Local development via Docker Compose    | DynamoDB Local + Redis | Manual (`docker compose up`) |
 
 There are no separate dev/stage/prod environments. This reduces Terraform complexity, eliminates environment drift, and cuts costs. Once the platform is validated, multi-environment can be added later.
 
@@ -1720,12 +1752,12 @@ There are no separate dev/stage/prod environments. This reduces Terraform comple
 
 ### 10.3 Secrets Management
 
-| Secret | Service | Source |
-|---|---|---|
-| `openai-api-key` | worker | AWS Secrets Manager |
+| Secret                   | Service     | Source              |
+| ------------------------ | ----------- | ------------------- |
+| `openai-api-key`         | worker      | AWS Secrets Manager |
 | `elasticache-auth-token` | api, worker | AWS Secrets Manager |
-| `cognito-client-secret` | api | AWS Secrets Manager |
-| `session-signing-key` | api | AWS Secrets Manager |
+| `cognito-client-secret`  | api         | AWS Secrets Manager |
+| `session-signing-key`    | api         | AWS Secrets Manager |
 
 DynamoDB and S3 access is handled via IAM task roles — no credentials needed.
 
@@ -1781,26 +1813,26 @@ This is a **cross-cutting concern** that underpins all LLM usage in the platform
 
 ### 11.2 State Transitions
 
-| From | To | Trigger | Actor |
-|---|---|---|---|
-| — | PENDING | Run request created | User/System |
-| PENDING | APPROVED | User clicks "Start" (auto-approve) OR admin approves | User/Admin |
-| PENDING | REJECTED | Admin rejects | Admin |
-| APPROVED | RUNNING | Worker picks up job | System (Worker) |
-| RUNNING | COMPLETED | Execution succeeds | System (Worker) |
-| RUNNING | FAILED | Execution fails (error, timeout, budget exceeded) | System (Worker) |
-| RUNNING | CANCEL_REQUESTED | User/admin clicks "Stop" | User/Admin |
-| CANCEL_REQUESTED | CANCELLED | Worker acknowledges and stops | System (Worker) |
+| From             | To               | Trigger                                              | Actor           |
+| ---------------- | ---------------- | ---------------------------------------------------- | --------------- |
+| —                | PENDING          | Run request created                                  | User/System     |
+| PENDING          | APPROVED         | User clicks "Start" (auto-approve) OR admin approves | User/Admin      |
+| PENDING          | REJECTED         | Admin rejects                                        | Admin           |
+| APPROVED         | RUNNING          | Worker picks up job                                  | System (Worker) |
+| RUNNING          | COMPLETED        | Execution succeeds                                   | System (Worker) |
+| RUNNING          | FAILED           | Execution fails (error, timeout, budget exceeded)    | System (Worker) |
+| RUNNING          | CANCEL_REQUESTED | User/admin clicks "Stop"                             | User/Admin      |
+| CANCEL_REQUESTED | CANCELLED        | Worker acknowledges and stops                        | System (Worker) |
 
 ### 11.3 Budget Enforcement
 
 ```typescript
 interface RunBudget {
-  maxInputTokens: number;        // Max tokens in prompt
-  maxOutputTokens: number;       // Max tokens in response
-  maxTotalTokens: number;        // Overall cap
-  maxDurationMs: number;         // Wall-clock timeout
-  maxCostUsd: number;            // Dollar cap for this run
+  maxInputTokens: number; // Max tokens in prompt
+  maxOutputTokens: number; // Max tokens in response
+  maxTotalTokens: number; // Overall cap
+  maxDurationMs: number; // Wall-clock timeout
+  maxCostUsd: number; // Dollar cap for this run
 }
 
 // Default budgets by purpose:
@@ -1809,29 +1841,29 @@ const DEFAULT_BUDGETS: Record<RunPurpose, RunBudget> = {
     maxInputTokens: 4000,
     maxOutputTokens: 2000,
     maxTotalTokens: 6000,
-    maxDurationMs: 30_000,       // 30 seconds
+    maxDurationMs: 30_000, // 30 seconds
     maxCostUsd: 0.05,
   },
   personalization: {
     maxInputTokens: 8000,
     maxOutputTokens: 4000,
     maxTotalTokens: 12000,
-    maxDurationMs: 60_000,       // 60 seconds
+    maxDurationMs: 60_000, // 60 seconds
     maxCostUsd: 0.15,
   },
   summarization: {
     maxInputTokens: 6000,
     maxOutputTokens: 2000,
     maxTotalTokens: 8000,
-    maxDurationMs: 45_000,       // 45 seconds
+    maxDurationMs: 45_000, // 45 seconds
     maxCostUsd: 0.08,
   },
   kb_ingestion: {
-    maxInputTokens: 100_000,     // Batch budget
+    maxInputTokens: 100_000, // Batch budget
     maxOutputTokens: 50_000,
     maxTotalTokens: 150_000,
-    maxDurationMs: 600_000,      // 10 minutes
-    maxCostUsd: 2.00,
+    maxDurationMs: 600_000, // 10 minutes
+    maxCostUsd: 2.0,
   },
 };
 ```
@@ -1841,7 +1873,7 @@ const DEFAULT_BUDGETS: Record<RunPurpose, RunBudget> = {
 ```typescript
 const CONCURRENCY_LIMITS = {
   global: {
-    maxConcurrentRuns: 5,        // Total across all users
+    maxConcurrentRuns: 5, // Total across all users
     maxConcurrentPerPurpose: {
       kb_chat: 3,
       personalization: 2,
@@ -1898,20 +1930,20 @@ async function isCancelRequested(runId: ObjectId): Promise<boolean> {
 
 Every run produces audit entries:
 
-| Field | Description |
-|---|---|
-| `runRequestId` | Link to the run |
-| `userId` | Who initiated |
-| `purpose` | What type of run |
-| `model` | Model used |
-| `promptHash` | SHA-256 of the prompt (not raw prompt text) |
-| `inputTokens` | Actual input tokens |
-| `outputTokens` | Actual output tokens |
-| `durationMs` | Wall-clock time |
-| `costUsd` | Estimated cost |
-| `status` | Final status |
-| `startedBy` | Who approved/started |
-| `stoppedBy` | Who cancelled (if applicable) |
+| Field          | Description                                 |
+| -------------- | ------------------------------------------- |
+| `runRequestId` | Link to the run                             |
+| `userId`       | Who initiated                               |
+| `purpose`      | What type of run                            |
+| `model`        | Model used                                  |
+| `promptHash`   | SHA-256 of the prompt (not raw prompt text) |
+| `inputTokens`  | Actual input tokens                         |
+| `outputTokens` | Actual output tokens                        |
+| `durationMs`   | Wall-clock time                             |
+| `costUsd`      | Estimated cost                              |
+| `status`       | Final status                                |
+| `startedBy`    | Who approved/started                        |
+| `stoppedBy`    | Who cancelled (if applicable)               |
 
 Audit logs are immutable (append-only collection, no updates/deletes).
 
@@ -1921,109 +1953,109 @@ Audit logs are immutable (append-only collection, no updates/deletes).
 
 ### Phase 0 — Alignment (Weeks 1–2)
 
-| # | Task | Owner | Exit Criteria |
-|---|---|---|---|
-| 0.1 | Define journey KPI rubric for L0–L2 | Product | Documented rubric with measurable targets |
-| 0.2 | Define v1 role taxonomy (6 roles) | Product | Role definitions with competency mapping |
-| 0.3 | Decide: static SPA vs SSR | Engineering | ADR-001 written and approved |
-| 0.4 | Decide: KB chat model (OpenAI vs Bedrock) | Engineering | ADR-003 written and approved |
-| 0.5 | Create UX wireframes | Design | All screens wireframed and reviewed |
-| 0.6 | Finalize data schemas | Engineering | DynamoDB table schemas + Zod types reviewed |
-| 0.7 | Create GitLab repo with structure | Engineering | Repo created, CI skeleton, all directories |
+| #   | Task                                      | Owner       | Exit Criteria                               |
+| --- | ----------------------------------------- | ----------- | ------------------------------------------- |
+| 0.1 | Define journey KPI rubric for L0–L2       | Product     | Documented rubric with measurable targets   |
+| 0.2 | Define v1 role taxonomy (6 roles)         | Product     | Role definitions with competency mapping    |
+| 0.3 | Decide: static SPA vs SSR                 | Engineering | ADR-001 written and approved                |
+| 0.4 | Decide: KB chat model (OpenAI vs Bedrock) | Engineering | ADR-003 written and approved                |
+| 0.5 | Create UX wireframes                      | Design      | All screens wireframed and reviewed         |
+| 0.6 | Finalize data schemas                     | Engineering | DynamoDB table schemas + Zod types reviewed |
+| 0.7 | Create GitLab repo with structure         | Engineering | Repo created, CI skeleton, all directories  |
 
 **Phase 0 exit**: Approved data schemas + UX wireframes + architecture decision records.
 
 ### Phase 1 — Foundation (Weeks 3–5)
 
-| # | Task | Dependency | Exit Criteria |
-|---|---|---|---|
-| 1.1 | Terraform: networking module | — | VPC + public subnets deployed to MVP |
-| 1.2 | Terraform: security module | 1.1 | IAM role references, SGs created |
-| 1.3 | Terraform: data module | 1.1, 1.2 | DynamoDB tables + ElastiCache accessible |
-| 1.4 | Terraform: cognito module | — | User pool with Google IdP configured |
-| 1.5 | Terraform: compute module | 1.1–1.3 | ECS cluster + API service running |
-| 1.6 | Terraform: observability | 1.5 | Logs flowing to CloudWatch |
-| 1.7 | API: server scaffold + health check | — | NestJS app with /health endpoint |
-| 1.8 | API: auth middleware | 1.4, 1.7 | JWT validation + domain check working |
-| 1.9 | API: user CRUD + DynamoDB repositories | 1.7 | Create/read/update users via API |
-| 1.10 | API: RunRequest model + state machine | 1.9 | Run CRUD + state transitions + tests |
-| 1.11 | Svelte: project scaffold | — | SvelteKit app with Tailwind, builds clean |
-| 1.12 | Svelte: auth flow | 1.4, 1.8 | Login → Cognito → callback → session |
-| 1.13 | Svelte: basic dashboard shell | 1.12 | Logged-in user sees placeholder journey page |
-| 1.14 | Shared package: types + schemas | — | All interfaces + Zod schemas exported |
-| 1.15 | CI/CD: lint + test + build stages | — | Pipeline runs on every push |
-| 1.16 | Docker: Dockerfiles for all services | — | All 3 services build successfully |
-| 1.17 | Local dev: docker-compose | — | DynamoDB Local + Redis + all services run locally |
+| #    | Task                                   | Dependency | Exit Criteria                                     |
+| ---- | -------------------------------------- | ---------- | ------------------------------------------------- |
+| 1.1  | Terraform: networking module           | —          | VPC + public subnets deployed to MVP              |
+| 1.2  | Terraform: security module             | 1.1        | IAM role references, SGs created                  |
+| 1.3  | Terraform: data module                 | 1.1, 1.2   | DynamoDB tables + ElastiCache accessible          |
+| 1.4  | Terraform: cognito module              | —          | User pool with Google IdP configured              |
+| 1.5  | Terraform: compute module              | 1.1–1.3    | ECS cluster + API service running                 |
+| 1.6  | Terraform: observability               | 1.5        | Logs flowing to CloudWatch                        |
+| 1.7  | API: server scaffold + health check    | —          | NestJS app with /health endpoint                  |
+| 1.8  | API: auth middleware                   | 1.4, 1.7   | JWT validation + domain check working             |
+| 1.9  | API: user CRUD + DynamoDB repositories | 1.7        | Create/read/update users via API                  |
+| 1.10 | API: RunRequest model + state machine  | 1.9        | Run CRUD + state transitions + tests              |
+| 1.11 | Svelte: project scaffold               | —          | SvelteKit app with Tailwind, builds clean         |
+| 1.12 | Svelte: auth flow                      | 1.4, 1.8   | Login → Cognito → callback → session              |
+| 1.13 | Svelte: basic dashboard shell          | 1.12       | Logged-in user sees placeholder journey page      |
+| 1.14 | Shared package: types + schemas        | —          | All interfaces + Zod schemas exported             |
+| 1.15 | CI/CD: lint + test + build stages      | —          | Pipeline runs on every push                       |
+| 1.16 | Docker: Dockerfiles for all services   | —          | All 3 services build successfully                 |
+| 1.17 | Local dev: docker-compose              | —          | DynamoDB Local + Redis + all services run locally |
 
 **Phase 1 exit**: Employee can log in with mito.hu Google account and see a placeholder journey shell.
 
 ### Phase 2 — KB Builder MVP (Weeks 6–9)
 
-| # | Task | Dependency | Exit Criteria |
-|---|---|---|---|
-| 2.1 | Crawler: HTTP fetch + S3 storage | 1.3 | Can fetch from Simon Willison blog, store in S3 |
-| 2.2 | Extractor: Readability parse | 2.1 | Clean text extracted, metadata captured |
-| 2.3 | Deduplicator: hash + similarity | 2.2 | Duplicate articles detected and flagged |
-| 2.4 | Quality filter: scoring + threshold | 2.3 | Articles scored, low-quality filtered |
-| 2.5 | Summarizer: OpenAI integration | 2.4, 1.10 | Summaries generated via RunRequest flow |
-| 2.6 | Bedrock KB: setup + ingestion | 2.5 | Summaries in Bedrock KB, retrievable |
-| 2.7 | Worker: BullMQ queue for summarization | 1.10 | Jobs processed only when APPROVED |
-| 2.8 | Worker: cancellation checking | 2.7 | Stop button halts active summarization |
-| 2.9 | Admin UI: ingestion controls | 2.7 | Start/stop crawl, review candidates |
-| 2.10 | Admin UI: candidate review | 2.4, 2.9 | Approve/reject articles before summarization |
-| 2.11 | Pipeline orchestrator | 2.1–2.6 | Full pipeline runs end-to-end, idempotent |
-| 2.12 | Audit logging for KB runs | 2.7 | All run events logged with token/cost data |
+| #    | Task                                   | Dependency | Exit Criteria                                   |
+| ---- | -------------------------------------- | ---------- | ----------------------------------------------- |
+| 2.1  | Crawler: HTTP fetch + S3 storage       | 1.3        | Can fetch from Simon Willison blog, store in S3 |
+| 2.2  | Extractor: Readability parse           | 2.1        | Clean text extracted, metadata captured         |
+| 2.3  | Deduplicator: hash + similarity        | 2.2        | Duplicate articles detected and flagged         |
+| 2.4  | Quality filter: scoring + threshold    | 2.3        | Articles scored, low-quality filtered           |
+| 2.5  | Summarizer: OpenAI integration         | 2.4, 1.10  | Summaries generated via RunRequest flow         |
+| 2.6  | Bedrock KB: setup + ingestion          | 2.5        | Summaries in Bedrock KB, retrievable            |
+| 2.7  | Worker: BullMQ queue for summarization | 1.10       | Jobs processed only when APPROVED               |
+| 2.8  | Worker: cancellation checking          | 2.7        | Stop button halts active summarization          |
+| 2.9  | Admin UI: ingestion controls           | 2.7        | Start/stop crawl, review candidates             |
+| 2.10 | Admin UI: candidate review             | 2.4, 2.9   | Approve/reject articles before summarization    |
+| 2.11 | Pipeline orchestrator                  | 2.1–2.6    | Full pipeline runs end-to-end, idempotent       |
+| 2.12 | Audit logging for KB runs              | 2.7        | All run events logged with token/cost data      |
 
 **Phase 2 exit**: Can ingest curated articles on-demand and query them via Bedrock KB API.
 
 ### Phase 3 — NotebookLM-like KB Chat UI (Weeks 10–11)
 
-| # | Task | Dependency | Exit Criteria |
-|---|---|---|---|
-| 3.1 | API: KB query endpoint | 2.6 | Retrieves relevant passages from Bedrock KB |
-| 3.2 | Worker: KB chat worker | 3.1, 2.7 | Generates answers with citations |
-| 3.3 | Svelte: Chat UI component | 1.13 | Single-input chat with message history |
-| 3.4 | Svelte: Run controls in chat | 3.3, 1.10 | Start/Stop buttons, status indicator |
-| 3.5 | Svelte: Citation display | 3.3 | Inline citations with source popover |
-| 3.6 | Svelte: Cost/token display | 3.4 | Per-message token count and cost shown |
-| 3.7 | Configurable model switch | 3.2 | Admin can switch between OpenAI and Bedrock for generation |
-| 3.8 | Chat history persistence | 3.3 | User can see past conversations |
+| #   | Task                         | Dependency | Exit Criteria                                              |
+| --- | ---------------------------- | ---------- | ---------------------------------------------------------- |
+| 3.1 | API: KB query endpoint       | 2.6        | Retrieves relevant passages from Bedrock KB                |
+| 3.2 | Worker: KB chat worker       | 3.1, 2.7   | Generates answers with citations                           |
+| 3.3 | Svelte: Chat UI component    | 1.13       | Single-input chat with message history                     |
+| 3.4 | Svelte: Run controls in chat | 3.3, 1.10  | Start/Stop buttons, status indicator                       |
+| 3.5 | Svelte: Citation display     | 3.3        | Inline citations with source popover                       |
+| 3.6 | Svelte: Cost/token display   | 3.4        | Per-message token count and cost shown                     |
+| 3.7 | Configurable model switch    | 3.2        | Admin can switch between OpenAI and Bedrock for generation |
+| 3.8 | Chat history persistence     | 3.3        | User can see past conversations                            |
 
 **Phase 3 exit**: Employees can ask questions and get sourced answers from KB with manual run control.
 
 ### Phase 4 — Personalization Agent MVP (Weeks 12–15)
 
-| # | Task | Dependency | Exit Criteria |
-|---|---|---|---|
-| 4.1 | Svelte: onboarding intake flow | 1.12 | Multi-step form, saves to user profile |
-| 4.2 | Retrieval strategy implementation | 2.6 | Profile-based KB retrieval with filters |
-| 4.3 | Generation prompt + output parsing | 4.2 | Journey JSON generated from prompt |
-| 4.4 | Evaluator: all checks | 4.3 | Measurability, completeness, safety validated |
-| 4.5 | Journey storage + versioning | 4.3 | Journey + steps + KPIs saved in DynamoDB |
-| 4.6 | Svelte: journey dashboard | 4.5 | Level navigation, step list, progress bars |
-| 4.7 | Svelte: step detail + evidence | 4.6 | Task display, evidence upload, KPI input |
-| 4.8 | Svelte: KPI progress widgets | 4.7 | Per-step and journey-level KPI visualization |
-| 4.9 | Svelte: regenerate + refine | 4.5 | Buttons with RunRequest integration |
-| 4.10 | Worker: personalization worker | 4.3, 2.7 | Journey generation via BullMQ |
-| 4.11 | API: journey + step + KPI + evidence endpoints | 4.5 | Full CRUD operational |
-| 4.12 | Audit logging for personalization runs | 4.10 | All events logged |
-| 4.13 | Seed: baseline journeys for 6 roles | 4.5 | Pre-generated journeys available |
+| #    | Task                                           | Dependency | Exit Criteria                                 |
+| ---- | ---------------------------------------------- | ---------- | --------------------------------------------- |
+| 4.1  | Svelte: onboarding intake flow                 | 1.12       | Multi-step form, saves to user profile        |
+| 4.2  | Retrieval strategy implementation              | 2.6        | Profile-based KB retrieval with filters       |
+| 4.3  | Generation prompt + output parsing             | 4.2        | Journey JSON generated from prompt            |
+| 4.4  | Evaluator: all checks                          | 4.3        | Measurability, completeness, safety validated |
+| 4.5  | Journey storage + versioning                   | 4.3        | Journey + steps + KPIs saved in DynamoDB      |
+| 4.6  | Svelte: journey dashboard                      | 4.5        | Level navigation, step list, progress bars    |
+| 4.7  | Svelte: step detail + evidence                 | 4.6        | Task display, evidence upload, KPI input      |
+| 4.8  | Svelte: KPI progress widgets                   | 4.7        | Per-step and journey-level KPI visualization  |
+| 4.9  | Svelte: regenerate + refine                    | 4.5        | Buttons with RunRequest integration           |
+| 4.10 | Worker: personalization worker                 | 4.3, 2.7   | Journey generation via BullMQ                 |
+| 4.11 | API: journey + step + KPI + evidence endpoints | 4.5        | Full CRUD operational                         |
+| 4.12 | Audit logging for personalization runs         | 4.10       | All events logged                             |
+| 4.13 | Seed: baseline journeys for 6 roles            | 4.5        | Pre-generated journeys available              |
 
 **Phase 4 exit**: User can generate a journey and complete steps with measurable progress.
 
 ### Phase 5 — Hardening & Rollout (Weeks 16–18)
 
-| # | Task | Dependency | Exit Criteria |
-|---|---|---|---|
-| 5.1 | Security review: auth, RBAC, input validation | All | No critical findings |
-| 5.2 | Rate limiting tuning | All | Per-user and global limits in place |
-| 5.3 | DynamoDB backup testing | 1.3 | Point-in-time recovery verified |
-| 5.4 | Cost monitoring setup | All | CloudWatch billing alarm in place |
-| 5.5 | Admin analytics dashboard | 4.11 | Org-level KPIs visible |
-| 5.6 | Content governance review | 2.11, 4.4 | Evaluator catches policy violations |
-| 5.7 | Pilot group onboarding (10-20 users) | All | Users complete L0 steps with feedback |
-| 5.8 | Feedback analysis + fixes | 5.7 | Critical feedback addressed |
-| 5.9 | Org-wide launch | 5.8 | All mito.hu employees can access |
+| #   | Task                                          | Dependency | Exit Criteria                         |
+| --- | --------------------------------------------- | ---------- | ------------------------------------- |
+| 5.1 | Security review: auth, RBAC, input validation | All        | No critical findings                  |
+| 5.2 | Rate limiting tuning                          | All        | Per-user and global limits in place   |
+| 5.3 | DynamoDB backup testing                       | 1.3        | Point-in-time recovery verified       |
+| 5.4 | Cost monitoring setup                         | All        | CloudWatch billing alarm in place     |
+| 5.5 | Admin analytics dashboard                     | 4.11       | Org-level KPIs visible                |
+| 5.6 | Content governance review                     | 2.11, 4.4  | Evaluator catches policy violations   |
+| 5.7 | Pilot group onboarding (10-20 users)          | All        | Users complete L0 steps with feedback |
+| 5.8 | Feedback analysis + fixes                     | 5.7        | Critical feedback addressed           |
+| 5.9 | Org-wide launch                               | 5.8        | All mito.hu employees can access      |
 
 **Phase 5 exit**: Stable MVP with pilot validation. Post-MVP: add WAF, private subnets, multi-env, auto-scaling.
 
@@ -2033,38 +2065,38 @@ Audit logs are immutable (append-only collection, no updates/deletes).
 
 ### Layer 1: Per-Step Outcome KPIs (Employee-Level)
 
-| KPI | Measurement | Target (varies by step) | Evidence |
-|---|---|---|---|
-| Output Quality Score | Rubric 1–5 (self + optional peer) | ≥ 3 | Self-assessment form |
-| Task Completion | Boolean | true | Evidence submission |
-| Time Saved Estimate | Minutes (before vs after) | > 0 | Before/after comparison text |
-| Workflow Adoption | Count of real-work uses | ≥ 1 per step | Usage log / screenshot |
-| Safety Compliance | Boolean (no violations) | true | Auto-check + self-report |
-| Citation Usage | Boolean (sources cited) | true | Output review |
+| KPI                  | Measurement                       | Target (varies by step) | Evidence                     |
+| -------------------- | --------------------------------- | ----------------------- | ---------------------------- |
+| Output Quality Score | Rubric 1–5 (self + optional peer) | ≥ 3                     | Self-assessment form         |
+| Task Completion      | Boolean                           | true                    | Evidence submission          |
+| Time Saved Estimate  | Minutes (before vs after)         | > 0                     | Before/after comparison text |
+| Workflow Adoption    | Count of real-work uses           | ≥ 1 per step            | Usage log / screenshot       |
+| Safety Compliance    | Boolean (no violations)           | true                    | Auto-check + self-report     |
+| Citation Usage       | Boolean (sources cited)           | true                    | Output review                |
 
 ### Layer 2: Journey Progress KPIs
 
-| KPI | Formula | Target |
-|---|---|---|
-| Level Completion % | completed_steps / total_steps per level × 100 | 100% for each level |
-| Median Time to Level-Up | median(completion_date - start_date) per level | ≤ estimated duration |
-| Weekly Active Engagement | sessions_this_week > 0 | ≥ 1 session/week |
-| Evidence Quality | avg(quality_score) across submitted evidence | ≥ 3.5 |
-| Step Completion Rate | steps_completed / steps_available | Monotonically increasing |
+| KPI                      | Formula                                        | Target                   |
+| ------------------------ | ---------------------------------------------- | ------------------------ |
+| Level Completion %       | completed_steps / total_steps per level × 100  | 100% for each level      |
+| Median Time to Level-Up  | median(completion_date - start_date) per level | ≤ estimated duration     |
+| Weekly Active Engagement | sessions_this_week > 0                         | ≥ 1 session/week         |
+| Evidence Quality         | avg(quality_score) across submitted evidence   | ≥ 3.5                    |
+| Step Completion Rate     | steps_completed / steps_available              | Monotonically increasing |
 
 ### Layer 3: Org-Level KPIs
 
-| KPI | Formula | Dashboard View |
-|---|---|---|
-| Weekly Active Users | distinct users with ≥1 action this week | Time series |
-| Journey Completion Rate | users_completed_L2+ / users_started | Percentage gauge |
-| Top AI-Adopted Workflows | count by workflow tag | Bar chart |
-| Cost per Active User | total_llm_cost / active_users this month | Currency trend |
-| Cost per Completed Step | total_llm_cost / total_steps_completed | Currency trend |
-| Run Approval Throughput | approved_runs / total_run_requests | Percentage |
-| Mean Time to Step Completion | avg(completion_date - available_date) | Duration trend |
-| KB Article Coverage | articles_ingested / articles_crawled | Percentage |
-| KB Chat Satisfaction | (optional) user rating per chat | Average rating |
+| KPI                          | Formula                                  | Dashboard View   |
+| ---------------------------- | ---------------------------------------- | ---------------- |
+| Weekly Active Users          | distinct users with ≥1 action this week  | Time series      |
+| Journey Completion Rate      | users_completed_L2+ / users_started      | Percentage gauge |
+| Top AI-Adopted Workflows     | count by workflow tag                    | Bar chart        |
+| Cost per Active User         | total_llm_cost / active_users this month | Currency trend   |
+| Cost per Completed Step      | total_llm_cost / total_steps_completed   | Currency trend   |
+| Run Approval Throughput      | approved_runs / total_run_requests       | Percentage       |
+| Mean Time to Step Completion | avg(completion_date - available_date)    | Duration trend   |
+| KB Article Coverage          | articles_ingested / articles_crawled     | Percentage       |
+| KB Chat Satisfaction         | (optional) user rating per chat          | Average rating   |
 
 ---
 
@@ -2088,8 +2120,8 @@ stages:
   - smoke
 
 variables:
-  NODE_VERSION: "24"
-  TERRAFORM_VERSION: "1.7"
+  NODE_VERSION: '24'
+  TERRAFORM_VERSION: '1.7'
   AWS_DEFAULT_REGION: eu-central-1
 
 # Stage definitions below
@@ -2239,7 +2271,7 @@ terraform:apply:
     - cd infra/terraform
     - terraform init
     - terraform apply plan.tfplan
-  when: manual  # ← Manual approval for safety even in MVP
+  when: manual # ← Manual approval for safety even in MVP
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
 ```
@@ -2285,34 +2317,34 @@ smoke:mvp:
 
 ### 15.1 Resource Inventory (Single MVP Environment)
 
-| Module | Resources | MVP Sizing |
-|---|---|---|
-| networking | VPC, public subnets (2 AZs), IGW | No NAT Gateway, no private subnets |
-| security | IAM role references (pre-created), SGs (3) | Shared ECS task role |
-| compute | ECS cluster, 3 services, ALB, ACM cert | 0.25 vCPU / 0.5 GB each, 1 task (kb-builder: 0) |
-| data | DynamoDB (10 tables), ElastiCache, S3 (4 buckets) | On-demand billing, cache.t3.micro |
-| cognito | User pool, Google IdP, app client | Free tier |
-| bedrock | KB, S3 data source, vector store | Managed vector store |
-| observability | Log groups (3), basic alarms (2), SNS | 7-day log retention |
+| Module        | Resources                                         | MVP Sizing                                      |
+| ------------- | ------------------------------------------------- | ----------------------------------------------- |
+| networking    | VPC, public subnets (2 AZs), IGW                  | No NAT Gateway, no private subnets              |
+| security      | IAM role references (pre-created), SGs (3)        | Shared ECS task role                            |
+| compute       | ECS cluster, 3 services, ALB, ACM cert            | 0.25 vCPU / 0.5 GB each, 1 task (kb-builder: 0) |
+| data          | DynamoDB (10 tables), ElastiCache, S3 (4 buckets) | On-demand billing, cache.t3.micro               |
+| cognito       | User pool, Google IdP, app client                 | Free tier                                       |
+| bedrock       | KB, S3 data source, vector store                  | Managed vector store                            |
+| observability | Log groups (3), basic alarms (2), SNS             | 7-day log retention                             |
 
 ### 15.2 Cost Estimate (Monthly, MVP)
 
-| Component | Monthly Cost | Notes |
-|---|---|---|
-| ECS Fargate (api + worker, always on) | ~$18 | 2 × (0.25 vCPU + 0.5 GB) |
-| ECS Fargate (kb-builder, on-demand) | ~$2 | Runs a few hours/month |
-| DynamoDB (on-demand) | ~$0 | Free tier: 25 GB + 25 WCU/RCU |
-| ElastiCache (cache.t3.micro) | ~$12 | Single node, Redis 7 |
-| S3 + data transfer | ~$1 | Minimal storage |
-| Cognito | $0 | Free < 50K MAU |
-| Bedrock KB (OpenSearch Serverless) | ~$7 | Minimum OCU charge |
-| ALB | ~$16 | Hourly charge + LCU |
-| CloudWatch Logs | ~$2 | 7-day retention, low volume |
-| Secrets Manager | ~$2 | 4 secrets × $0.40 |
-| ACM certificate | $0 | Free for public certs |
-| **AWS subtotal** | **~$60** | |
-| OpenAI API (LLM calls) | ~$20–50 | Depends on usage, controlled by budgets |
-| **Total estimate** | **~$80–110** | |
+| Component                             | Monthly Cost | Notes                                   |
+| ------------------------------------- | ------------ | --------------------------------------- |
+| ECS Fargate (api + worker, always on) | ~$18         | 2 × (0.25 vCPU + 0.5 GB)                |
+| ECS Fargate (kb-builder, on-demand)   | ~$2          | Runs a few hours/month                  |
+| DynamoDB (on-demand)                  | ~$0          | Free tier: 25 GB + 25 WCU/RCU           |
+| ElastiCache (cache.t3.micro)          | ~$12         | Single node, Redis 7                    |
+| S3 + data transfer                    | ~$1          | Minimal storage                         |
+| Cognito                               | $0           | Free < 50K MAU                          |
+| Bedrock KB (OpenSearch Serverless)    | ~$7          | Minimum OCU charge                      |
+| ALB                                   | ~$16         | Hourly charge + LCU                     |
+| CloudWatch Logs                       | ~$2          | 7-day retention, low volume             |
+| Secrets Manager                       | ~$2          | 4 secrets × $0.40                       |
+| ACM certificate                       | $0           | Free for public certs                   |
+| **AWS subtotal**                      | **~$60**     |                                         |
+| OpenAI API (LLM calls)                | ~$20–50      | Depends on usage, controlled by budgets |
+| **Total estimate**                    | **~$80–110** |                                         |
 
 > Compared to the original multi-env plan (~$170/month for dev alone), this MVP architecture
 > saves ~65% by eliminating NAT Gateway ($35), DocumentDB/MongoDB ($50), WAF ($10),
@@ -2320,35 +2352,35 @@ smoke:mvp:
 
 ### 15.3 Cost Optimization Decisions
 
-| Decision | Savings | Trade-off |
-|---|---|---|
-| No NAT Gateway → public subnets | $35/month | ECS tasks have public IPs + SGs (acceptable for internal MVP) |
-| DynamoDB on-demand vs DocumentDB | $50/month | No MongoDB query language; learn DynamoDB patterns |
-| cache.t3.micro vs larger Redis | $20/month | 0.5 GB RAM limit; sufficient for MVP queue/cache loads |
-| No WAF | $10/month | Add in hardening phase post-MVP |
-| No CloudFront for API | $5/month | ALB serves API directly; add CDN if needed |
-| 7-day log retention | $5/month | Short debug window; increase post-MVP |
-| Shared IAM task role | $0 | Less granular permissions; separate per-service post-MVP |
-| Single AZ for ElastiCache | $12/month | No HA; add replica post-MVP |
+| Decision                         | Savings   | Trade-off                                                     |
+| -------------------------------- | --------- | ------------------------------------------------------------- |
+| No NAT Gateway → public subnets  | $35/month | ECS tasks have public IPs + SGs (acceptable for internal MVP) |
+| DynamoDB on-demand vs DocumentDB | $50/month | No MongoDB query language; learn DynamoDB patterns            |
+| cache.t3.micro vs larger Redis   | $20/month | 0.5 GB RAM limit; sufficient for MVP queue/cache loads        |
+| No WAF                           | $10/month | Add in hardening phase post-MVP                               |
+| No CloudFront for API            | $5/month  | ALB serves API directly; add CDN if needed                    |
+| 7-day log retention              | $5/month  | Short debug window; increase post-MVP                         |
+| Shared IAM task role             | $0        | Less granular permissions; separate per-service post-MVP      |
+| Single AZ for ElastiCache        | $12/month | No HA; add replica post-MVP                                   |
 
 ---
 
 ## 16. Risk Register & Mitigations
 
-| # | Risk | Likelihood | Impact | Mitigation |
-|---|---|---|---|---|
-| R1 | Manual start/stop becomes a UX bottleneck | Medium | Medium | Auto-approve user's own chat/journey runs; manual only for admin/bulk. Batch approve for ingestion windows. |
-| R2 | Content quality / LLM hallucinations | High | High | Strict citations from KB; disallow unsourced claims; evaluator checks; store retrieved passages alongside outputs. |
-| R3 | SSO domain restriction bypass | Low | High | Enforce at Cognito IdP level AND app-level email check. Regular audit of user list. |
-| R4 | Cost drift from LLM usage | Medium | High | Per-run budgets, daily cost alarms via CloudWatch, concurrency limits, model routing rules, admin cost dashboard. |
-| R5 | Data privacy / prompt leakage | Medium | High | Redaction helpers, hash prompts in audit logs, avoid storing raw prompts, structured outputs only, encryption at rest. |
-| R6 | Bedrock KB retrieval quality | Medium | Medium | Tune chunking strategy, embedding model selection, retrieval filters. A/B test with different configurations. |
-| R7 | Pipeline complexity → slow delivery | Medium | Medium | Phase-gated delivery with clear exit criteria. MVP first, iterate. |
-| R8 | DynamoDB access pattern limitations | Medium | Medium | Multi-table design mitigates single-table complexity. GSIs cover all known access patterns. Add GSIs as needed (online, no downtime). |
-| R9 | OpenAI API outage | Medium | Medium | Configurable model switch to Bedrock models. Graceful degradation in UI. |
-| R10 | Low user adoption | Medium | High | L0 steps designed to be quick wins. Track weekly active users. Feedback loops in Phase 5. |
-| R11 | MVP single-env availability | Medium | Low | Acceptable for internal tool with ~50 users. No SLA. DynamoDB + ECS self-heal. Add HA post-MVP. |
-| R12 | Public subnet exposure (no NAT) | Low | Medium | Restrictive security groups. ECS tasks only accept traffic from ALB SG. No SSH. Add private subnets post-MVP. |
+| #   | Risk                                      | Likelihood | Impact | Mitigation                                                                                                                            |
+| --- | ----------------------------------------- | ---------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| R1  | Manual start/stop becomes a UX bottleneck | Medium     | Medium | Auto-approve user's own chat/journey runs; manual only for admin/bulk. Batch approve for ingestion windows.                           |
+| R2  | Content quality / LLM hallucinations      | High       | High   | Strict citations from KB; disallow unsourced claims; evaluator checks; store retrieved passages alongside outputs.                    |
+| R3  | SSO domain restriction bypass             | Low        | High   | Enforce at Cognito IdP level AND app-level email check. Regular audit of user list.                                                   |
+| R4  | Cost drift from LLM usage                 | Medium     | High   | Per-run budgets, daily cost alarms via CloudWatch, concurrency limits, model routing rules, admin cost dashboard.                     |
+| R5  | Data privacy / prompt leakage             | Medium     | High   | Redaction helpers, hash prompts in audit logs, avoid storing raw prompts, structured outputs only, encryption at rest.                |
+| R6  | Bedrock KB retrieval quality              | Medium     | Medium | Tune chunking strategy, embedding model selection, retrieval filters. A/B test with different configurations.                         |
+| R7  | Pipeline complexity → slow delivery       | Medium     | Medium | Phase-gated delivery with clear exit criteria. MVP first, iterate.                                                                    |
+| R8  | DynamoDB access pattern limitations       | Medium     | Medium | Multi-table design mitigates single-table complexity. GSIs cover all known access patterns. Add GSIs as needed (online, no downtime). |
+| R9  | OpenAI API outage                         | Medium     | Medium | Configurable model switch to Bedrock models. Graceful degradation in UI.                                                              |
+| R10 | Low user adoption                         | Medium     | High   | L0 steps designed to be quick wins. Track weekly active users. Feedback loops in Phase 5.                                             |
+| R11 | MVP single-env availability               | Medium     | Low    | Acceptable for internal tool with ~50 users. No SLA. DynamoDB + ECS self-heal. Add HA post-MVP.                                       |
+| R12 | Public subnet exposure (no NAT)           | Low        | Medium | Restrictive security groups. ECS tasks only accept traffic from ALB SG. No SSH. Add private subnets post-MVP.                         |
 
 ---
 
@@ -2356,32 +2388,32 @@ smoke:mvp:
 
 ### Week 1 — Day 1–3
 
-| # | Action | Owner | Output |
-|---|---|---|---|
-| 1 | Lock pilot roles: Engineering, PM, Design, HR, Finance, Sales | Product | Approved role list |
-| 2 | Define L0–L2 KPI rubrics for each role | Product | KPI rubric spreadsheet |
-| 3 | Decide: SPA vs SSR for Svelte | Engineering | ADR-001 |
-| 4 | Decide: KB chat generation model (OpenAI vs Bedrock) | Engineering | ADR-003 |
+| #   | Action                                                        | Owner       | Output                 |
+| --- | ------------------------------------------------------------- | ----------- | ---------------------- |
+| 1   | Lock pilot roles: Engineering, PM, Design, HR, Finance, Sales | Product     | Approved role list     |
+| 2   | Define L0–L2 KPI rubrics for each role                        | Product     | KPI rubric spreadsheet |
+| 3   | Decide: SPA vs SSR for Svelte                                 | Engineering | ADR-001                |
+| 4   | Decide: KB chat generation model (OpenAI vs Bedrock)          | Engineering | ADR-003                |
 
 ### Week 1 — Day 3–5
 
-| # | Action | Owner | Output |
-|---|---|---|---|
-| 5 | Create GitLab repo with full directory structure | Engineering | Repository with README |
-| 6 | Initialize monorepo (pnpm workspaces) | Engineering | Working `pnpm install` from root |
-| 7 | Set up ESLint + Prettier + TypeScript configs | Engineering | Shared configs, lint passes |
-| 8 | Implement `packages/shared` with all TypeScript types + Zod schemas | Engineering | Importable shared package |
+| #   | Action                                                              | Owner       | Output                           |
+| --- | ------------------------------------------------------------------- | ----------- | -------------------------------- |
+| 5   | Create GitLab repo with full directory structure                    | Engineering | Repository with README           |
+| 6   | Initialize monorepo (pnpm workspaces)                               | Engineering | Working `pnpm install` from root |
+| 7   | Set up ESLint + Prettier + TypeScript configs                       | Engineering | Shared configs, lint passes      |
+| 8   | Implement `packages/shared` with all TypeScript types + Zod schemas | Engineering | Importable shared package        |
 
 ### Week 2
 
-| # | Action | Owner | Output |
-|---|---|---|---|
-| 9 | Implement RunRequest/Approval/Execution schema + state machine | Engineering | DynamoDB repository + state transitions + tests |
-| 10 | Create docker-compose.yml for local dev (DynamoDB Local + Redis) | Engineering | `docker compose up` works |
-| 11 | Scaffold NestJS API with health endpoint | Engineering | `GET /health` returns 200 |
-| 12 | Scaffold SvelteKit app with Tailwind | Engineering | `pnpm dev` serves Svelte app |
-| 13 | Create UX wireframes for all screens | Design | Figma / wireframe file |
-| 14 | Begin Terraform: networking + data modules | Engineering | VPC + DynamoDB tables deployable |
+| #   | Action                                                           | Owner       | Output                                          |
+| --- | ---------------------------------------------------------------- | ----------- | ----------------------------------------------- |
+| 9   | Implement RunRequest/Approval/Execution schema + state machine   | Engineering | DynamoDB repository + state transitions + tests |
+| 10  | Create docker-compose.yml for local dev (DynamoDB Local + Redis) | Engineering | `docker compose up` works                       |
+| 11  | Scaffold NestJS API with health endpoint                         | Engineering | `GET /health` returns 200                       |
+| 12  | Scaffold SvelteKit app with Tailwind                             | Engineering | `pnpm dev` serves Svelte app                    |
+| 13  | Create UX wireframes for all screens                             | Design      | Figma / wireframe file                          |
+| 14  | Begin Terraform: networking + data modules                       | Engineering | VPC + DynamoDB tables deployable                |
 
 ### Priority Order for Implementation
 
@@ -2545,21 +2577,26 @@ Each issue should follow this format:
 
 ```markdown
 ## Summary
+
 [One sentence describing what this issue delivers]
 
 ## Acceptance Criteria
+
 - [ ] [Specific, testable criterion 1]
 - [ ] [Specific, testable criterion 2]
 - [ ] [Specific, testable criterion 3]
 
 ## Technical Notes
+
 [Implementation guidance, dependencies, decisions]
 
 ## Dependencies
+
 - Blocked by: #[issue-number]
 - Blocks: #[issue-number]
 
 ## Estimate
+
 - T-shirt size: S / M / L / XL
 - Story points: [number]
 ```
@@ -2618,4 +2655,4 @@ Each issue should follow this format:
 
 ---
 
-*End of Implementation Plan*
+_End of Implementation Plan_

@@ -26,14 +26,14 @@
 
 ### Why Migrate?
 
-| Concern | DynamoDB Local | MongoDB |
-|---|---|---|
+| Concern                  | DynamoDB Local                                                                                            | MongoDB                                                                        |
+| ------------------------ | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
 | **Production viability** | DynamoDB Local is a testing tool, not a production database — no replication, no backups, weak durability | Full production database with replica sets, journaling, point-in-time recovery |
-| **Query flexibility** | Rigid key-schema; any new access pattern requires a GSI (pre-planned) | Ad-hoc queries on any field; aggregation pipeline for analytics |
-| **Cost** | Free (local), but AWS DynamoDB is expensive at scale | Free (self-hosted), rich query layer at no extra cost |
-| **Operational synergy** | Only aijourney uses DynamoDB Local | tenderai already runs `mongo:8` on the same server |
-| **Developer experience** | Verbose SDK (Get/Put/Query/Scan commands, expression builders) | Concise driver API (`find`, `insertOne`, `updateOne`) |
-| **Data modeling** | Flat attributes, no joins, no embedded documents | Nested documents, `$lookup` for joins, powerful aggregation |
+| **Query flexibility**    | Rigid key-schema; any new access pattern requires a GSI (pre-planned)                                     | Ad-hoc queries on any field; aggregation pipeline for analytics                |
+| **Cost**                 | Free (local), but AWS DynamoDB is expensive at scale                                                      | Free (self-hosted), rich query layer at no extra cost                          |
+| **Operational synergy**  | Only aijourney uses DynamoDB Local                                                                        | tenderai already runs `mongo:8` on the same server                             |
+| **Developer experience** | Verbose SDK (Get/Put/Query/Scan commands, expression builders)                                            | Concise driver API (`find`, `insertOne`, `updateOne`)                          |
+| **Data modeling**        | Flat attributes, no joins, no embedded documents                                                          | Nested documents, `$lookup` for joins, powerful aggregation                    |
 
 ### Migration Scope
 
@@ -45,15 +45,15 @@
 
 ### Estimated Effort
 
-| Phase | Tasks | Estimate |
-|---|---|---|
-| Phase 1: Infrastructure | MongoDB in Docker, connection module | 2-3 hours |
-| Phase 2: API repositories | Rewrite 4 repos + health check + DI module | 4-6 hours |
-| Phase 3: KB Builder repositories | Rewrite 3 files (article, summary, agent-run-logger) | 3-4 hours |
-| Phase 4: Scripts & seed data | Rewrite seed-db.ts, create-prod-tables.ts → init script | 1-2 hours |
-| Phase 5: Testing & validation | Run test suites, manual E2E verification | 2-3 hours |
-| Phase 6: Cleanup | Remove AWS SDK DynamoDB deps, old code | 1 hour |
-| **Total** | | **13-19 hours** |
+| Phase                            | Tasks                                                   | Estimate        |
+| -------------------------------- | ------------------------------------------------------- | --------------- |
+| Phase 1: Infrastructure          | MongoDB in Docker, connection module                    | 2-3 hours       |
+| Phase 2: API repositories        | Rewrite 4 repos + health check + DI module              | 4-6 hours       |
+| Phase 3: KB Builder repositories | Rewrite 3 files (article, summary, agent-run-logger)    | 3-4 hours       |
+| Phase 4: Scripts & seed data     | Rewrite seed-db.ts, create-prod-tables.ts → init script | 1-2 hours       |
+| Phase 5: Testing & validation    | Run test suites, manual E2E verification                | 2-3 hours       |
+| Phase 6: Cleanup                 | Remove AWS SDK DynamoDB deps, old code                  | 1 hour          |
+| **Total**                        |                                                         | **13-19 hours** |
 
 ---
 
@@ -63,28 +63,29 @@
 
 #### Tables WITH Active Repository Code (6 tables, 7 repo files)
 
-| # | Table | Primary Key | GSIs | Repo File(s) | Access Patterns |
-|---|---|---|---|---|---|
-| 1 | `users` | `id` (HASH) | `email-index` (email→HASH) | `api/users/users.repository.ts` | create, getById, getByEmail, update, listAll(scan) |
-| 2 | `journeys` | `id` (HASH) | `userId-createdAt-index` (userId→HASH, createdAt→RANGE) | `api/journeys/journeys.repository.ts` | create, getById, listByUser(sorted desc), update |
-| 3 | `run_requests` | `id` (HASH) | `userId-status-index` (userId→HASH, status→RANGE), `status-createdAt-index` (status→HASH, createdAt→RANGE) | `api/runs/runs.repository.ts` | create, getById, listByUser, listByStatus(sorted desc), updateStatus, listAll(scan) |
-| 4 | `agent_runs` | `id` (HASH) | `agent-createdAt-index` (agent→HASH, createdAt→RANGE), `status-createdAt-index` (status→HASH, createdAt→RANGE) | `api/agent-runs/agent-runs.repository.ts` + `kb-builder/agent-run-logger.ts` | create, getById, update, listAll(scan), listByAgent(sorted desc), listByStatus(sorted desc), startAgentRun, completeAgentRun, failAgentRun |
-| 5 | `articles` | `id` (HASH) | `status-crawledAt-index` (status→HASH, crawledAt→RANGE) | `kb-builder/article-repository.ts` | save, getByUrl(scan+filter!), getAll(paginated scan), getByStatus(query), getById, count(scan), updateStatus, backfillCrawledAt, delete |
-| 6 | `summaries` | `id` (HASH) | `articleId-index` (articleId→HASH) | `kb-builder/summary-repository.ts` | save, getByArticleId, getById, getAll(paginated scan), count(scan), delete, deleteByArticleId |
+| #   | Table          | Primary Key | GSIs                                                                                                           | Repo File(s)                                                                 | Access Patterns                                                                                                                            |
+| --- | -------------- | ----------- | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | `users`        | `id` (HASH) | `email-index` (email→HASH)                                                                                     | `api/users/users.repository.ts`                                              | create, getById, getByEmail, update, listAll(scan)                                                                                         |
+| 2   | `journeys`     | `id` (HASH) | `userId-createdAt-index` (userId→HASH, createdAt→RANGE)                                                        | `api/journeys/journeys.repository.ts`                                        | create, getById, listByUser(sorted desc), update                                                                                           |
+| 3   | `run_requests` | `id` (HASH) | `userId-status-index` (userId→HASH, status→RANGE), `status-createdAt-index` (status→HASH, createdAt→RANGE)     | `api/runs/runs.repository.ts`                                                | create, getById, listByUser, listByStatus(sorted desc), updateStatus, listAll(scan)                                                        |
+| 4   | `agent_runs`   | `id` (HASH) | `agent-createdAt-index` (agent→HASH, createdAt→RANGE), `status-createdAt-index` (status→HASH, createdAt→RANGE) | `api/agent-runs/agent-runs.repository.ts` + `kb-builder/agent-run-logger.ts` | create, getById, update, listAll(scan), listByAgent(sorted desc), listByStatus(sorted desc), startAgentRun, completeAgentRun, failAgentRun |
+| 5   | `articles`     | `id` (HASH) | `status-crawledAt-index` (status→HASH, crawledAt→RANGE)                                                        | `kb-builder/article-repository.ts`                                           | save, getByUrl(scan+filter!), getAll(paginated scan), getByStatus(query), getById, count(scan), updateStatus, backfillCrawledAt, delete    |
+| 6   | `summaries`    | `id` (HASH) | `articleId-index` (articleId→HASH)                                                                             | `kb-builder/summary-repository.ts`                                           | save, getByArticleId, getById, getAll(paginated scan), count(scan), delete, deleteByArticleId                                              |
 
 #### Tables WITHOUT Repository Code (5 — schema-only, no access code)
 
-| # | Table | Primary Key | GSIs | Status |
-|---|---|---|---|---|
-| 7 | `steps` | `id` (HASH) | `journeyId-order-index` (journeyId→HASH, order→RANGE) | Created but unused |
-| 8 | `kpis` | `id` (HASH) | `stepId-index` (stepId→HASH) | Created but unused |
-| 9 | `evidence` | `id` (HASH) | `kpiId-submittedAt-index` (kpiId→HASH, submittedAt→RANGE) | Created but unused |
-| 10 | `run_logs` | `runRequestId` (HASH) + `timestamp` (RANGE) | None | Created but unused |
-| 11 | `events` | `userId` (HASH) + `timestamp` (RANGE) | None | Created but unused |
+| #   | Table      | Primary Key                                 | GSIs                                                      | Status             |
+| --- | ---------- | ------------------------------------------- | --------------------------------------------------------- | ------------------ |
+| 7   | `steps`    | `id` (HASH)                                 | `journeyId-order-index` (journeyId→HASH, order→RANGE)     | Created but unused |
+| 8   | `kpis`     | `id` (HASH)                                 | `stepId-index` (stepId→HASH)                              | Created but unused |
+| 9   | `evidence` | `id` (HASH)                                 | `kpiId-submittedAt-index` (kpiId→HASH, submittedAt→RANGE) | Created but unused |
+| 10  | `run_logs` | `runRequestId` (HASH) + `timestamp` (RANGE) | None                                                      | Created but unused |
+| 11  | `events`   | `userId` (HASH) + `timestamp` (RANGE)       | None                                                      | Created but unused |
 
 ### 2.2 DynamoDB Client Patterns
 
 **Pattern A — NestJS Dependency Injection (API service)**
+
 ```typescript
 // dynamodb.module.ts — Global module providing DYNAMODB_CLIENT token
 @Global() @Module({
@@ -103,20 +104,23 @@
 Consumers: `@Inject(DYNAMODB_CLIENT) private readonly db: DynamoDBDocumentClient`
 
 **Pattern B — Direct Instantiation (KB Builder)**
+
 ```typescript
 const client = new DynamoDBClient({
-  region: process.env.AWS_REGION || "eu-central-1",
+  region: process.env.AWS_REGION || 'eu-central-1',
   ...(process.env.DYNAMODB_ENDPOINT && { endpoint: process.env.DYNAMODB_ENDPOINT }),
 });
-const ddb = DynamoDBDocumentClient.from(client, { marshallOptions: { removeUndefinedValues: true } });
+const ddb = DynamoDBDocumentClient.from(client, {
+  marshallOptions: { removeUndefinedValues: true },
+});
 ```
 
 ### 2.3 AWS SDK Dependencies
 
-| Package | Used In |
-|---|---|
+| Package                    | Used In                  |
+| -------------------------- | ------------------------ |
 | `@aws-sdk/client-dynamodb` | api, kb-builder, scripts |
-| `@aws-sdk/lib-dynamodb` | api, kb-builder, scripts |
+| `@aws-sdk/lib-dynamodb`    | api, kb-builder, scripts |
 
 > **Note**: AWS SDK is also used for Cognito, S3, Bedrock — only the DynamoDB packages will be removed.
 
@@ -129,7 +133,7 @@ dynamodb-local:
   user: root
   volumes:
     - dynamodb_data:/home/dynamodblocal/data
-  command: "-jar DynamoDBLocal.jar -sharedDb -dbPath /home/dynamodblocal/data"
+  command: '-jar DynamoDBLocal.jar -sharedDb -dbPath /home/dynamodblocal/data'
 
 seed-db:
   build: { context: ., target: seed }
@@ -153,61 +157,68 @@ seed-db:
 ### 3.2 Collection Schemas & Indexes
 
 #### `users`
+
 ```javascript
 // Document shape: { _id: string, googleId, email, name, avatarUrl?, role, department?,
 //   jobTitle?, jobDescription?, onboardingComplete, preferences: { tools?, workflows?,
 //   comfortLevel?, goals?, completedPractices? }, createdAt, updatedAt, lastLoginAt }
 
-db.users.createIndex({ email: 1 }, { unique: true, name: "email_unique" })
+db.users.createIndex({ email: 1 }, { unique: true, name: 'email_unique' });
 ```
 
 > **Improvement over DynamoDB**: `email` GSI was not unique-constrained in DynamoDB. MongoDB can enforce uniqueness natively.
 
 #### `journeys`
+
 ```javascript
 // Document shape: { _id: string, userId, version, title, description, status,
 //   currentLevel, competencyAreas: [], generatedBy, metadata: {}, createdAt, updatedAt }
 
-db.journeys.createIndex({ userId: 1, createdAt: -1 }, { name: "userId_createdAt_desc" })
+db.journeys.createIndex({ userId: 1, createdAt: -1 }, { name: 'userId_createdAt_desc' });
 ```
 
 #### `steps`
+
 ```javascript
 // Document shape: { _id: string, journeyId, level, order, title, description, task,
 //   expectedOutput, evidenceType, kpiTargets: [], reviewMethod, tags: [], toolsRequired?,
 //   estimatedMinutes?, status, completedAt?, createdAt, updatedAt }
 
-db.steps.createIndex({ journeyId: 1, order: 1 }, { name: "journeyId_order" })
+db.steps.createIndex({ journeyId: 1, order: 1 }, { name: 'journeyId_order' });
 ```
 
 #### `kpis`
+
 ```javascript
 // Document shape: { _id: string, name, description, category, measurementType,
 //   rubricLevels?: [], unit?, direction, targetValue?, isGlobal, createdAt }
 
-db.kpis.createIndex({ stepId: 1 }, { name: "stepId" })
+db.kpis.createIndex({ stepId: 1 }, { name: 'stepId' });
 ```
 
 > **Note**: The `stepId` field isn't in the shared KPI type but is defined as a GSI attribute. Verify intent when implementing.
 
 #### `evidence`
+
 ```javascript
 // Document shape: { _id: string, stepId, userId, type, content: {}, kpiMeasurements: [],
 //   reviewStatus, reviewNotes?, reviewedBy?, submittedAt, reviewedAt? }
 
-db.evidence.createIndex({ kpiId: 1, submittedAt: -1 }, { name: "kpiId_submittedAt_desc" })
+db.evidence.createIndex({ kpiId: 1, submittedAt: -1 }, { name: 'kpiId_submittedAt_desc' });
 ```
 
 #### `run_requests`
+
 ```javascript
 // Document shape: { _id: string, userId, purpose, status, inputs: {}, budget: {},
 //   approval: {}, execution?: {}, cancelledBy?, cancelledAt?, createdAt, updatedAt }
 
-db.run_requests.createIndex({ userId: 1, status: 1 }, { name: "userId_status" })
-db.run_requests.createIndex({ status: 1, createdAt: -1 }, { name: "status_createdAt_desc" })
+db.run_requests.createIndex({ userId: 1, status: 1 }, { name: 'userId_status' });
+db.run_requests.createIndex({ status: 1, createdAt: -1 }, { name: 'status_createdAt_desc' });
 ```
 
 #### `run_logs`
+
 ```javascript
 // Document shape: { _id: string (generated), runRequestId, timestamp, event, actor,
 //   details: {}, tokensUsedSoFar?, costSoFar? }
@@ -216,51 +227,52 @@ db.run_requests.createIndex({ status: 1, createdAt: -1 }, { name: "status_create
 
 db.run_logs.createIndex(
   { runRequestId: 1, timestamp: 1 },
-  { unique: true, name: "runRequestId_timestamp_unique" }
-)
+  { unique: true, name: 'runRequestId_timestamp_unique' },
+);
 ```
 
 #### `agent_runs`
+
 ```javascript
 // Document shape: { _id: string, agent, status, input, output?, fullInput?, fullOutput?,
 //   model?, tokensUsed?, promptTokens?, completionTokens?, durationMs?, error?,
 //   metadata?: {}, createdAt, completedAt? }
 
-db.agent_runs.createIndex({ agent: 1, createdAt: -1 }, { name: "agent_createdAt_desc" })
-db.agent_runs.createIndex({ status: 1, createdAt: -1 }, { name: "status_createdAt_desc" })
+db.agent_runs.createIndex({ agent: 1, createdAt: -1 }, { name: 'agent_createdAt_desc' });
+db.agent_runs.createIndex({ status: 1, createdAt: -1 }, { name: 'status_createdAt_desc' });
 ```
 
 #### `articles`
+
 ```javascript
 // Document shape: { _id: string, url, title, source, fetchedAt, contentHash, s3Key,
 //   status, qualityScore?, metadata: {}, dedupe: {}, ingestionRunId?, createdAt, updatedAt }
 
-db.articles.createIndex({ status: 1, fetchedAt: -1 }, { name: "status_fetchedAt_desc" })
-db.articles.createIndex({ url: 1 }, { unique: true, name: "url_unique" })
+db.articles.createIndex({ status: 1, fetchedAt: -1 }, { name: 'status_fetchedAt_desc' });
+db.articles.createIndex({ url: 1 }, { unique: true, name: 'url_unique' });
 ```
 
 > **Improvement over DynamoDB**: `getArticleByUrl()` currently does a full table Scan with filter — MongoDB can use a `url` unique index for O(1) lookup.
 
 #### `summaries`
+
 ```javascript
 // Document shape: { _id: string, articleId, runRequestId, version, content: {},
 //   bedrockKbDocId?, model, promptVersion, tokensUsed, promptTokens?, completionTokens?,
 //   createdAt }
 
-db.summaries.createIndex({ articleId: 1 }, { name: "articleId" })
+db.summaries.createIndex({ articleId: 1 }, { name: 'articleId' });
 ```
 
 #### `events`
+
 ```javascript
 // Document shape: { _id: string (generated), userId, timestamp, eventId, event,
 //   properties: {}, sessionId }
 // DynamoDB used composite key (userId + timestamp). In MongoDB, use generated _id
 // with compound index.
 
-db.events.createIndex(
-  { userId: 1, timestamp: -1 },
-  { name: "userId_timestamp_desc" }
-)
+db.events.createIndex({ userId: 1, timestamp: -1 }, { name: 'userId_timestamp_desc' });
 ```
 
 ### 3.3 Field Mapping: `id` → `_id`
@@ -296,18 +308,19 @@ Use Mongoose with a `toJSON` virtual that exposes `_id` as `id`. This couples yo
 
 ### Comparison
 
-| Criteria | Native MongoDB Driver (`mongodb`) | Mongoose |
-|---|---|---|
-| **Pattern match** | Closest to current DynamoDB SDK style (imperative commands) | ODM with schema validation, middleware, virtuals |
-| **Bundle size** | ~600KB | ~2MB (includes `mongodb` as dep) |
-| **Type safety** | Good with generics: `Collection<User>` | Excellent with `Schema<IUser>` |
-| **Schema enforcement** | Use MongoDB JSON Schema validation or validate in app (Zod already does this) | Built-in schema, but duplicates Zod |
-| **Learning curve** | Minimal for team (similar to DynamoDB SDK) | Moderate (new concepts: middleware, population, etc.) |
-| **Performance** | Direct, no ORM overhead | Slight overhead from hydration |
+| Criteria               | Native MongoDB Driver (`mongodb`)                                             | Mongoose                                              |
+| ---------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------- |
+| **Pattern match**      | Closest to current DynamoDB SDK style (imperative commands)                   | ODM with schema validation, middleware, virtuals      |
+| **Bundle size**        | ~600KB                                                                        | ~2MB (includes `mongodb` as dep)                      |
+| **Type safety**        | Good with generics: `Collection<User>`                                        | Excellent with `Schema<IUser>`                        |
+| **Schema enforcement** | Use MongoDB JSON Schema validation or validate in app (Zod already does this) | Built-in schema, but duplicates Zod                   |
+| **Learning curve**     | Minimal for team (similar to DynamoDB SDK)                                    | Moderate (new concepts: middleware, population, etc.) |
+| **Performance**        | Direct, no ORM overhead                                                       | Slight overhead from hydration                        |
 
 ### Recommendation: **Native MongoDB Driver (`mongodb` v6+)**
 
 Reasons:
+
 1. **Zod is already the validation layer** — Mongoose schemas would duplicate Zod schemas in `packages/shared`
 2. **Repository pattern is already established** — Each repo file manually constructs queries; this maps directly to MongoDB native driver
 3. **Simpler migration** — Replace `PutCommand` → `insertOne`, `GetCommand` → `findOne`, `QueryCommand` → `find`, `ScanCommand` → `find({})`, `UpdateCommand` → `updateOne`, `DeleteCommand` → `deleteOne`
@@ -331,12 +344,12 @@ pnpm add -D @types/mongodb  # Not needed for mongodb v6+ (ships own types)
 Create `packages/shared/src/utils/mongodb.ts`:
 
 ```typescript
-import { MongoClient, type Db } from "mongodb";
+import { MongoClient, type Db } from 'mongodb';
 
 let client: MongoClient | null = null;
 let db: Db | null = null;
 
-export async function connectMongo(uri: string, dbName = "aijourney"): Promise<Db> {
+export async function connectMongo(uri: string, dbName = 'aijourney'): Promise<Db> {
   if (db) return db;
   client = new MongoClient(uri);
   await client.connect();
@@ -345,7 +358,7 @@ export async function connectMongo(uri: string, dbName = "aijourney"): Promise<D
 }
 
 export function getDb(): Db {
-  if (!db) throw new Error("MongoDB not connected. Call connectMongo() first.");
+  if (!db) throw new Error('MongoDB not connected. Call connectMongo() first.');
   return db;
 }
 
@@ -363,12 +376,12 @@ export async function closeMongo(): Promise<void> {
 Replace `services/api/src/dynamodb/dynamodb.module.ts` with `services/api/src/mongodb/mongodb.module.ts`:
 
 ```typescript
-import { type Db, MongoClient } from "mongodb";
-import { Global, Module } from "@nestjs/common";
-import { AppConfigService } from "../config/config.service";
+import { type Db, MongoClient } from 'mongodb';
+import { Global, Module } from '@nestjs/common';
+import { AppConfigService } from '../config/config.service';
 
-export const MONGODB_DB = "MONGODB_DB";
-export const MONGODB_CLIENT = "MONGODB_CLIENT";
+export const MONGODB_DB = 'MONGODB_DB';
+export const MONGODB_CLIENT = 'MONGODB_CLIENT';
 
 @Global()
 @Module({
@@ -384,7 +397,7 @@ export const MONGODB_CLIENT = "MONGODB_CLIENT";
     },
     {
       provide: MONGODB_DB,
-      useFactory: (client: MongoClient) => client.db("aijourney"),
+      useFactory: (client: MongoClient) => client.db('aijourney'),
       inject: [MONGODB_CLIENT],
     },
   ],
@@ -407,20 +420,21 @@ Each repository follows the same transformation pattern. Here's the mapping:
 
 #### DynamoDB → MongoDB Operation Mapping
 
-| DynamoDB | MongoDB | Notes |
-|---|---|---|
-| `PutCommand({ Item })` | `collection.insertOne(doc)` | Map `id` → `_id` |
-| `GetCommand({ Key: { id } })` | `collection.findOne({ _id: id })` | Map `_id` → `id` in result |
-| `QueryCommand({ IndexName, KeyCondition })` | `collection.find(filter).sort(sort).toArray()` | Index is implicit (created on init) |
-| `ScanCommand({})` | `collection.find({}).limit(n).toArray()` | No 1MB page limit in MongoDB |
-| `UpdateCommand({ UpdateExpression })` | `collection.updateOne({ _id: id }, { $set: updates })` | Much simpler syntax |
-| `DeleteCommand({ Key })` | `collection.deleteOne({ _id: id })` | Identical concept |
-| `ScanCommand({ FilterExpression })` | `collection.findOne({ field: value })` | Direct query, no scan needed |
-| `ScanCommand({ Select: "COUNT" })` | `collection.countDocuments({})` | Native count |
+| DynamoDB                                    | MongoDB                                                | Notes                               |
+| ------------------------------------------- | ------------------------------------------------------ | ----------------------------------- |
+| `PutCommand({ Item })`                      | `collection.insertOne(doc)`                            | Map `id` → `_id`                    |
+| `GetCommand({ Key: { id } })`               | `collection.findOne({ _id: id })`                      | Map `_id` → `id` in result          |
+| `QueryCommand({ IndexName, KeyCondition })` | `collection.find(filter).sort(sort).toArray()`         | Index is implicit (created on init) |
+| `ScanCommand({})`                           | `collection.find({}).limit(n).toArray()`               | No 1MB page limit in MongoDB        |
+| `UpdateCommand({ UpdateExpression })`       | `collection.updateOne({ _id: id }, { $set: updates })` | Much simpler syntax                 |
+| `DeleteCommand({ Key })`                    | `collection.deleteOne({ _id: id })`                    | Identical concept                   |
+| `ScanCommand({ FilterExpression })`         | `collection.findOne({ field: value })`                 | Direct query, no scan needed        |
+| `ScanCommand({ Select: "COUNT" })`          | `collection.countDocuments({})`                        | Native count                        |
 
 #### Example: `users.repository.ts` (before → after)
 
 **Before (DynamoDB):**
+
 ```typescript
 @Injectable()
 export class UsersRepository {
@@ -429,10 +443,10 @@ export class UsersRepository {
   async getByEmail(email: string): Promise<User | undefined> {
     const result = await this.db.send(
       new QueryCommand({
-        TableName: "users",
-        IndexName: "email-index",
-        KeyConditionExpression: "email = :email",
-        ExpressionAttributeValues: { ":email": email },
+        TableName: 'users',
+        IndexName: 'email-index',
+        KeyConditionExpression: 'email = :email',
+        ExpressionAttributeValues: { ':email': email },
         Limit: 1,
       }),
     );
@@ -442,13 +456,14 @@ export class UsersRepository {
 ```
 
 **After (MongoDB):**
+
 ```typescript
 @Injectable()
 export class UsersRepository {
   private readonly collection;
 
   constructor(@Inject(MONGODB_DB) private readonly db: Db) {
-    this.collection = db.collection("users");
+    this.collection = db.collection('users');
   }
 
   async getByEmail(email: string): Promise<User | undefined> {
@@ -474,7 +489,7 @@ export class UsersRepository {
 
   async listAll(limit = 50): Promise<User[]> {
     const docs = await this.collection.find({}).limit(limit).toArray();
-    return docs.map(d => fromMongoDoc<User>(d));
+    return docs.map((d) => fromMongoDoc<User>(d));
   }
 }
 ```
@@ -483,21 +498,21 @@ export class UsersRepository {
 
 #### API Service (NestJS DI pattern — inject `MONGODB_DB`)
 
-| File | Collection | Methods | Complexity |
-|---|---|---|---|
-| `users.repository.ts` | `users` | create, getById, getByEmail, update, listAll | Simple |
-| `journeys.repository.ts` | `journeys` | create, getById, listByUser, update | Simple |
-| `runs.repository.ts` | `run_requests` | create, getById, listByUser, listByStatus, updateStatus, listAll | Medium |
-| `agent-runs.repository.ts` | `agent_runs` | create, getById, update, listAll, listByAgent, listByStatus | Medium |
-| `health.service.ts` | `users` | Scan limit 1 → `findOne({})` | Trivial |
+| File                       | Collection     | Methods                                                          | Complexity |
+| -------------------------- | -------------- | ---------------------------------------------------------------- | ---------- |
+| `users.repository.ts`      | `users`        | create, getById, getByEmail, update, listAll                     | Simple     |
+| `journeys.repository.ts`   | `journeys`     | create, getById, listByUser, update                              | Simple     |
+| `runs.repository.ts`       | `run_requests` | create, getById, listByUser, listByStatus, updateStatus, listAll | Medium     |
+| `agent-runs.repository.ts` | `agent_runs`   | create, getById, update, listAll, listByAgent, listByStatus      | Medium     |
+| `health.service.ts`        | `users`        | Scan limit 1 → `findOne({})`                                     | Trivial    |
 
 #### KB Builder (direct connection — use shared `getDb()`)
 
-| File | Collection | Methods | Complexity |
-|---|---|---|---|
-| `article-repository.ts` | `articles` | save, getByUrl, getAll, getByStatus, getById, count, updateStatus, backfillCrawledAt, delete | Medium-High |
-| `summary-repository.ts` | `summaries` | save, getByArticleId, getById, getAll, count, delete, deleteByArticleId | Medium |
-| `agent-run-logger.ts` | `agent_runs` | startAgentRun, completeAgentRun (read-modify-write), failAgentRun | Medium |
+| File                    | Collection   | Methods                                                                                      | Complexity  |
+| ----------------------- | ------------ | -------------------------------------------------------------------------------------------- | ----------- |
+| `article-repository.ts` | `articles`   | save, getByUrl, getAll, getByStatus, getById, count, updateStatus, backfillCrawledAt, delete | Medium-High |
+| `summary-repository.ts` | `summaries`  | save, getByArticleId, getById, getAll, count, delete, deleteByArticleId                      | Medium      |
+| `agent-run-logger.ts`   | `agent_runs` | startAgentRun, completeAgentRun (read-modify-write), failAgentRun                            | Medium      |
 
 ### 5.5 KB Builder Connection Pattern
 
@@ -505,20 +520,20 @@ Replace the per-file DynamoDB client instantiation with shared MongoDB connectio
 
 ```typescript
 // kb-builder/src/db.ts
-import { MongoClient, type Db } from "mongodb";
+import { MongoClient, type Db } from 'mongodb';
 
 let db: Db | null = null;
 
 export async function initDb(): Promise<Db> {
-  const uri = process.env.MONGODB_URI || "mongodb://localhost:27017";
+  const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017';
   const client = new MongoClient(uri);
   await client.connect();
-  db = client.db("aijourney");
+  db = client.db('aijourney');
   return db;
 }
 
 export function getDb(): Db {
-  if (!db) throw new Error("DB not initialized");
+  if (!db) throw new Error('DB not initialized');
   return db;
 }
 ```
@@ -527,11 +542,11 @@ Call `initDb()` in the KB Builder's startup (app.ts). Each repository imports `g
 
 ```typescript
 // article-repository.ts (after)
-import { getDb } from "./db.js";
-import type { Article, ArticleStatus } from "@aijourney/shared";
+import { getDb } from './db.js';
+import type { Article, ArticleStatus } from '@aijourney/shared';
 
 function col() {
-  return getDb().collection("articles");
+  return getDb().collection('articles');
 }
 
 export async function getArticleByUrl(url: string): Promise<Article | null> {
@@ -544,6 +559,7 @@ export async function getArticleByUrl(url: string): Promise<Article | null> {
 ### 5.6 Worker Service
 
 The worker uses Redis/BullMQ for job processing and the `DYNAMODB_ENDPOINT` env var is passed in Docker Compose. Verify:
+
 - If the worker directly imports DynamoDB — rewrite needed
 - If it only uses Redis + HTTP calls to the API — only env var cleanup needed
 
@@ -561,10 +577,10 @@ export class HealthService {
     const checks: Record<string, string> = {};
     try {
       await this.db.command({ ping: 1 });
-      checks["mongodb"] = "connected";
+      checks['mongodb'] = 'connected';
     } catch (error) {
-      this.logger.warn("MongoDB health check failed", error);
-      checks["mongodb"] = "disconnected";
+      this.logger.warn('MongoDB health check failed', error);
+      checks['mongodb'] = 'disconnected';
     }
     // ... rest unchanged
   }
@@ -578,15 +594,16 @@ export class HealthService {
 ### 6.1 Replace DynamoDB Local with MongoDB
 
 **Before:**
+
 ```yaml
 dynamodb-local:
   image: amazon/dynamodb-local:latest
   user: root
   volumes:
     - dynamodb_data:/home/dynamodblocal/data
-  command: "-jar DynamoDBLocal.jar -sharedDb -dbPath /home/dynamodblocal/data"
+  command: '-jar DynamoDBLocal.jar -sharedDb -dbPath /home/dynamodblocal/data'
   healthcheck:
-    test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/8000' 2>/dev/null || exit 1"]
+    test: ['CMD-SHELL', "bash -c 'echo > /dev/tcp/localhost/8000' 2>/dev/null || exit 1"]
     interval: 10s
     timeout: 5s
     retries: 5
@@ -600,6 +617,7 @@ seed-db:
 ```
 
 **After:**
+
 ```yaml
 mongodb:
   image: mongo:8
@@ -610,7 +628,7 @@ mongodb:
   environment:
     MONGO_INITDB_DATABASE: aijourney
   healthcheck:
-    test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok", "--quiet"]
+    test: ['CMD', 'mongosh', '--eval', "db.runCommand('ping').ok", '--quiet']
     interval: 10s
     timeout: 5s
     retries: 5
@@ -620,12 +638,12 @@ mongodb:
 
 ### 6.2 Environment Variable Changes
 
-| Service | Remove | Add |
-|---|---|---|
-| `api` | `DYNAMODB_ENDPOINT` | `MONGODB_URI: mongodb://mongodb:27017/aijourney` |
-| `kb-builder` | `DYNAMODB_ENDPOINT` | `MONGODB_URI: mongodb://mongodb:27017/aijourney` |
-| `worker` | `DYNAMODB_ENDPOINT` | `MONGODB_URI: mongodb://mongodb:27017/aijourney` |
-| `seed-db` | (remove entire service) | — |
+| Service      | Remove                  | Add                                              |
+| ------------ | ----------------------- | ------------------------------------------------ |
+| `api`        | `DYNAMODB_ENDPOINT`     | `MONGODB_URI: mongodb://mongodb:27017/aijourney` |
+| `kb-builder` | `DYNAMODB_ENDPOINT`     | `MONGODB_URI: mongodb://mongodb:27017/aijourney` |
+| `worker`     | `DYNAMODB_ENDPOINT`     | `MONGODB_URI: mongodb://mongodb:27017/aijourney` |
+| `seed-db`    | (remove entire service) | —                                                |
 
 ### 6.3 Volume Changes
 
@@ -645,14 +663,14 @@ volumes:
 api:
   depends_on:
     mongodb:
-      condition: service_healthy  # was: dynamodb-local + seed-db
+      condition: service_healthy # was: dynamodb-local + seed-db
     redis:
       condition: service_healthy
 
 kb-builder:
   depends_on:
     mongodb:
-      condition: service_healthy  # was: dynamodb-local
+      condition: service_healthy # was: dynamodb-local
 ```
 
 ### 6.5 Local Dev (docker-compose.yml)
@@ -666,7 +684,7 @@ Current server has **7.7GB RAM** with these services running. DynamoDB Local JVM
 ```yaml
 mongodb:
   image: mongo:8
-  command: ["mongod", "--wiredTigerCacheSizeGB", "0.5"]
+  command: ['mongod', '--wiredTigerCacheSizeGB', '0.5']
   # ...
 ```
 
@@ -684,59 +702,59 @@ Create `scripts/mongo-init.js` — runs automatically on first MongoDB start:
 // scripts/mongo-init.js
 // Executed by MongoDB's docker-entrypoint-initdb.d on first run
 
-db = db.getSiblingDB("aijourney");
+db = db.getSiblingDB('aijourney');
 
 // ── users ──
-db.createCollection("users");
-db.users.createIndex({ email: 1 }, { unique: true, name: "email_unique" });
+db.createCollection('users');
+db.users.createIndex({ email: 1 }, { unique: true, name: 'email_unique' });
 
 // ── journeys ──
-db.createCollection("journeys");
-db.journeys.createIndex({ userId: 1, createdAt: -1 }, { name: "userId_createdAt_desc" });
+db.createCollection('journeys');
+db.journeys.createIndex({ userId: 1, createdAt: -1 }, { name: 'userId_createdAt_desc' });
 
 // ── steps ──
-db.createCollection("steps");
-db.steps.createIndex({ journeyId: 1, order: 1 }, { name: "journeyId_order" });
+db.createCollection('steps');
+db.steps.createIndex({ journeyId: 1, order: 1 }, { name: 'journeyId_order' });
 
 // ── kpis ──
-db.createCollection("kpis");
-db.kpis.createIndex({ stepId: 1 }, { name: "stepId" });
+db.createCollection('kpis');
+db.kpis.createIndex({ stepId: 1 }, { name: 'stepId' });
 
 // ── evidence ──
-db.createCollection("evidence");
-db.evidence.createIndex({ kpiId: 1, submittedAt: -1 }, { name: "kpiId_submittedAt_desc" });
+db.createCollection('evidence');
+db.evidence.createIndex({ kpiId: 1, submittedAt: -1 }, { name: 'kpiId_submittedAt_desc' });
 
 // ── run_requests ──
-db.createCollection("run_requests");
-db.run_requests.createIndex({ userId: 1, status: 1 }, { name: "userId_status" });
-db.run_requests.createIndex({ status: 1, createdAt: -1 }, { name: "status_createdAt_desc" });
+db.createCollection('run_requests');
+db.run_requests.createIndex({ userId: 1, status: 1 }, { name: 'userId_status' });
+db.run_requests.createIndex({ status: 1, createdAt: -1 }, { name: 'status_createdAt_desc' });
 
 // ── run_logs ──
-db.createCollection("run_logs");
+db.createCollection('run_logs');
 db.run_logs.createIndex(
   { runRequestId: 1, timestamp: 1 },
-  { unique: true, name: "runRequestId_timestamp_unique" }
+  { unique: true, name: 'runRequestId_timestamp_unique' },
 );
 
 // ── agent_runs ──
-db.createCollection("agent_runs");
-db.agent_runs.createIndex({ agent: 1, createdAt: -1 }, { name: "agent_createdAt_desc" });
-db.agent_runs.createIndex({ status: 1, createdAt: -1 }, { name: "status_createdAt_desc" });
+db.createCollection('agent_runs');
+db.agent_runs.createIndex({ agent: 1, createdAt: -1 }, { name: 'agent_createdAt_desc' });
+db.agent_runs.createIndex({ status: 1, createdAt: -1 }, { name: 'status_createdAt_desc' });
 
 // ── articles ──
-db.createCollection("articles");
-db.articles.createIndex({ status: 1, fetchedAt: -1 }, { name: "status_fetchedAt_desc" });
-db.articles.createIndex({ url: 1 }, { unique: true, name: "url_unique" });
+db.createCollection('articles');
+db.articles.createIndex({ status: 1, fetchedAt: -1 }, { name: 'status_fetchedAt_desc' });
+db.articles.createIndex({ url: 1 }, { unique: true, name: 'url_unique' });
 
 // ── summaries ──
-db.createCollection("summaries");
-db.summaries.createIndex({ articleId: 1 }, { name: "articleId" });
+db.createCollection('summaries');
+db.summaries.createIndex({ articleId: 1 }, { name: 'articleId' });
 
 // ── events ──
-db.createCollection("events");
-db.events.createIndex({ userId: 1, timestamp: -1 }, { name: "userId_timestamp_desc" });
+db.createCollection('events');
+db.events.createIndex({ userId: 1, timestamp: -1 }, { name: 'userId_timestamp_desc' });
 
-print("✓ All collections and indexes created for aijourney");
+print('✓ All collections and indexes created for aijourney');
 ```
 
 ### 7.2 Data Migration Script (for existing data)
@@ -753,19 +771,28 @@ Create `scripts/migrate-dynamo-to-mongo.ts` — one-time script to move existing
  *   DYNAMODB_ENDPOINT=http://localhost:8000 MONGODB_URI=mongodb://localhost:27017 \
  *   npx tsx scripts/migrate-dynamo-to-mongo.ts
  */
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, ScanCommand } from "@aws-sdk/lib-dynamodb";
-import { MongoClient } from "mongodb";
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, ScanCommand } from '@aws-sdk/lib-dynamodb';
+import { MongoClient } from 'mongodb';
 
 const TABLES = [
-  "users", "journeys", "steps", "kpis", "evidence",
-  "run_requests", "run_logs", "agent_runs", "articles", "summaries", "events",
+  'users',
+  'journeys',
+  'steps',
+  'kpis',
+  'evidence',
+  'run_requests',
+  'run_logs',
+  'agent_runs',
+  'articles',
+  'summaries',
+  'events',
 ];
 
 // Tables with composite keys (need _id generation)
 const COMPOSITE_KEY_TABLES: Record<string, { pk: string; sk: string }> = {
-  run_logs: { pk: "runRequestId", sk: "timestamp" },
-  events: { pk: "userId", sk: "timestamp" },
+  run_logs: { pk: 'runRequestId', sk: 'timestamp' },
+  events: { pk: 'userId', sk: 'timestamp' },
 };
 
 async function scanAll(ddb: DynamoDBDocumentClient, table: string) {
@@ -773,7 +800,7 @@ async function scanAll(ddb: DynamoDBDocumentClient, table: string) {
   let lastKey: Record<string, unknown> | undefined;
   do {
     const result = await ddb.send(
-      new ScanCommand({ TableName: table, ExclusiveStartKey: lastKey })
+      new ScanCommand({ TableName: table, ExclusiveStartKey: lastKey }),
     );
     if (result.Items) items.push(...result.Items);
     lastKey = result.LastEvaluatedKey;
@@ -795,16 +822,14 @@ function toMongoDoc(table: string, item: Record<string, unknown>) {
 
 async function main() {
   const dynamoClient = new DynamoDBClient({
-    region: "eu-central-1",
-    endpoint: process.env.DYNAMODB_ENDPOINT || "http://localhost:8000",
+    region: 'eu-central-1',
+    endpoint: process.env.DYNAMODB_ENDPOINT || 'http://localhost:8000',
   });
   const ddb = DynamoDBDocumentClient.from(dynamoClient);
 
-  const mongo = new MongoClient(
-    process.env.MONGODB_URI || "mongodb://localhost:27017"
-  );
+  const mongo = new MongoClient(process.env.MONGODB_URI || 'mongodb://localhost:27017');
   await mongo.connect();
-  const db = mongo.db("aijourney");
+  const db = mongo.db('aijourney');
 
   for (const table of TABLES) {
     const items = await scanAll(ddb, table);
@@ -824,7 +849,7 @@ async function main() {
 
   await mongo.close();
   dynamoClient.destroy();
-  console.log("Done!");
+  console.log('Done!');
 }
 
 main().catch((err) => {
@@ -843,34 +868,30 @@ Replace `scripts/seed-db.ts` with a MongoDB version that creates indexes and opt
  * Creates collections, indexes, and optional seed data in MongoDB.
  * Usage: MONGODB_URI=mongodb://localhost:27017 npx tsx scripts/seed-db.ts
  */
-import { MongoClient } from "mongodb";
+import { MongoClient } from 'mongodb';
 
 async function main() {
-  const client = new MongoClient(
-    process.env.MONGODB_URI || "mongodb://localhost:27017"
-  );
+  const client = new MongoClient(process.env.MONGODB_URI || 'mongodb://localhost:27017');
   await client.connect();
-  const db = client.db("aijourney");
+  const db = client.db('aijourney');
 
   // Create indexes (idempotent — createIndex is a no-op if index exists)
-  await db.collection("users").createIndex({ email: 1 }, { unique: true });
-  await db.collection("journeys").createIndex({ userId: 1, createdAt: -1 });
-  await db.collection("steps").createIndex({ journeyId: 1, order: 1 });
-  await db.collection("kpis").createIndex({ stepId: 1 });
-  await db.collection("evidence").createIndex({ kpiId: 1, submittedAt: -1 });
-  await db.collection("run_requests").createIndex({ userId: 1, status: 1 });
-  await db.collection("run_requests").createIndex({ status: 1, createdAt: -1 });
-  await db.collection("run_logs").createIndex(
-    { runRequestId: 1, timestamp: 1 }, { unique: true }
-  );
-  await db.collection("agent_runs").createIndex({ agent: 1, createdAt: -1 });
-  await db.collection("agent_runs").createIndex({ status: 1, createdAt: -1 });
-  await db.collection("articles").createIndex({ status: 1, fetchedAt: -1 });
-  await db.collection("articles").createIndex({ url: 1 }, { unique: true });
-  await db.collection("summaries").createIndex({ articleId: 1 });
-  await db.collection("events").createIndex({ userId: 1, timestamp: -1 });
+  await db.collection('users').createIndex({ email: 1 }, { unique: true });
+  await db.collection('journeys').createIndex({ userId: 1, createdAt: -1 });
+  await db.collection('steps').createIndex({ journeyId: 1, order: 1 });
+  await db.collection('kpis').createIndex({ stepId: 1 });
+  await db.collection('evidence').createIndex({ kpiId: 1, submittedAt: -1 });
+  await db.collection('run_requests').createIndex({ userId: 1, status: 1 });
+  await db.collection('run_requests').createIndex({ status: 1, createdAt: -1 });
+  await db.collection('run_logs').createIndex({ runRequestId: 1, timestamp: 1 }, { unique: true });
+  await db.collection('agent_runs').createIndex({ agent: 1, createdAt: -1 });
+  await db.collection('agent_runs').createIndex({ status: 1, createdAt: -1 });
+  await db.collection('articles').createIndex({ status: 1, fetchedAt: -1 });
+  await db.collection('articles').createIndex({ url: 1 }, { unique: true });
+  await db.collection('summaries').createIndex({ articleId: 1 });
+  await db.collection('events').createIndex({ userId: 1, timestamp: -1 });
 
-  console.log("✓ All indexes ensured");
+  console.log('✓ All indexes ensured');
 
   // Seed data (if needed, port from existing seed-db.ts)
   // ...
@@ -890,9 +911,10 @@ main().catch(console.error);
 Each repository test file needs updating to use MongoDB instead of DynamoDB:
 
 **Test Setup Pattern:**
+
 ```typescript
-import { MongoClient, type Db } from "mongodb";
-import { MongoMemoryServer } from "mongodb-memory-server";
+import { MongoClient, type Db } from 'mongodb';
+import { MongoMemoryServer } from 'mongodb-memory-server';
 
 let mongod: MongoMemoryServer;
 let db: Db;
@@ -901,7 +923,7 @@ beforeAll(async () => {
   mongod = await MongoMemoryServer.create();
   const client = new MongoClient(mongod.getUri());
   await client.connect();
-  db = client.db("test");
+  db = client.db('test');
 });
 
 afterAll(async () => {
@@ -918,6 +940,7 @@ beforeEach(async () => {
 ```
 
 **Dev dependency to add:**
+
 ```bash
 pnpm add -D mongodb-memory-server  # In-memory MongoDB for tests
 ```
@@ -934,17 +957,20 @@ DynamoDB `ConditionExpression: "attribute_not_exists(id)"` (used in create opera
 
 ```typescript
 // DynamoDB pattern:
-await ddb.send(new PutCommand({
-  TableName: TABLE,
-  Item: user,
-  ConditionExpression: "attribute_not_exists(id)",  // Reject if exists
-}));
+await ddb.send(
+  new PutCommand({
+    TableName: TABLE,
+    Item: user,
+    ConditionExpression: 'attribute_not_exists(id)', // Reject if exists
+  }),
+);
 
 // MongoDB equivalent:
 try {
   await collection.insertOne(toMongoDoc(user));
 } catch (err) {
-  if (err.code === 11000) {  // Duplicate key error
+  if (err.code === 11000) {
+    // Duplicate key error
     throw new ConflictError(`Document already exists: ${user.id}`);
   }
   throw err;
@@ -955,14 +981,14 @@ Since `_id` has a unique index by default, `insertOne` will throw error code `11
 
 ### 8.4 Validation Checklist
 
-| Test | Command | Expected |
-|---|---|---|
-| API health check | `curl https://ai.1p.hu/api/health` | `{ "status": "ok", "mongodb": "connected" }` |
-| User login (Cognito SSO) | Browser → Google login | User created/updated in MongoDB |
-| Journey listing | `/api/journeys` | Returns user's journeys sorted by createdAt desc |
-| KB Builder crawl | Trigger via admin UI | Articles + summaries written to MongoDB |
-| Agent run logging | Any LLM operation | Agent run recorded in `agent_runs` collection |
-| Run request flow | Create + approve + execute | Full state machine works |
+| Test                     | Command                            | Expected                                         |
+| ------------------------ | ---------------------------------- | ------------------------------------------------ |
+| API health check         | `curl https://ai.1p.hu/api/health` | `{ "status": "ok", "mongodb": "connected" }`     |
+| User login (Cognito SSO) | Browser → Google login             | User created/updated in MongoDB                  |
+| Journey listing          | `/api/journeys`                    | Returns user's journeys sorted by createdAt desc |
+| KB Builder crawl         | Trigger via admin UI               | Articles + summaries written to MongoDB          |
+| Agent run logging        | Any LLM operation                  | Agent run recorded in `agent_runs` collection    |
+| Run request flow         | Create + approve + execute         | Full state machine works                         |
 
 ---
 
@@ -1055,6 +1081,7 @@ If the migration fails or introduces critical issues:
 ### Data Rollback
 
 The DynamoDB volume (`dynamodb_data`) remains intact until explicitly removed. To restore:
+
 ```bash
 docker compose -f docker-compose.server.yml up -d dynamodb-local seed-db
 ```
@@ -1085,19 +1112,19 @@ cd services/kb-builder && pnpm remove @aws-sdk/client-dynamodb @aws-sdk/lib-dyna
 
 ### Files to Delete
 
-| File | Reason |
-|---|---|
+| File                                           | Reason                                  |
+| ---------------------------------------------- | --------------------------------------- |
 | `services/api/src/dynamodb/dynamodb.module.ts` | Replaced by `mongodb/mongodb.module.ts` |
-| `scripts/create-prod-tables.ts` | Replaced by `scripts/mongo-init.js` |
-| Old `scripts/seed-db.ts` | Replaced by new MongoDB version |
+| `scripts/create-prod-tables.ts`                | Replaced by `scripts/mongo-init.js`     |
+| Old `scripts/seed-db.ts`                       | Replaced by new MongoDB version         |
 
 ### Configuration Cleanup
 
-| Config Entry | Action |
-|---|---|
-| `DYNAMODB_ENDPOINT` | Remove from all `.env`, Docker Compose, and config schemas |
-| `MONGODB_URI` | Add to all `.env`, Docker Compose, and config schemas |
-| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` in dynamodb contexts | Remove from `dynamodb-local` and `seed-db` |
+| Config Entry                                                       | Action                                                     |
+| ------------------------------------------------------------------ | ---------------------------------------------------------- |
+| `DYNAMODB_ENDPOINT`                                                | Remove from all `.env`, Docker Compose, and config schemas |
+| `MONGODB_URI`                                                      | Add to all `.env`, Docker Compose, and config schemas      |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` in dynamodb contexts | Remove from `dynamodb-local` and `seed-db`                 |
 
 ### Docker Volume Cleanup
 
@@ -1112,17 +1139,17 @@ docker volume rm aijourney_dynamodb_data
 
 ## Appendix A: Quick Reference — DynamoDB vs MongoDB Commands
 
-| Operation | DynamoDB (current) | MongoDB (target) |
-|---|---|---|
-| Insert | `PutCommand({ TableName, Item, ConditionExpression })` | `collection.insertOne(doc)` |
-| Get by PK | `GetCommand({ TableName, Key: { id } })` | `collection.findOne({ _id: id })` |
-| Query by index | `QueryCommand({ IndexName, KeyConditionExpression, ExpressionAttributeValues })` | `collection.find({ field: value }).sort({ field: -1 })` |
-| Full scan | `ScanCommand({ TableName, Limit })` | `collection.find({}).limit(n).toArray()` |
-| Scan + filter | `ScanCommand({ FilterExpression, ExpressionAttributeNames, ExpressionAttributeValues })` | `collection.findOne({ field: value })` |
-| Update | `UpdateCommand({ Key, UpdateExpression, ExpressionAttributeNames, ExpressionAttributeValues })` | `collection.updateOne({ _id: id }, { $set: updates })` |
-| Delete | `DeleteCommand({ Key: { id } })` | `collection.deleteOne({ _id: id })` |
-| Count | `ScanCommand({ Select: "COUNT" })` | `collection.countDocuments({})` |
-| Health check | `ScanCommand({ TableName, Limit: 1 })` | `db.command({ ping: 1 })` |
+| Operation      | DynamoDB (current)                                                                              | MongoDB (target)                                        |
+| -------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| Insert         | `PutCommand({ TableName, Item, ConditionExpression })`                                          | `collection.insertOne(doc)`                             |
+| Get by PK      | `GetCommand({ TableName, Key: { id } })`                                                        | `collection.findOne({ _id: id })`                       |
+| Query by index | `QueryCommand({ IndexName, KeyConditionExpression, ExpressionAttributeValues })`                | `collection.find({ field: value }).sort({ field: -1 })` |
+| Full scan      | `ScanCommand({ TableName, Limit })`                                                             | `collection.find({}).limit(n).toArray()`                |
+| Scan + filter  | `ScanCommand({ FilterExpression, ExpressionAttributeNames, ExpressionAttributeValues })`        | `collection.findOne({ field: value })`                  |
+| Update         | `UpdateCommand({ Key, UpdateExpression, ExpressionAttributeNames, ExpressionAttributeValues })` | `collection.updateOne({ _id: id }, { $set: updates })`  |
+| Delete         | `DeleteCommand({ Key: { id } })`                                                                | `collection.deleteOne({ _id: id })`                     |
+| Count          | `ScanCommand({ Select: "COUNT" })`                                                              | `collection.countDocuments({})`                         |
+| Health check   | `ScanCommand({ TableName, Limit: 1 })`                                                          | `db.command({ ping: 1 })`                               |
 
 ## Appendix B: Potential Future Optimizations (Post-Migration)
 

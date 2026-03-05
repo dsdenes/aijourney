@@ -37,6 +37,7 @@ This is a monorepo for the **Mito AI Journey** platform — a Svelte web app + N
 Before starting any implementation, debugging, review, or operational task, agents **must first read** `guides/index.md` to determine which task-specific guides apply.
 
 Execution order is mandatory:
+
 1. Read `guides/index.md`
 2. Identify relevant guide(s) for the current task
 3. Read those guide file(s) completely
@@ -46,31 +47,31 @@ If a guide conflicts with default behavior, follow the guide selected via `guide
 
 ### Key Documents
 
-| File | Purpose |
-|---|---|
-| `IMPLEMENTATION_PLAN.md` | Full architecture, data models, milestones, epic breakdown |
-| `AGENTS.md` | This file — how to operate in this repo |
-| `docs/api-spec.yaml` | OpenAPI 3.1 specification (when created) |
-| `docs/architecture-decision-records/` | ADRs for key technical decisions |
-| `docs/runbooks/` | Operational runbooks |
+| File                                  | Purpose                                                    |
+| ------------------------------------- | ---------------------------------------------------------- |
+| `IMPLEMENTATION_PLAN.md`              | Full architecture, data models, milestones, epic breakdown |
+| `AGENTS.md`                           | This file — how to operate in this repo                    |
+| `docs/api-spec.yaml`                  | OpenAPI 3.1 specification (when created)                   |
+| `docs/architecture-decision-records/` | ADRs for key technical decisions                           |
+| `docs/runbooks/`                      | Operational runbooks                                       |
 
 ### Tech Stack Summary
 
-| Layer | Technology |
-|---|---|
-| Frontend | SvelteKit (Svelte 5) + Tailwind CSS v4 + TypeScript |
-| Backend API | NestJS + TypeScript + OpenTelemetry |
-| Worker/Orchestration | BullMQ + ElastiCache (Redis) |
-| KB Builder | Node.js pipeline + OpenAI + Bedrock |
-| Database | DynamoDB (on-demand) |
-| Cache/Queue | ElastiCache (Redis 7) |
-| Auth | Amazon Cognito (Google Workspace SSO, mito.hu only) |
-| RAG Storage | Amazon Bedrock Knowledge Bases |
-| Object Storage | Amazon S3 |
-| Compute | Docker Compose on Scaleway (self-hosted) |
-| IaC | Docker Compose (production: `docker-compose.server.yml`) |
-| CI/CD | GitHub Actions (self-hosted runner) |
-| LLM | OpenAI API (primary) — **mandatory model: `gpt-5-mini`**; Bedrock models (configurable fallback) |
+| Layer                | Technology                                                                                       |
+| -------------------- | ------------------------------------------------------------------------------------------------ |
+| Frontend             | SvelteKit (Svelte 5) + Tailwind CSS v4 + TypeScript                                              |
+| Backend API          | NestJS + TypeScript + OpenTelemetry                                                              |
+| Worker/Orchestration | BullMQ + ElastiCache (Redis)                                                                     |
+| KB Builder           | Node.js pipeline + OpenAI + Bedrock                                                              |
+| Database             | DynamoDB (on-demand)                                                                             |
+| Cache/Queue          | ElastiCache (Redis 7)                                                                            |
+| Auth                 | Amazon Cognito (Google Workspace SSO, mito.hu only)                                              |
+| RAG Storage          | Amazon Bedrock Knowledge Bases                                                                   |
+| Object Storage       | Amazon S3                                                                                        |
+| Compute              | Docker Compose on Scaleway (self-hosted)                                                         |
+| IaC                  | Docker Compose (production: `docker-compose.server.yml`)                                         |
+| CI/CD                | GitHub Actions (self-hosted runner)                                                              |
+| LLM                  | OpenAI API (primary) — **mandatory model: `gpt-5-mini`**; Bedrock models (configurable fallback) |
 
 ---
 
@@ -94,11 +95,13 @@ aws sts get-caller-identity --no-cli-pager
 ```
 
 **IAM permissions**: PowerUser policy — full access to all AWS services EXCEPT:
+
 - **Denied**: Billing, budgets, cost explorer, pricing, account management
 - **Denied**: IAM user/group/role/policy creation and management (create, delete, attach, detach)
 - **Allowed**: IAM self-management (access keys, password, MFA)
 
 **Implications for Terraform**:
+
 - Cannot create IAM roles/policies directly. These must be:
   - Pre-created by an admin (request from `fmile` — Owner, access_level 50), OR
   - Created via a separate privileged pipeline/account
@@ -138,6 +141,7 @@ gh --version         # GitHub CLI
 ```
 
 **Not installed** (install when needed):
+
 - `playwright` — install via `npx playwright install`
 
 ---
@@ -174,20 +178,20 @@ aijourney/
 
 ### Naming Conventions
 
-| Entity | Convention | Example |
-|---|---|---|
-| Files | kebab-case | `run-request.ts`, `quality-filter.ts` |
-| Directories | kebab-case | `kb-builder/`, `run-logs/` |
-| TypeScript interfaces | PascalCase | `RunRequest`, `JourneyStep` |
-| TypeScript types | PascalCase | `RunStatus`, `KPICategory` |
-| Constants | UPPER_SNAKE_CASE | `MAX_CONCURRENT_RUNS`, `DEFAULT_BUDGETS` |
-| Functions | camelCase | `createRunRequest()`, `validateDomain()` |
-| Environment variables | UPPER_SNAKE_CASE | `DYNAMODB_ENDPOINT`, `REDIS_URL` |
-| API routes | kebab-case plural nouns | `/api/run-requests`, `/api/journeys` |
-| DynamoDB tables | snake_case plural | `run_requests`, `run_logs` |
-| Terraform resources | snake_case | `aws_ecs_service.api` |
-| Terraform modules | kebab-case dirs | `modules/kb-builder/` |
-| Git branches | type/description | `feat/kb-crawler`, `fix/auth-domain-check` |
+| Entity                | Convention              | Example                                    |
+| --------------------- | ----------------------- | ------------------------------------------ |
+| Files                 | kebab-case              | `run-request.ts`, `quality-filter.ts`      |
+| Directories           | kebab-case              | `kb-builder/`, `run-logs/`                 |
+| TypeScript interfaces | PascalCase              | `RunRequest`, `JourneyStep`                |
+| TypeScript types      | PascalCase              | `RunStatus`, `KPICategory`                 |
+| Constants             | UPPER_SNAKE_CASE        | `MAX_CONCURRENT_RUNS`, `DEFAULT_BUDGETS`   |
+| Functions             | camelCase               | `createRunRequest()`, `validateDomain()`   |
+| Environment variables | UPPER_SNAKE_CASE        | `DYNAMODB_ENDPOINT`, `REDIS_URL`           |
+| API routes            | kebab-case plural nouns | `/api/run-requests`, `/api/journeys`       |
+| DynamoDB tables       | snake_case plural       | `run_requests`, `run_logs`                 |
+| Terraform resources   | snake_case              | `aws_ecs_service.api`                      |
+| Terraform modules     | kebab-case dirs         | `modules/kb-builder/`                      |
+| Git branches          | type/description        | `feat/kb-crawler`, `fix/auth-domain-check` |
 
 ### File Organization Rules
 
@@ -211,12 +215,12 @@ main (MVP deployment)
 └── ...
 ```
 
-| Branch | Purpose | Deploys To | Merge Strategy |
-|---|---|---|---|
-| `main` | MVP deployment | mvp (auto) | Squash merge from feature |
-| `feat/*` | Feature work | — | Squash merge to main |
-| `fix/*` | Bug fixes | — | Squash merge to main |
-| `infra/*` | Terraform changes | — | Squash merge to main |
+| Branch    | Purpose           | Deploys To | Merge Strategy            |
+| --------- | ----------------- | ---------- | ------------------------- |
+| `main`    | MVP deployment    | mvp (auto) | Squash merge from feature |
+| `feat/*`  | Feature work      | —          | Squash merge to main      |
+| `fix/*`   | Bug fixes         | —          | Squash merge to main      |
+| `infra/*` | Terraform changes | —          | Squash merge to main      |
 
 ### Commit Message Format
 
@@ -280,23 +284,23 @@ export AWS_PROFILE=mito815
 
 ### Available AWS Services (Confirmed Working)
 
-| Service | CLI Namespace | Status |
-|---|---|---|
-| IAM (read-only + self) | `aws iam` | ✅ Read-only (no create/delete) |
-| S3 | `aws s3` / `aws s3api` | ✅ Full access |
-| ECS | `aws ecs` | ✅ Full access |
-| ECR | `aws ecr` | ✅ Full access |
-| EC2/VPC | `aws ec2` | ✅ Full access |
-| Bedrock | `aws bedrock` | ✅ Full access (38 models available) |
-| Bedrock Agent (KB) | `aws bedrock-agent` | ✅ Full access |
-| Cognito | `aws cognito-idp` | ✅ Full access |
-| ElastiCache | `aws elasticache` | ✅ Full access |
-| CloudWatch | `aws cloudwatch` / `aws logs` | ✅ Full access |
-| Route53 | `aws route53` | ✅ Full access |
-| WAFv2 | `aws wafv2` | ✅ Full access |
-| Secrets Manager | `aws secretsmanager` | ✅ Full access |
-| CloudFront | `aws cloudfront` | ✅ Full access |
-| ACM | `aws acm` | ✅ Full access |
+| Service                | CLI Namespace                 | Status                               |
+| ---------------------- | ----------------------------- | ------------------------------------ |
+| IAM (read-only + self) | `aws iam`                     | ✅ Read-only (no create/delete)      |
+| S3                     | `aws s3` / `aws s3api`        | ✅ Full access                       |
+| ECS                    | `aws ecs`                     | ✅ Full access                       |
+| ECR                    | `aws ecr`                     | ✅ Full access                       |
+| EC2/VPC                | `aws ec2`                     | ✅ Full access                       |
+| Bedrock                | `aws bedrock`                 | ✅ Full access (38 models available) |
+| Bedrock Agent (KB)     | `aws bedrock-agent`           | ✅ Full access                       |
+| Cognito                | `aws cognito-idp`             | ✅ Full access                       |
+| ElastiCache            | `aws elasticache`             | ✅ Full access                       |
+| CloudWatch             | `aws cloudwatch` / `aws logs` | ✅ Full access                       |
+| Route53                | `aws route53`                 | ✅ Full access                       |
+| WAFv2                  | `aws wafv2`                   | ✅ Full access                       |
+| Secrets Manager        | `aws secretsmanager`          | ✅ Full access                       |
+| CloudFront             | `aws cloudfront`              | ✅ Full access                       |
+| ACM                    | `aws acm`                     | ✅ Full access                       |
 
 ### IAM Limitation — Critical
 
@@ -313,14 +317,14 @@ export AWS_PROFILE=mito815
 
 ### Available Bedrock Models (Key Ones)
 
-| Model | Provider | Use Case |
-|---|---|---|
-| `anthropic.claude-sonnet-4-6` | Anthropic | KB chat generation (option) |
-| `anthropic.claude-opus-4-6-v1` | Anthropic | Complex generation |
-| `anthropic.claude-haiku-4-5-20251001-v1:0` | Anthropic | Fast/cheap tasks |
-| `amazon.titan-embed-text-v2:0` | Amazon | Embeddings for Bedrock KB |
-| `cohere.embed-english-v3` | Cohere | Alternative embeddings |
-| `amazon.nova-pro-v1:0` | Amazon | Alternative generation |
+| Model                                      | Provider  | Use Case                    |
+| ------------------------------------------ | --------- | --------------------------- |
+| `anthropic.claude-sonnet-4-6`              | Anthropic | KB chat generation (option) |
+| `anthropic.claude-opus-4-6-v1`             | Anthropic | Complex generation          |
+| `anthropic.claude-haiku-4-5-20251001-v1:0` | Anthropic | Fast/cheap tasks            |
+| `amazon.titan-embed-text-v2:0`             | Amazon    | Embeddings for Bedrock KB   |
+| `cohere.embed-english-v3`                  | Cohere    | Alternative embeddings      |
+| `amazon.nova-pro-v1:0`                     | Amazon    | Alternative generation      |
 
 ### AWS Region
 
@@ -360,16 +364,16 @@ gh workflow run deploy.yml
 
 These are configured in GitHub repository settings (Settings → Secrets → Actions):
 
-| Secret | Description |
-|---|---|
-| `AWS_ACCESS_KEY_ID` | AWS IAM access key |
-| `AWS_SECRET_ACCESS_KEY` | AWS IAM secret key |
-| `OPENAI_API_KEY` | OpenAI API key |
-| `COGNITO_USER_POOL_ID` | Cognito User Pool ID |
-| `COGNITO_CLIENT_ID` | Cognito App Client ID |
+| Secret                  | Description               |
+| ----------------------- | ------------------------- |
+| `AWS_ACCESS_KEY_ID`     | AWS IAM access key        |
+| `AWS_SECRET_ACCESS_KEY` | AWS IAM secret key        |
+| `OPENAI_API_KEY`        | OpenAI API key            |
+| `COGNITO_USER_POOL_ID`  | Cognito User Pool ID      |
+| `COGNITO_CLIENT_ID`     | Cognito App Client ID     |
 | `COGNITO_CLIENT_SECRET` | Cognito App Client Secret |
-| `COGNITO_DOMAIN` | Cognito domain URL |
-| `COGNITO_ISSUER` | Cognito issuer URL |
+| `COGNITO_DOMAIN`        | Cognito domain URL        |
+| `COGNITO_ISSUER`        | Cognito issuer URL        |
 
 ### Self-Hosted Runner
 
@@ -399,11 +403,11 @@ terraform --version # v1.5+ (1.5.7 available, consider upgrading)
 
 Three modes are available:
 
-| Command | Mode | Use Case |
-|---|---|---|
+| Command      | Mode                         | Use Case                                                             |
+| ------------ | ---------------------------- | -------------------------------------------------------------------- |
 | `pnpm start` | **Docker (production-like)** | All services in Docker containers. Builds images, starts everything. |
-| `pnpm stop` | Stop Docker | Tears down all containers from `pnpm start`. |
-| `pnpm watch` | **Dev with hot-reload** | Infra in Docker, app services run locally with file watchers. |
+| `pnpm stop`  | Stop Docker                  | Tears down all containers from `pnpm start`.                         |
+| `pnpm watch` | **Dev with hot-reload**      | Infra in Docker, app services run locally with file watchers.        |
 
 #### `pnpm start` / `pnpm stop` — Full Docker
 
@@ -429,6 +433,7 @@ pnpm watch
 ```
 
 This gives you:
+
 - **SvelteKit** HMR on http://localhost:5173 (Vite dev server)
 - **NestJS API** auto-restart on http://localhost:3000 (`nest start --watch`)
 - **Worker** auto-restart (`tsx watch`)
@@ -524,20 +529,20 @@ Client (Browser)
 
 ### Health Check Endpoints
 
-| Service | Endpoint | Expected Response |
-|---|---|---|
-| API | `GET /api/health` | `200 { status: "ok", dynamodb: "connected" }` |
-| Worker | Process keeps running, logs heartbeat | BullMQ worker active events |
-| KB Builder | `GET /health` | `200 { status: "ok", pipeline: "idle" }` |
+| Service    | Endpoint                              | Expected Response                             |
+| ---------- | ------------------------------------- | --------------------------------------------- |
+| API        | `GET /api/health`                     | `200 { status: "ok", dynamodb: "connected" }` |
+| Worker     | Process keeps running, logs heartbeat | BullMQ worker active events                   |
+| KB Builder | `GET /health`                         | `200 { status: "ok", pipeline: "idle" }`      |
 
 ### Port Allocation (Local Dev)
 
-| Service | Port |
-|---|---|
-| Svelte dev server | 5173 |
-| API server | 3000 |
-| DynamoDB Local | 8000 |
-| Redis | 6379 |
+| Service               | Port |
+| --------------------- | ---- |
+| Svelte dev server     | 5173 |
+| API server            | 3000 |
+| DynamoDB Local        | 8000 |
+| Redis                 | 6379 |
 | Bull Board (optional) | 3001 |
 
 ---
@@ -567,19 +572,19 @@ await openai.chat.completions.create({ model: "gpt-4o-mini", ... });
 
 `gpt-5-mini` is a **reasoning model** with specific API requirements that differ from GPT-4 series:
 
-| Parameter | Requirement |
-|---|---|
-| `temperature` | ❌ NOT supported — omit entirely (only default `1` works) |
-| `max_tokens` | ❌ NOT supported — use `max_completion_tokens` instead |
+| Parameter               | Requirement                                                 |
+| ----------------------- | ----------------------------------------------------------- |
+| `temperature`           | ❌ NOT supported — omit entirely (only default `1` works)   |
+| `max_tokens`            | ❌ NOT supported — use `max_completion_tokens` instead      |
 | `max_completion_tokens` | ✅ Required — covers BOTH reasoning tokens + visible output |
 
 **Critical: Set `max_completion_tokens` generously.** Reasoning models consume many internal tokens before producing visible output. Minimum recommended values:
 
-| Use Case | Minimum `max_completion_tokens` |
-|---|---|
-| Short JSON responses (lists, analysis) | 8000 |
-| Long JSON responses (strategies, full content) | 16000 |
-| Conversational/chat responses | 4000 |
+| Use Case                                       | Minimum `max_completion_tokens` |
+| ---------------------------------------------- | ------------------------------- |
+| Short JSON responses (lists, analysis)         | 8000                            |
+| Long JSON responses (strategies, full content) | 16000                           |
+| Conversational/chat responses                  | 4000                            |
 
 ```typescript
 // ✅ Correct — reasoning model usage
@@ -636,8 +641,8 @@ class RunBudgetExceededError extends AppError {
 }
 
 // ❌ Bad
-throw "budget exceeded";
-throw new Error("something went wrong");
+throw 'budget exceeded';
+throw new Error('something went wrong');
 ```
 
 **API responses**: Always use consistent envelope.
@@ -671,7 +676,7 @@ import { z } from 'zod';
 
 const envSchema = z.object({
   PORT: z.coerce.number().default(3000),
-  DYNAMODB_ENDPOINT: z.string().url().optional(),  // Only for local dev
+  DYNAMODB_ENDPOINT: z.string().url().optional(), // Only for local dev
   REDIS_URL: z.string().url(),
   // ...
 });
@@ -685,11 +690,11 @@ export const config = envSchema.parse(process.env);
 
 ### Test Pyramid
 
-| Layer | Tool | Location | Coverage Target |
-|---|---|---|---|
-| Unit | Vitest | `*.test.ts` next to source | 80% business logic |
-| Integration | Vitest + testcontainers | `*.integration.test.ts` | Key flows |
-| E2E | Playwright | `apps/web/tests/` | Critical paths |
+| Layer       | Tool                    | Location                   | Coverage Target    |
+| ----------- | ----------------------- | -------------------------- | ------------------ |
+| Unit        | Vitest                  | `*.test.ts` next to source | 80% business logic |
+| Integration | Vitest + testcontainers | `*.integration.test.ts`    | Key flows          |
+| E2E         | Playwright              | `apps/web/tests/`          | Critical paths     |
 
 ### Running Tests
 
@@ -809,6 +814,7 @@ data "aws_iam_role" "ecs_task" {
 ### Terraform Version Note
 
 Current Terraform version is `1.5.7` (October 2023). Consider upgrading to `1.7+` for:
+
 - `removed` blocks
 - Better provider lock file handling
 - Import blocks improvements
@@ -827,6 +833,7 @@ Current Terraform version is `1.5.7` (October 2023). Consider upgrading to `1.7+
 ### CI Workflow (`ci.yml`)
 
 Jobs (parallel where possible):
+
 1. `lint` — ESLint
 2. `test-shared` — Vitest (packages/shared)
 3. `test-api` — Vitest (services/api) with DynamoDB Local + Redis service containers
@@ -865,12 +872,12 @@ docker compose -f docker-compose.server.yml up -d --build
 
 ### Secret Inventory
 
-| Secret | Local Dev | Production |
-|---|---|---|
-| OpenAI API key | `.env` | GitHub Actions secret + server `.env` |
-| DynamoDB | N/A (DynamoDB Local) | DynamoDB Local in Docker |
-| Cognito client secret | `.env` | GitHub Actions secret + server `.env` |
-| AWS credentials | `~/.aws/credentials` (profile) | GitHub Actions secret + server `.env` |
+| Secret                | Local Dev                      | Production                            |
+| --------------------- | ------------------------------ | ------------------------------------- |
+| OpenAI API key        | `.env`                         | GitHub Actions secret + server `.env` |
+| DynamoDB              | N/A (DynamoDB Local)           | DynamoDB Local in Docker              |
+| Cognito client secret | `.env`                         | GitHub Actions secret + server `.env` |
+| AWS credentials       | `~/.aws/credentials` (profile) | GitHub Actions secret + server `.env` |
 
 ### .gitignore Must Include
 
@@ -1046,36 +1053,36 @@ GET ratelimit:global:runs
 
 ### AWS CLI Issues
 
-| Problem | Solution |
-|---|---|
-| `Could not connect to endpoint URL` | Ensure `AWS_PROFILE=mito815` is set (default profile points to `local`) |
-| `AccessDenied` on IAM operations | Expected — IAM create/modify is denied. Request from admin. |
-| `ExpiredToken` | Re-authenticate: `aws configure` (for IAM user, keys don't expire unless rotated) |
-| Interactive pager opens | Add `--no-cli-pager` flag to all commands |
+| Problem                             | Solution                                                                          |
+| ----------------------------------- | --------------------------------------------------------------------------------- |
+| `Could not connect to endpoint URL` | Ensure `AWS_PROFILE=mito815` is set (default profile points to `local`)           |
+| `AccessDenied` on IAM operations    | Expected — IAM create/modify is denied. Request from admin.                       |
+| `ExpiredToken`                      | Re-authenticate: `aws configure` (for IAM user, keys don't expire unless rotated) |
+| Interactive pager opens             | Add `--no-cli-pager` flag to all commands                                         |
 
 ### GitHub Issues
 
-| Problem | Solution |
-|---|---|
-| `gh` uses wrong user | Ensure `GITHUB_TOKEN` env var is not set to a different user's PAT |
-| SSH permission denied | Verify SSH key is added to GitHub profile |
-| Push rejected by secret scanning | Remove secrets from code history with `git filter-repo` |
+| Problem                          | Solution                                                           |
+| -------------------------------- | ------------------------------------------------------------------ |
+| `gh` uses wrong user             | Ensure `GITHUB_TOKEN` env var is not set to a different user's PAT |
+| SSH permission denied            | Verify SSH key is added to GitHub profile                          |
+| Push rejected by secret scanning | Remove secrets from code history with `git filter-repo`            |
 
 ### Docker Issues
 
-| Problem | Solution |
-|---|---|
-| DynamoDB Local won't start | Check if port 8000 is in use: `lsof -i :8000` |
-| Redis connection refused | Ensure `docker compose up -d` ran successfully |
-| Build fails | Clear Docker cache: `docker system prune` |
+| Problem                    | Solution                                       |
+| -------------------------- | ---------------------------------------------- |
+| DynamoDB Local won't start | Check if port 8000 is in use: `lsof -i :8000`  |
+| Redis connection refused   | Ensure `docker compose up -d` ran successfully |
+| Build fails                | Clear Docker cache: `docker system prune`      |
 
 ### Terraform Issues
 
-| Problem | Solution |
-|---|---|
-| State lock | Check DynamoDB, or use `terraform force-unlock <ID>` |
-| Provider version conflict | Run `terraform init -upgrade` |
-| Can't create IAM resource | Expected — see Section 11 (IAM Workaround) |
+| Problem                   | Solution                                             |
+| ------------------------- | ---------------------------------------------------- |
+| State lock                | Check DynamoDB, or use `terraform force-unlock <ID>` |
+| Provider version conflict | Run `terraform init -upgrade`                        |
+| Can't create IAM resource | Expected — see Section 11 (IAM Workaround)           |
 
 ---
 
@@ -1114,4 +1121,4 @@ GET ratelimit:global:runs
 
 ---
 
-*Last verified: 2026-03-03*
+_Last verified: 2026-03-03_
