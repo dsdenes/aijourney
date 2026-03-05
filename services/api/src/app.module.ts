@@ -5,10 +5,12 @@ import {
 } from "@nestjs/common";
 import { AgentRunsModule } from "./agent-runs/agent-runs.module";
 import { AiPlannerModule } from "./ai-planner/ai-planner.module";
+import { ArticleRecsModule } from "./article-recs/article-recs.module";
 import { AuthModule } from "./auth/auth.module";
 import { BillingModule } from "./billing/billing.module";
 import { ChatModule } from "./chat/chat.module";
 import { TenantContextMiddleware } from "./common/middleware/tenant-context.middleware";
+import { CompanyContextModule } from "./company-context/company-context.module";
 import { ConfigModule } from "./config/config.module";
 import { HealthModule } from "./health/health.module";
 import { InvitationsModule } from "./invitations/invitations.module";
@@ -43,13 +45,15 @@ import { WorkersModule } from "./workers/workers.module";
 		MemoryModule,
 		QuotasModule,
 		SuperAdminModule,
+		ArticleRecsModule,
+		CompanyContextModule,
 	],
 })
 export class AppModule implements NestModule {
 	configure(consumer: MiddlewareConsumer) {
 		consumer
 			.apply(TenantContextMiddleware)
-			.exclude("health", "auth/google(.*)")
+			.exclude("health", "auth/token", "auth/google/*path", "billing/webhook")
 			.forRoutes("*");
 	}
 }

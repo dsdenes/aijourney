@@ -25,6 +25,16 @@ export const personalizationQueue = new Queue("personalization", {
 });
 export const kbChatQueue = new Queue("kb-chat", { connection });
 
+// Feature flag — set ENABLE_PERSONALIZATION_WORKER=true to activate
+const personalizationEnabled =
+	process.env.ENABLE_PERSONALIZATION_WORKER === "true";
+
+if (!personalizationEnabled) {
+	console.log(
+		"[worker] Personalization worker DISABLED (set ENABLE_PERSONALIZATION_WORKER=true to enable)",
+	);
+}
+
 // Create workers
 const summarizationWorker = new Worker(
 	"summarization",
@@ -35,14 +45,12 @@ const summarizationWorker = new Worker(
 	},
 );
 
-const personalizationWorker = new Worker(
-	"personalization",
-	handlePersonalizationJob,
-	{
-		connection,
-		concurrency: 2,
-	},
-);
+const personalizationWorker = personalizationEnabled
+	? new Worker("personalization", handlePersonalizationJob, {
+			connection,
+			concurrency: 2,
+		})
+	: null;
 
 const kbChatWorker = new Worker("kb-chat", handleKbChatJob, {
 	connection,
@@ -50,11 +58,13 @@ const kbChatWorker = new Worker("kb-chat", handleKbChatJob, {
 });
 
 // Event handlers
-for (const [name, worker] of Object.entries({
+const activeWorkers: Record<string, Worker> = {
 	summarization: summarizationWorker,
-	personalization: personalizationWorker,
 	"kb-chat": kbChatWorker,
-})) {
+	...(personalizationWorker && { personalization: personalizationWorker }),
+};
+
+for (const [name, worker] of Object.entries(activeWorkers)) {
 	worker.on("completed", (job) => {
 		console.log(`[${name}] Job ${job.id} completed`);
 	});
@@ -71,7 +81,7 @@ const shutdown = async () => {
 	console.log("[worker] Shutting down...");
 	await Promise.all([
 		summarizationWorker.close(),
-		personalizationWorker.close(),
+		personalizationWorker?.close(),
 		kbChatWorker.close(),
 	]);
 	process.exit(0);

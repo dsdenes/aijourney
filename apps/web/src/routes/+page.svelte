@@ -3,8 +3,24 @@
   import { api } from '$lib/api';
   import { comfortLevelFromPractices, TOTAL_PRACTICES } from '@aijourney/shared';
 
+  interface ArticleRec {
+    id: string;
+    article: {
+      url: string;
+      title: string;
+      source: string;
+      summary: string;
+      tags: string[];
+      difficulty: string;
+    };
+    reason: string;
+    status: string;
+    createdAt: string;
+  }
+
   let journeys = $state<any[]>([]);
   let profile = $state<any>(null);
+  let articleRecs = $state<ArticleRec[]>([]);
   let loading = $state(true);
 
   $effect(() => {
@@ -15,16 +31,36 @@
 
   async function loadData() {
     try {
-      const [journeysRes, profileRes] = await Promise.all([
+      const [journeysRes, profileRes, recsRes] = await Promise.all([
         api.get('/journeys'),
         api.get(`/users/${auth.user?.userId}`),
+        api.get<ArticleRec[]>('/article-recs/my/pending'),
       ]);
       journeys = journeysRes.data || [];
       profile = profileRes.data;
+      articleRecs = recsRes.data || [];
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
     } finally {
       loading = false;
+    }
+  }
+
+  async function markRecAsRead(recId: string) {
+    try {
+      await api.post(`/article-recs/${recId}/read`);
+      articleRecs = articleRecs.filter(r => r.id !== recId);
+    } catch (err) {
+      console.error('Failed to mark as read:', err);
+    }
+  }
+
+  async function dismissRec(recId: string) {
+    try {
+      await api.post(`/article-recs/${recId}/dismiss`);
+      articleRecs = articleRecs.filter(r => r.id !== recId);
+    } catch (err) {
+      console.error('Failed to dismiss:', err);
     }
   }
 
@@ -83,6 +119,57 @@
       </div>
     {:else}
       <div class="space-y-3">
+        <!-- Recommended Reading (from AI) -->
+        {#if articleRecs.length > 0}
+          <div class="mb-2">
+            <p class="mb-2 text-sm font-medium text-text-muted">📰 Recommended Reading This Week</p>
+            {#each articleRecs as rec}
+              <div class="rounded-lg p-4 ring-1 ring-primary/30 bg-primary/5 mb-2">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-1">
+                      <a
+                        href={rec.article.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onclick={() => markRecAsRead(rec.id)}
+                        class="font-medium text-primary hover:underline truncate"
+                      >
+                        📖 {rec.article.title}
+                      </a>
+                    </div>
+                    <p class="text-xs text-text-muted mb-1">
+                      {rec.article.source} · {rec.article.difficulty}
+                      {#if rec.article.tags.length > 0}
+                        · {rec.article.tags.slice(0, 3).join(', ')}
+                      {/if}
+                    </p>
+                    <p class="text-sm text-text-muted italic">"{rec.reason}"</p>
+                  </div>
+                  <div class="flex flex-col gap-1 shrink-0">
+                    <a
+                      href={rec.article.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onclick={() => markRecAsRead(rec.id)}
+                      class="rounded bg-primary px-3 py-1 text-xs font-medium text-white hover:bg-primary-dark transition-colors text-center"
+                    >
+                      Read
+                    </a>
+                    <button
+                      onclick={() => dismissRec(rec.id)}
+                      class="rounded bg-surface-dark px-3 py-1 text-xs text-text-muted hover:bg-surface-darker transition-colors"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              </div>
+            {/each}
+          </div>
+          <div class="border-t border-border my-3"></div>
+        {/if}
+
         <!-- Prompting Mastery Journey (always shown) -->
         <a
           href="/journeys/prompting-mastery"

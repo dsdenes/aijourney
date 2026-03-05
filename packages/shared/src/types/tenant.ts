@@ -65,6 +65,8 @@ export interface Tenant {
 	settings: TenantSettings;
 	quotas: TenantQuotas;
 	usage: TenantUsage;
+	/** Admin-authored free-text company description */
+	companyContext?: string;
 	createdAt: string;
 	updatedAt: string;
 }

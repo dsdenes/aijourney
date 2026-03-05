@@ -54,6 +54,31 @@ export type {
 	ArticleDedupe,
 	ArticleMetadata,
 } from "./types/article.js";
+export type {
+	ArticleRecommendation,
+	ArticleRecStatus,
+	CandidateArticle,
+	JobTitleCandidates,
+	RecAdminStats,
+	RecBatch,
+	RecBatchStatus,
+} from "./types/article-recommendation.js";
+export {
+	ARTICLE_REC_STATUSES,
+	REC_BATCH_STATUSES,
+} from "./types/article-recommendation.js";
+export type {
+	CompanyContextState,
+	CompanyDocExtractionStatus,
+	CompanyDocument,
+	CompanyFact,
+	CompanyFactCategory,
+	ResolvedCompanyContext,
+} from "./types/company-context.js";
+export {
+	COMPANY_DOC_EXTRACTION_STATUSES,
+	COMPANY_FACT_CATEGORIES,
+} from "./types/company-context.js";
 export type { UserEvent } from "./types/event.js";
 export type {
 	Evidence,

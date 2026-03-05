@@ -5,15 +5,13 @@ export const AGENT_TYPES = [
 	"crawler",
 	"quality-filter",
 	"pipeline",
+	"article-rec-fetch",
+	"article-rec-select",
 ] as const;
 
 export type AgentType = (typeof AGENT_TYPES)[number];
 
-export const AGENT_RUN_STATUSES = [
-	"running",
-	"completed",
-	"failed",
-] as const;
+export const AGENT_RUN_STATUSES = ["running", "completed", "failed"] as const;
 
 export type AgentRunStatus = (typeof AGENT_RUN_STATUSES)[number];
 

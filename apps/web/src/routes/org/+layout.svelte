@@ -9,6 +9,7 @@
     { label: 'Overview', href: '/org', icon: '🏢' },
     { label: 'Members', href: '/org/members', icon: '👥' },
     { label: 'Invitations', href: '/org/invitations', icon: '📩' },
+    { label: 'Company Context', href: '/org/company-context', icon: '📋' },
     { label: 'Billing', href: '/org/billing', icon: '💳' },
     { label: 'Usage', href: '/org/usage', icon: '📊' },
   ];

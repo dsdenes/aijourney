@@ -1,6 +1,7 @@
 import type { PlannerAnswer, PlannerRound } from "@aijourney/shared";
 import { Body, Controller, Inject, Post } from "@nestjs/common";
 import { ApiBody, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { TenantId } from "../common/decorators/tenant-id.decorator";
 import { MemoryService } from "../memory/memory.service";
 import { AiPlannerService } from "./ai-planner.service";
 
@@ -47,6 +48,7 @@ export class AiPlannerController {
 			round: PlannerRound;
 			previousAnswers?: PlannerAnswer[];
 		},
+		@TenantId() tenantId: string,
 	) {
 		if (!body.goal?.trim()) {
 			return {
@@ -70,6 +72,7 @@ export class AiPlannerController {
 				body.goal.trim(),
 				body.round,
 				body.previousAnswers || [],
+				tenantId,
 			);
 			return { data: { round: body.round, questions } };
 		} catch (err) {
@@ -108,6 +111,7 @@ export class AiPlannerController {
 	})
 	async generateStrategy(
 		@Body() body: { goal: string; answers: PlannerAnswer[]; feedback?: string; userId?: string },
+		@TenantId() tenantId: string,
 	) {
 		if (!body.goal?.trim()) {
 			return {
@@ -135,6 +139,7 @@ export class AiPlannerController {
 				body.goal.trim(),
 				body.answers,
 				body.feedback?.trim(),
+				tenantId,
 			);
 
 			// Fire-and-forget memory extraction

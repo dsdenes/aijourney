@@ -154,6 +154,51 @@ async function main() {
 		.createIndex({ tenantId: 1, category: 1 }, { name: "tenantId_category" });
 	console.log("  ✓ multi-tenant indexes");
 
+	// Article recommendations
+	await db
+		.collection("article_recommendations")
+		.createIndex(
+			{ userId: 1, createdAt: -1 },
+			{ name: "userId_createdAt_desc" },
+		);
+	await db
+		.collection("article_recommendations")
+		.createIndex({ userId: 1, status: 1 }, { name: "userId_status" });
+	await db
+		.collection("article_recommendations")
+		.createIndex({ batchId: 1 }, { name: "batchId" });
+	await db
+		.collection("article_recommendations")
+		.createIndex(
+			{ tenantId: 1, createdAt: -1 },
+			{ name: "tenantId_createdAt_desc" },
+		);
+	await db
+		.collection("article_rec_batches")
+		.createIndex(
+			{ tenantId: 1, createdAt: -1 },
+			{ name: "tenantId_createdAt_desc" },
+		);
+	await db
+		.collection("article_rec_batches")
+		.createIndex({ status: 1 }, { name: "status" });
+	console.log("  ✓ article_recommendations + article_rec_batches");
+
+	// Company documents
+	await db
+		.collection("company_documents")
+		.createIndex(
+			{ tenantId: 1, createdAt: -1 },
+			{ name: "tenantId_createdAt_desc" },
+		);
+	await db
+		.collection("company_documents")
+		.createIndex(
+			{ tenantId: 1, extractionStatus: 1 },
+			{ name: "tenantId_extractionStatus" },
+		);
+	console.log("  ✓ company_documents");
+
 	await client.close();
 	console.log("Done!");
 }

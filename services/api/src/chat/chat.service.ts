@@ -2,6 +2,7 @@ import { getRateLimiter } from "@aijourney/shared";
 import { GoogleGenAI } from "@google/genai";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { AgentRunsService } from "../agent-runs/agent-runs.service";
+import { CompanyContextService } from "../company-context/company-context.service";
 import { AppConfigService } from "../config/config.service";
 import { QuotaService } from "../quotas/quotas.service";
 
@@ -100,6 +101,7 @@ export class ChatService {
 		@Inject(AppConfigService) private readonly configService: AppConfigService,
 		@Inject(AgentRunsService) private readonly agentRunsService: AgentRunsService,
 		@Inject(QuotaService) private readonly quotaService: QuotaService,
+		@Inject(CompanyContextService) private readonly companyContextService: CompanyContextService,
 	) {}
 
 	private getGenAI(): GoogleGenAI {
@@ -311,6 +313,7 @@ ${chunk.text}`;
 	async chat(
 		query: string,
 		conversationHistory: ChatMessage[] = [],
+		tenantId?: string,
 	): Promise<ChatResponse> {
 		const startTime = Date.now();
 		const agentRun = await this.agentRunsService.startRun({
@@ -324,7 +327,7 @@ ${chunk.text}`;
 		});
 
 		try {
-			const result = await this.chatInternal(query, conversationHistory);
+			const result = await this.chatInternal(query, conversationHistory, tenantId);
 			const durationMs = Date.now() - startTime;
 
 			await this.agentRunsService.completeRun(agentRun.id, {
@@ -362,6 +365,7 @@ ${chunk.text}`;
 	private async chatInternal(
 		query: string,
 		conversationHistory: ChatMessage[] = [],
+		tenantId?: string,
 	): Promise<ChatResponse> {
 		const ai = this.getGenAI();
 		const technicalSteps: string[] = [];
@@ -418,7 +422,15 @@ ${chunk.text}`;
 		);
 
 		// Build Gemini contents array — system instruction goes in config
-		const systemText = `${SYSTEM_PROMPT}\n\nHere is relevant context from the knowledge base:\n\n${context}`;
+		let systemText = `${SYSTEM_PROMPT}\n\nHere is relevant context from the knowledge base:\n\n${context}`;
+
+		// Inject company context if available
+		if (tenantId) {
+			const companyCtx = await this.companyContextService.getFormattedContext(tenantId);
+			if (companyCtx) {
+				systemText += `\n${companyCtx}`;
+			}
+		}
 
 		const contents: { role: "user" | "model"; parts: { text: string }[] }[] =
 			[];

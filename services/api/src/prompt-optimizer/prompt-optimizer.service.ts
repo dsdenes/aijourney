@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import OpenAI from "openai";
+import { CompanyContextService } from "../company-context/company-context.service";
 import { QuotaService } from "../quotas/quotas.service";
 import { PROMPTING_PRACTICES_CONTEXT } from "./prompting-practices-context";
 
@@ -12,6 +13,7 @@ export class PromptOptimizerService {
 
 	constructor(
 		@Inject(QuotaService) private readonly quotaService: QuotaService,
+		@Inject(CompanyContextService) private readonly companyContextService: CompanyContextService,
 	) {
 		const apiKey = process.env.GROK_API_KEY;
 		if (!apiKey) {
@@ -28,12 +30,12 @@ export class PromptOptimizerService {
 	/**
 	 * Step 1: Assess prompt quality (0–100) and reverse-engineer 3 likely goals.
 	 */
-	async analyzePrompt(prompt: string): Promise<{
+	async analyzePrompt(prompt: string, tenantId?: string): Promise<{
 		score: number;
 		scoreExplanation: string;
 		goals: { id: number; label: string; description: string }[];
 	}> {
-		const systemMessage = `${PROMPTING_PRACTICES_CONTEXT}
+		let systemMessage = `${PROMPTING_PRACTICES_CONTEXT}
 
 You are an expert prompt quality analyst. The user will give you a prompt they wrote for an AI assistant.
 
@@ -52,6 +54,14 @@ Respond in this exact JSON format (no markdown, no code fences):
     { "id": 3, "label": "<short 5-8 word label>", "description": "<1 sentence description>" }
   ]
 }`;
+
+		// Inject company context if available
+		if (tenantId) {
+			const companyCtx = await this.companyContextService.getFormattedContext(tenantId);
+			if (companyCtx) {
+				systemMessage += `\n${companyCtx}`;
+			}
+		}
 
 		this.logger.debug(`Analyzing prompt: ${prompt.substring(0, 80)}...`);
 
@@ -90,12 +100,13 @@ Respond in this exact JSON format (no markdown, no code fences):
 	async optimizePrompt(
 		originalPrompt: string,
 		goal: string,
+		tenantId?: string,
 	): Promise<{
 		optimizedPrompt: string;
 		changes: string[];
 		newScore: number;
 	}> {
-		const systemMessage = `${PROMPTING_PRACTICES_CONTEXT}
+		let systemMessage = `${PROMPTING_PRACTICES_CONTEXT}
 
 You are an expert prompt optimizer. The user wrote a prompt and has clarified their goal.
 
@@ -119,6 +130,14 @@ Respond in this exact JSON format (no markdown, no code fences):
   "changes": ["<change 1>", "<change 2>", "<change 3>", ...],
   "newScore": <number 0-100>
 }`;
+
+		// Inject company context if available
+		if (tenantId) {
+			const companyCtx = await this.companyContextService.getFormattedContext(tenantId);
+			if (companyCtx) {
+				systemMessage += `\n${companyCtx}`;
+			}
+		}
 
 		this.logger.debug(`Optimizing prompt with goal: ${goal}`);
 

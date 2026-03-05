@@ -1,5 +1,6 @@
 import { Body, Controller, Inject, Post } from "@nestjs/common";
 import { ApiBody, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { TenantId } from "../common/decorators/tenant-id.decorator";
 import { MemoryService } from "../memory/memory.service";
 import { PromptOptimizerService } from "./prompt-optimizer.service";
 
@@ -22,8 +23,8 @@ export class PromptOptimizerController {
 			required: ["prompt"],
 		},
 	})
-	async analyze(@Body() body: { prompt: string; userId?: string }) {
-		const result = await this.service.analyzePrompt(body.prompt);
+	async analyze(@Body() body: { prompt: string; userId?: string }, @TenantId() tenantId: string) {
+		const result = await this.service.analyzePrompt(body.prompt, tenantId);
 
 		// Fire-and-forget memory extraction
 		if (body.userId) {
@@ -45,8 +46,8 @@ export class PromptOptimizerController {
 			required: ["prompt", "goal"],
 		},
 	})
-	async optimize(@Body() body: { prompt: string; goal: string; userId?: string }) {
-		const result = await this.service.optimizePrompt(body.prompt, body.goal);
+	async optimize(@Body() body: { prompt: string; goal: string; userId?: string }, @TenantId() tenantId: string) {
+		const result = await this.service.optimizePrompt(body.prompt, body.goal, tenantId);
 
 		// Fire-and-forget memory extraction (include goal for context)
 		if (body.userId) {

@@ -6,6 +6,7 @@ import type {
 } from "@aijourney/shared";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import OpenAI from "openai";
+import { CompanyContextService } from "../company-context/company-context.service";
 import { AppConfigService } from "../config/config.service";
 import { QuotaService } from "../quotas/quotas.service";
 
@@ -23,6 +24,8 @@ export class AiPlannerService {
 		private readonly configService: AppConfigService,
 		@Inject(QuotaService)
 		private readonly quotaService: QuotaService,
+		@Inject(CompanyContextService)
+		private readonly companyContextService: CompanyContextService,
 	) {}
 
 	private getGrokClient(): OpenAI {
@@ -57,6 +60,7 @@ export class AiPlannerService {
 		goal: string,
 		round: PlannerRound,
 		previousAnswers: PlannerAnswer[],
+		tenantId?: string,
 	): Promise<PlannerQuestion[]> {
 		const previousContext =
 			previousAnswers.length > 0
@@ -112,6 +116,15 @@ Respond in this exact JSON format (no markdown, no code fences):
   { "id": 6, "question": "..." }
 ]`;
 
+		// Inject company context if available
+		let fullSystemMessage = systemMessage;
+		if (tenantId) {
+			const companyCtx = await this.companyContextService.getFormattedContext(tenantId);
+			if (companyCtx) {
+				fullSystemMessage += `\n${companyCtx}`;
+			}
+		}
+
 		this.logger.debug(
 			`Generating round ${round} questions for goal: ${goal.substring(0, 80)}...`,
 		);
@@ -119,7 +132,7 @@ Respond in this exact JSON format (no markdown, no code fences):
 		const response = await this.getGrokClient().chat.completions.create({
 			model: QUESTIONS_MODEL,
 			messages: [
-				{ role: "system", content: systemMessage },
+				{ role: "system", content: fullSystemMessage },
 				{ role: "user", content: `My project goal:\n\n${goal}` },
 			],
 			max_completion_tokens: 8000,
@@ -156,6 +169,7 @@ Respond in this exact JSON format (no markdown, no code fences):
 		goal: string,
 		allAnswers: PlannerAnswer[],
 		feedback?: string,
+		tenantId?: string,
 	): Promise<PlannerStrategy> {
 		const specificationsText = allAnswers
 			.map((a) => `- "${a.question}" → ${a.answer ? "YES" : "NO"}`)
@@ -230,6 +244,15 @@ Respond in this exact JSON format (no markdown, no code fences):
   }]
 }`;
 
+		// Inject company context if available
+		let fullStrategySystemMessage = systemMessage;
+		if (tenantId) {
+			const companyCtx = await this.companyContextService.getFormattedContext(tenantId);
+			if (companyCtx) {
+				fullStrategySystemMessage += `\n${companyCtx}`;
+			}
+		}
+
 		this.logger.debug(
 			`Generating strategy with gpt-5.2 for goal: ${goal.substring(0, 80)}...`,
 		);
@@ -237,7 +260,7 @@ Respond in this exact JSON format (no markdown, no code fences):
 		const requestBody = {
 			model: STRATEGY_MODEL,
 			messages: [
-				{ role: "system" as const, content: systemMessage },
+				{ role: "system" as const, content: fullStrategySystemMessage },
 				{
 					role: "user" as const,
 					content: `Project Goal:\n${goal}\n\nSpecification Answers:\n${specificationsText}${feedbackBlock}`,

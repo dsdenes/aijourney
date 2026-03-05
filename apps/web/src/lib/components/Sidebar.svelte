@@ -61,6 +61,16 @@
         Members
       </a>
       <a
+        href="/org/company-context"
+        class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors
+          {$page.url.pathname.startsWith('/org/company-context')
+            ? 'bg-primary/10 text-primary'
+            : 'text-text-muted hover:bg-surface-dark hover:text-text'}"
+      >
+        <span>📋</span>
+        Company Context
+      </a>
+      <a
         href="/org/billing"
         class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors
           {$page.url.pathname.startsWith('/org/billing')
