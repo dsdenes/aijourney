@@ -357,7 +357,7 @@ gh pr create --base main --title "feat(scope): description"
 gh repo view dsdenes/aijourney
 
 # Trigger workflow manually
-gh workflow run deploy.yml
+gh workflow run ci.yml --ref main
 ```
 
 ### GitHub Actions Secrets
@@ -826,8 +826,7 @@ Current Terraform version is `1.5.7` (October 2023). Consider upgrading to `1.7+
 ### Pipeline Files
 
 ```
-.github/workflows/ci.yml     # Lint + test + build (on PR and push to main)
-.github/workflows/deploy.yml # Deploy to Scaleway (on push to main)
+.github/workflows/ci.yml # Lint + test + build, then deploy on successful push to main
 ```
 
 ### CI Workflow (`ci.yml`)
@@ -840,20 +839,17 @@ Jobs (parallel where possible):
 4. `test-worker` — Vitest (services/worker)
 5. `test-kb-builder` — Vitest (services/kb-builder)
 6. `build-check` — Full Docker multi-stage build
+7. `deploy` — Runs only after `build-check` succeeds on pushes to `main`, syncs the repo to the host, writes runtime secrets, rebuilds containers, and verifies `/api/health`
 
-### Deploy Workflow (`deploy.yml`)
-
-- Triggered on push to `main`
-- Runs on self-hosted runner (`labels: [self-hosted, linux, aijourney]`)
-- Steps: git pull → write .env from secrets → docker compose build → docker compose up -d
-- Deployment directory: `/opt/aijourney`
+Deployment path selection:
+Primary path is `/opt/aijourney` when the runner can write there.
+Fallback path is `/home/gha/aijourney-deploy` when `/opt/aijourney` is not writable.
 
 ### Deployment Commands (Manual)
 
 ```bash
-# On the Scaleway server:
+# On the Scaleway server (primary path if writable):
 cd /opt/aijourney
-git pull
 docker compose -f docker-compose.server.yml up -d --build
 ```
 
@@ -1106,7 +1102,7 @@ GET ratelimit:global:runs
 │ Domain           │ https://ai.1p.hu                         │
 │ Runner           │ scw-aijourney-runner (self-hosted)       │
 │ Runner Path      │ /opt/actions-runner-aijourney/           │
-│ Deploy Path      │ /opt/aijourney/                           │
+│ Deploy Path      │ /opt/aijourney/ (fallback: /home/gha/aijourney-deploy/) │
 ├──────────────────┼─────────────────────────────────────────┤
 │ Tools            │ node 24.12, pnpm 9.15, docker 28.3     │
 │                  │ gh (GitHub CLI)                           │

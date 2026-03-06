@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -114,3 +118,130 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+
+  deploy:
+    runs-on: [self-hosted, linux, aijourney]
+    needs: [build-check]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: true
+    env:
+      PRIMARY_DEPLOY_PATH: /opt/aijourney
+      FALLBACK_DEPLOY_PATH: /home/gha/aijourney-deploy
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve deployment directory
+        id: resolve-deploy-path
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if mkdir -p "$PRIMARY_DEPLOY_PATH" 2>/dev/null && [[ -w "$PRIMARY_DEPLOY_PATH" ]]; then
+            deploy_path="$PRIMARY_DEPLOY_PATH"
+          else
+            mkdir -p "$FALLBACK_DEPLOY_PATH"
+            deploy_path="$FALLBACK_DEPLOY_PATH"
+          fi
+
+          echo "Using deploy path: $deploy_path"
+          echo "deploy_path=$deploy_path" >> "$GITHUB_OUTPUT"
+
+      - name: Sync release to host path
+        shell: bash
+        run: |
+          set -euo pipefail
+          deploy_path="${{ steps.resolve-deploy-path.outputs.deploy_path }}"
+
+          if command -v rsync >/dev/null 2>&1; then
+            rsync -a --delete \
+              --exclude='.git/' \
+              --exclude='node_modules/' \
+              --exclude='coverage/' \
+              --exclude='.pnpm-store/' \
+              "$GITHUB_WORKSPACE/" "$deploy_path/"
+          else
+            find "$deploy_path" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+            tar \
+              --exclude='.git' \
+              --exclude='node_modules' \
+              --exclude='coverage' \
+              --exclude='.pnpm-store' \
+              -cf - . | tar -xf - -C "$deploy_path"
+          fi
+
+      - name: Write .env file
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROK_API_KEY: ${{ secrets.GROK_API_KEY }}
+          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+          PINECONE_INDEX_NAME: ${{ secrets.PINECONE_INDEX_NAME }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          deploy_path="${{ steps.resolve-deploy-path.outputs.deploy_path }}"
+
+          cat > "$deploy_path/.env" <<EOF
+          OPENAI_API_KEY=${OPENAI_API_KEY}
+          GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+          GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+          GEMINI_API_KEY=${GEMINI_API_KEY}
+          GROK_API_KEY=${GROK_API_KEY}
+          PINECONE_API_KEY=${PINECONE_API_KEY}
+          PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME:-aijourney-kb}
+          EOF
+
+      - name: Validate Docker Compose configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          deploy_path="${{ steps.resolve-deploy-path.outputs.deploy_path }}"
+          cd "$deploy_path"
+          docker compose -f docker-compose.server.yml config >/dev/null
+
+      - name: Build Docker images
+        shell: bash
+        run: |
+          set -euo pipefail
+          deploy_path="${{ steps.resolve-deploy-path.outputs.deploy_path }}"
+          cd "$deploy_path"
+          docker compose -f docker-compose.server.yml build
+
+      - name: Restart services
+        shell: bash
+        run: |
+          set -euo pipefail
+          deploy_path="${{ steps.resolve-deploy-path.outputs.deploy_path }}"
+          cd "$deploy_path"
+          docker compose -f docker-compose.server.yml up -d --force-recreate --remove-orphans
+
+      - name: Verify deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          deploy_path="${{ steps.resolve-deploy-path.outputs.deploy_path }}"
+          cd "$deploy_path"
+
+          echo "=== Container Status ==="
+          docker compose -f docker-compose.server.yml ps
+          echo ""
+          echo "=== Health Check ==="
+
+          for attempt in {1..12}; do
+            if curl -fsS http://localhost:3000/api/health; then
+              echo ""
+              echo "Commit $GITHUB_SHA deployed successfully"
+              exit 0
+            fi
+
+            echo "Health check attempt $attempt/12 failed; retrying in 5s"
+            sleep 5
+          done
+
+          echo "Deployment did not become healthy in time. Recent logs:"
+          docker compose -f docker-compose.server.yml logs --tail=100 api web worker kb-builder
+          exit 1
