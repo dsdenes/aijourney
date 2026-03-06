@@ -129,6 +129,7 @@ jobs:
     env:
       PRIMARY_DEPLOY_PATH: /opt/aijourney
       FALLBACK_DEPLOY_PATH: /home/gha/aijourney-deploy
+      COMPOSE_PROJECT_NAME: aijourney
     steps:
       - uses: actions/checkout@v4
 
@@ -201,7 +202,7 @@ jobs:
           set -euo pipefail
           deploy_path="${{ steps.resolve-deploy-path.outputs.deploy_path }}"
           cd "$deploy_path"
-          docker compose -f docker-compose.server.yml config >/dev/null
+          docker compose -p "$COMPOSE_PROJECT_NAME" -f docker-compose.server.yml config >/dev/null
 
       - name: Build Docker images
         shell: bash
@@ -209,7 +210,7 @@ jobs:
           set -euo pipefail
           deploy_path="${{ steps.resolve-deploy-path.outputs.deploy_path }}"
           cd "$deploy_path"
-          docker compose -f docker-compose.server.yml build
+          docker compose -p "$COMPOSE_PROJECT_NAME" -f docker-compose.server.yml build
 
       - name: Restart services
         shell: bash
@@ -217,7 +218,7 @@ jobs:
           set -euo pipefail
           deploy_path="${{ steps.resolve-deploy-path.outputs.deploy_path }}"
           cd "$deploy_path"
-          docker compose -f docker-compose.server.yml up -d --force-recreate --remove-orphans
+          docker compose -p "$COMPOSE_PROJECT_NAME" -f docker-compose.server.yml up -d --force-recreate --remove-orphans
 
       - name: Verify deployment
         shell: bash
@@ -227,7 +228,7 @@ jobs:
           cd "$deploy_path"
 
           echo "=== Container Status ==="
-          docker compose -f docker-compose.server.yml ps
+          docker compose -p "$COMPOSE_PROJECT_NAME" -f docker-compose.server.yml ps
           echo ""
           echo "=== Health Check ==="
 
@@ -243,5 +244,5 @@ jobs:
           done
 
           echo "Deployment did not become healthy in time. Recent logs:"
-          docker compose -f docker-compose.server.yml logs --tail=100 api web worker kb-builder
+          docker compose -p "$COMPOSE_PROJECT_NAME" -f docker-compose.server.yml logs --tail=100 api web worker kb-builder
           exit 1

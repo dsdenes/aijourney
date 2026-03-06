@@ -844,13 +844,14 @@ Jobs (parallel where possible):
 Deployment path selection:
 Primary path is `/opt/aijourney` when the runner can write there.
 Fallback path is `/home/gha/aijourney-deploy` when `/opt/aijourney` is not writable.
+The deploy job always uses the Compose project name `aijourney` so the fallback path replaces the live stack instead of starting a second copy.
 
 ### Deployment Commands (Manual)
 
 ```bash
 # On the Scaleway server (primary path if writable):
 cd /opt/aijourney
-docker compose -f docker-compose.server.yml up -d --build
+docker compose -p aijourney -f docker-compose.server.yml up -d --build
 ```
 
 ---
