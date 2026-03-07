@@ -100,7 +100,7 @@ describe('getRateLimiter', () => {
   });
 
   it('should use default limits for known models', () => {
-    const limiter = getRateLimiter('gpt-5-mini');
+    const limiter = getRateLimiter('gpt-5.4');
     const status = limiter.getStatus();
     // Default: 500 RPM * 0.85 margin = 425
     expect(status).toContain('425');

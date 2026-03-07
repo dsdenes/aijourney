@@ -4,8 +4,9 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import OpenAI from 'openai';
 import { MemoryRepository } from './memory.repository';
 
-const EXTRACTION_MODEL = 'gpt-5.2-nano';
+const EXTRACTION_MODEL = 'gpt-5.4';
 const MAX_INPUT_LENGTH = 4000; // Truncate long inputs
+const HIGH_REASONING = { effort: 'high' as const };
 
 @Injectable()
 export class MemoryExtractionService {
@@ -68,19 +69,15 @@ Respond in this exact JSON format (no markdown, no code fences):
 
 Where "supersedes" is either null or the exact text of an existing fact that this new fact updates/replaces.`;
 
-      const response = await this.getClient().chat.completions.create({
+      const response = await this.getClient().responses.create({
         model: EXTRACTION_MODEL,
-        messages: [
-          { role: 'system', content: systemMessage },
-          {
-            role: 'user',
-            content: `Source: ${job.source}\nUser input:\n${truncatedInput}`,
-          },
-        ],
-        max_completion_tokens: 2000,
+        reasoning: HIGH_REASONING,
+        max_output_tokens: 12000,
+        instructions: systemMessage,
+        input: `Source: ${job.source}\nUser input:\n${truncatedInput}`,
       });
 
-      const content = response.choices[0]?.message?.content?.trim();
+      const content = response.output_text?.trim();
       if (!content) {
         return this.recordExtraction(extractionId, job, 0, start, 'completed');
       }

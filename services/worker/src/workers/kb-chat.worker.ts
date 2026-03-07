@@ -3,7 +3,8 @@ import type { Job } from 'bullmq';
 import OpenAI from 'openai';
 
 const KB_BUILDER_URL = process.env.KB_BUILDER_URL || 'http://localhost:3002';
-const CHAT_MODEL = process.env.OPENAI_CHAT_MODEL || 'gpt-5-mini';
+const CHAT_MODEL = process.env.OPENAI_CHAT_MODEL || 'gpt-5.4';
+const HIGH_REASONING = { effort: 'high' as const };
 
 /** Rate limiter for the chat model */
 const rateLimiter = getRateLimiter(CHAT_MODEL, {
@@ -120,19 +121,16 @@ export async function handleKbChatJob(job: Job): Promise<Record<string, unknown>
     await rateLimiter.waitForCapacity(estimatedTokens);
     rateLimiter.recordRequest(estimatedTokens);
 
-    const completion = await openai.chat.completions.create({
+    const response = await openai.responses.create({
       model: CHAT_MODEL,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'system', content: contextMsg },
-        { role: 'user', content: query as string },
-      ],
-      max_completion_tokens: 4000,
+      reasoning: HIGH_REASONING,
+      max_output_tokens: 12000,
+      instructions: `${SYSTEM_PROMPT}\n\n${contextMsg}`,
+      input: query as string,
     });
 
-    const answer =
-      completion.choices[0]?.message?.content || 'Sorry, I could not generate a response.';
-    const tokensUsed = completion.usage?.total_tokens ?? 0;
+    const answer = response.output_text || 'Sorry, I could not generate a response.';
+    const tokensUsed = response.usage?.total_tokens ?? 0;
     if (tokensUsed > 0) {
       rateLimiter.recordUsage(Math.max(0, tokensUsed - estimatedTokens));
     }

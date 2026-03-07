@@ -24,7 +24,8 @@ import { UsersRepository } from '../users/users.repository';
 import { ArticleRecsRepository } from './article-recs.repository';
 
 const QUEUE_NAME = 'article-recommendations';
-const OPENAI_MODEL = 'gpt-5.2-mini';
+const OPENAI_MODEL = 'gpt-5.4';
+const HIGH_REASONING = { effort: 'high' as const };
 const ARTICLES_PER_JOB_TITLE = 10;
 const ARTICLES_PER_USER = 1; // per run (runs twice/week = 2/week)
 
@@ -361,8 +362,8 @@ export class ArticleRecsService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Step 2: For each job title, query RAG to find 10 relevant articles.
-   * Uses gpt-5.2-mini to formulate the RAG query based on the job title.
+  * Step 2: For each job title, query RAG to find 10 relevant articles.
+  * Uses gpt-5.4 with high reasoning to formulate the RAG query based on the job title.
    */
   private async fetchCandidatesForJobTitles(
     jobTitles: string[],
@@ -381,7 +382,7 @@ export class ArticleRecsService implements OnModuleInit, OnModuleDestroy {
       });
 
       try {
-        // Use gpt-5.2-mini to create a targeted RAG query for this job title
+        // Use gpt-5.4 to create a targeted RAG query for this job title.
         const ragQuery = await this.buildRagQueryForJobTitle(jobTitle);
 
         // Query RAG system via KB Builder HTTP API
@@ -483,33 +484,25 @@ export class ArticleRecsService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Use gpt-5.2-mini to generate a good RAG search query for a job title.
+   * Use gpt-5.4 with high reasoning to generate a good RAG search query for a job title.
    */
   private async buildRagQueryForJobTitle(jobTitle: string): Promise<string> {
     const openai = new OpenAI();
 
-    const response = await openai.chat.completions.create({
+    const response = await openai.responses.create({
       model: OPENAI_MODEL,
-      max_completion_tokens: 4000,
-      messages: [
-        {
-          role: 'system',
-          content: `You are a search query generator. Given a job title, generate a concise RAG search query (2-3 sentences) that would find the most relevant AI-related articles for someone in that role. Focus on practical AI applications, tools, and workflows relevant to their daily work. Return ONLY the search query text, nothing else.`,
-        },
-        {
-          role: 'user',
-          content: `Job title: ${jobTitle}`,
-        },
-      ],
+      reasoning: HIGH_REASONING,
+      max_output_tokens: 12000,
+      instructions:
+        'You are a search query generator. Given a job title, generate a concise RAG search query (2-3 sentences) that would find the most relevant AI-related articles for someone in that role. Focus on practical AI applications, tools, and workflows relevant to their daily work. Return ONLY the search query text, nothing else.',
+      input: `Job title: ${jobTitle}`,
     });
 
-    return (
-      response.choices[0]?.message?.content?.trim() || `AI tools and workflows for ${jobTitle}`
-    );
+    return response.output_text?.trim() || `AI tools and workflows for ${jobTitle}`;
   }
 
   /**
-   * Step 3: For a specific user, use gpt-5.2-mini + long-term memory to select
+  * Step 3: For a specific user, use gpt-5.4 + long-term memory to select
    * exactly 1 article from the candidates list.
    */
   private async selectArticleForUser(
@@ -564,18 +557,12 @@ Consider:
 
 Respond with a JSON object: { "selectedIndex": <1-based index>, "reason": "<2-3 sentence explanation of why this article is the best pick for this user>" }${companyContextBlock}`;
 
-      const response = await openai.chat.completions.create({
+      const response = await openai.responses.create({
         model: OPENAI_MODEL,
-        max_completion_tokens: 4000,
-        response_format: { type: 'json_object' },
-        messages: [
-          {
-            role: 'system',
-            content: systemContent,
-          },
-          {
-            role: 'user',
-            content: `## User Profile
+        reasoning: HIGH_REASONING,
+        max_output_tokens: 12000,
+        instructions: systemContent,
+        input: `## User Profile
 Name: ${user.name}
 Job Title: ${user.jobTitle || 'Unknown'}
 Department: ${user.department || 'Unknown'}
@@ -585,11 +572,9 @@ ${memoryContext}
 
 ## Candidate Articles (pick exactly ONE)
 ${articleList}`,
-          },
-        ],
       });
 
-      const content = response.choices[0]?.message?.content || '';
+      const content = response.output_text || '';
       let parsed: { selectedIndex: number; reason: string };
 
       try {
@@ -632,8 +617,8 @@ ${articleList}`,
       await this.agentRunsService.completeRun(agentRun.id, {
         output: `Selected "${selectedArticle.title}" for ${user.email}`,
         tokensUsed: response.usage?.total_tokens ?? 0,
-        promptTokens: response.usage?.prompt_tokens,
-        completionTokens: response.usage?.completion_tokens,
+        promptTokens: response.usage?.input_tokens,
+        completionTokens: response.usage?.output_tokens,
         metadata: {
           batchId,
           userId: user.id,

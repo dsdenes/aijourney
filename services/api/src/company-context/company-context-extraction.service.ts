@@ -3,8 +3,9 @@ import { generateId } from '@aijourney/shared';
 import { Injectable, Logger } from '@nestjs/common';
 import OpenAI from 'openai';
 
-const EXTRACTION_MODEL = 'gpt-5.2-mini';
+const EXTRACTION_MODEL = 'gpt-5.4';
 const MAX_INPUT_LENGTH = 100_000; // Truncate to ~100K chars
+const HIGH_REASONING = { effort: 'high' as const };
 
 @Injectable()
 export class CompanyContextExtractionService {
@@ -30,14 +31,11 @@ export class CompanyContextExtractionService {
 
     this.logger.log(`Extracting facts from document (${truncated.length} chars)`);
 
-    const response = await this.getClient().chat.completions.create({
+    const response = await this.getClient().responses.create({
       model: EXTRACTION_MODEL,
-      max_completion_tokens: 16000,
-      response_format: { type: 'json_object' },
-      messages: [
-        {
-          role: 'system',
-          content: `You are a company knowledge extraction assistant. You will receive the text content of a company document.
+      reasoning: HIGH_REASONING,
+      max_output_tokens: 25000,
+      instructions: `You are a company knowledge extraction assistant. You will receive the text content of a company document.
 
 Extract ALL relevant facts about this company that would help an AI assistant provide better, more contextual responses to employees of this company.
 
@@ -58,15 +56,10 @@ Rules:
 - If the document has no useful company information, return an empty array
 
 Respond with a JSON object: { "facts": [{ "category": "...", "fact": "..." }, ...] }`,
-        },
-        {
-          role: 'user',
-          content: `Here is the document content to analyze:\n\n${truncated}`,
-        },
-      ],
+      input: `Here is the document content to analyze:\n\n${truncated}`,
     });
 
-    const content = response.choices[0]?.message?.content?.trim();
+    const content = response.output_text?.trim();
     if (!content) {
       this.logger.warn('Empty response from extraction LLM');
       return [];

@@ -13,7 +13,7 @@
  *
  * @example
  * ```ts
- * const limiter = new RateLimiter({ rpm: 500, tpm: 500_000, name: 'gpt-5-mini' });
+ * const limiter = new RateLimiter({ rpm: 500, tpm: 500_000, name: 'gpt-5.4' });
  *
  * // Before each call:
  * await limiter.waitForCapacity(estimatedTokens);
@@ -32,7 +32,7 @@ export interface RateLimiterConfig {
   rpm: number;
   /** Tokens per minute limit */
   tpm: number;
-  /** Friendly name for logging (e.g. 'gpt-5-mini') */
+  /** Friendly name for logging (e.g. 'gpt-5.4') */
   name?: string;
   /** Safety margin — fraction of limit to use (default: 0.85 = 85%) */
   safetyMargin?: number;
@@ -226,7 +226,7 @@ export class RateLimiter {
 
 /** Default rate limits by model (OpenAI Tier 1) */
 const MODEL_LIMITS: Record<string, { rpm: number; tpm: number }> = {
-  'gpt-5-mini': { rpm: 500, tpm: 500_000 },
+  'gpt-5.4': { rpm: 500, tpm: 500_000 },
   'gpt-4o-mini': { rpm: 500, tpm: 200_000 },
   'gpt-4o': { rpm: 500, tpm: 30_000 },
   'text-embedding-3-small': { rpm: 500, tpm: 1_000_000 },
@@ -241,7 +241,7 @@ const instances = new Map<string, RateLimiter>();
  * Returns a shared singleton per model name so all callers
  * within the same process share rate limit state.
  *
- * @param model - OpenAI model name (e.g. 'gpt-5-mini')
+ * @param model - OpenAI model name (e.g. 'gpt-5.4')
  * @param overrides - Optional overrides for RPM/TPM limits
  */
 export function getRateLimiter(model: string, overrides?: Partial<RateLimiterConfig>): RateLimiter {

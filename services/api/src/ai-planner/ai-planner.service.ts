@@ -11,7 +11,8 @@ import { AppConfigService } from '../config/config.service';
 import { QuotaService } from '../quotas/quotas.service';
 
 const QUESTIONS_MODEL = 'grok-4-1-fast-reasoning';
-const STRATEGY_MODEL = 'gpt-5.2';
+const STRATEGY_MODEL = 'gpt-5.4';
+const HIGH_REASONING = { effort: 'high' as const };
 
 @Injectable()
 export class AiPlannerService {
@@ -157,7 +158,7 @@ Respond in this exact JSON format (no markdown, no code fences):
   }
 
   /**
-   * Generate the final AI usage strategy using gpt-5.2 with high reasoning.
+   * Generate the final AI usage strategy using gpt-5.4 with high reasoning.
    */
   async generateStrategy(
     goal: string,
@@ -182,21 +183,10 @@ CRITICAL RULES:
 - Always set "tool" to "chatgpt"
 - Prompts must be fully ready to paste — no blanks or placeholders
 
-MODEL SELECTION (for each step, recommend the best ChatGPT model):
-Available models the user can select in ChatGPT Pro:
-- "GPT-5.2" — best all-around model, fast, great for writing, formatting, translation, everyday tasks
-- "GPT-5.2 with Extended Thinking" — uses deep reasoning before answering, best for complex analysis, strategy, planning, multi-step logic, data interpretation
-- "GPT-5.2 with Canvas" — best when the user needs to iteratively edit a document, article, or long-form content collaboratively
-- "GPT-4o" — good for quick simple tasks, image understanding, and when speed matters most
-- "o3 Pro" — maximum reasoning power, use ONLY for extremely complex analytical tasks (math, logic puzzles, deep research synthesis)
-
-Guidelines for model selection:
-- Default to "GPT-5.2" for most tasks (writing, brainstorming, formatting, translation)
-- Use "GPT-5.2 with Extended Thinking" for steps requiring analysis, planning, comparison, evaluation, or multi-step reasoning
-- Use "GPT-5.2 with Canvas" ONLY for steps where the user will iterate on a long document
-- Use "o3 Pro" ONLY for extremely complex analytical or mathematical tasks
-- Use "GPT-4o" for quick image-related or very simple tasks
-- In "recommendedModel" put the exact model name, in "modelReason" explain in 1 short sentence WHY this model is best for this specific step
+MODEL SELECTION:
+- Always set "recommendedModel" to "GPT-5.4"
+- Assume GPT-5.4 should be used with high reasoning for every step
+- In "modelReason", explain in 1 short sentence why GPT-5.4 is appropriate for that specific step
 
 STEP COUNT:
 - Choose the RIGHT number of steps for the task complexity (1–8 steps)
@@ -247,24 +237,18 @@ Respond in this exact JSON format (no markdown, no code fences):
       }
     }
 
-    this.logger.debug(`Generating strategy with gpt-5.2 for goal: ${goal.substring(0, 80)}...`);
+    this.logger.debug(`Generating strategy with gpt-5.4 for goal: ${goal.substring(0, 80)}...`);
 
-    const requestBody = {
+    const response = await this.getOpenAIClient().responses.create({
       model: STRATEGY_MODEL,
-      messages: [
-        { role: 'system' as const, content: fullStrategySystemMessage },
-        {
-          role: 'user' as const,
-          content: `Project Goal:\n${goal}\n\nSpecification Answers:\n${specificationsText}${feedbackBlock}`,
-        },
-      ],
-      max_completion_tokens: 16000,
-      reasoning_effort: 'high' as const,
-    };
-    const response = await this.getOpenAIClient().chat.completions.create(requestBody);
+      reasoning: HIGH_REASONING,
+      max_output_tokens: 30000,
+      instructions: fullStrategySystemMessage,
+      input: `Project Goal:\n${goal}\n\nSpecification Answers:\n${specificationsText}${feedbackBlock}`,
+    });
 
-    const content = response.choices[0]?.message?.content?.trim();
-    if (!content) throw new Error('Empty response from gpt-5.2');
+    const content = response.output_text?.trim();
+    if (!content) throw new Error('Empty response from gpt-5.4');
 
     this.logger.debug(`Strategy response: ${content.substring(0, 200)}`);
 
@@ -272,7 +256,7 @@ Respond in this exact JSON format (no markdown, no code fences):
     const strategy = JSON.parse(cleaned) as PlannerStrategy;
 
     if (!strategy.title || !strategy.steps || !strategy.tool || !strategy.steps[0]?.prompt) {
-      throw new Error('Invalid strategy format returned from gpt-5.2');
+      throw new Error('Invalid strategy format returned from gpt-5.4');
     }
 
     return strategy;

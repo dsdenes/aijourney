@@ -18,7 +18,7 @@ import { MemoryExtractionService } from './memory-extraction.service';
 import { MemoryRepository } from './memory.repository';
 
 const QUEUE_NAME = 'memory-extraction';
-/** gpt-5.2-nano rate limit: conservative 200 RPM → process max ~3/sec */
+/** Conservative memory extraction rate limit to avoid saturating the shared LLM budget. */
 const MAX_CONCURRENCY = 1;
 const RATE_LIMIT_MAX = 150; // jobs per minute (below 200 RPM model limit)
 const RATE_LIMIT_DURATION = 60_000; // 1 minute

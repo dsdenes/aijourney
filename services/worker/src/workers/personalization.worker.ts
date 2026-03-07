@@ -4,7 +4,8 @@ import OpenAI from 'openai';
 
 const KB_BUILDER_URL = process.env.KB_BUILDER_URL || 'http://localhost:3002';
 const API_URL = process.env.API_URL || 'http://localhost:3000';
-const PERSONALIZATION_MODEL = process.env.OPENAI_PERSONALIZATION_MODEL || 'gpt-5-mini';
+const PERSONALIZATION_MODEL = process.env.OPENAI_PERSONALIZATION_MODEL || 'gpt-5.4';
+const HIGH_REASONING = { effort: 'high' as const };
 
 /** Rate limiter for the personalization model */
 const rateLimiter = getRateLimiter(PERSONALIZATION_MODEL, {
@@ -183,20 +184,18 @@ export async function handlePersonalizationJob(job: Job): Promise<Record<string,
     await rateLimiter.waitForCapacity(estimatedTokens);
     rateLimiter.recordRequest(estimatedTokens);
 
-    const completion = await openai.chat.completions.create({
+    const response = await openai.responses.create({
       model: PERSONALIZATION_MODEL,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: userMessage },
-      ],
-      response_format: { type: 'json_object' },
-      max_completion_tokens: 8000,
+      reasoning: HIGH_REASONING,
+      max_output_tokens: 16000,
+      instructions: `${SYSTEM_PROMPT}\n\nReturn valid JSON only. Do not use markdown fences.`,
+      input: userMessage,
     });
 
-    const content = completion.choices[0]?.message?.content;
+    const content = response.output_text;
     if (!content) throw new Error('Empty response from OpenAI');
 
-    const tokensUsed = completion.usage?.total_tokens ?? 0;
+    const tokensUsed = response.usage?.total_tokens ?? 0;
     if (tokensUsed > 0) {
       rateLimiter.recordUsage(Math.max(0, tokensUsed - estimatedTokens));
     }

@@ -71,7 +71,7 @@ If a guide conflicts with default behavior, follow the guide selected via `guide
 | Compute              | Docker Compose on Scaleway (self-hosted)                                                         |
 | IaC                  | Docker Compose (production: `docker-compose.server.yml`)                                         |
 | CI/CD                | GitHub Actions (self-hosted runner)                                                              |
-| LLM                  | OpenAI API (primary) — **mandatory model: `gpt-5-mini`**; Bedrock models (configurable fallback) |
+| LLM                  | OpenAI API (primary) — **mandatory model: `gpt-5.4` with `reasoning: { effort: "high" }`**; Bedrock models (fallback only when explicitly required) |
 
 ---
 
@@ -323,7 +323,7 @@ export AWS_PROFILE=mito815
 | Model                                      | Provider  | Use Case                    |
 | ------------------------------------------ | --------- | --------------------------- |
 | `anthropic.claude-sonnet-4-6`              | Anthropic | KB chat generation (option) |
-| `anthropic.claude-opus-4-6-v1`             | Anthropic | Complex generation          |
+| `anthropic.claude-opus-4-6-v1`             | Anthropic | Available only as fallback; do not choose while `gpt-5.4` is available |
 | `anthropic.claude-haiku-4-5-20251001-v1:0` | Anthropic | Fast/cheap tasks            |
 | `amazon.titan-embed-text-v2:0`             | Amazon    | Embeddings for Bedrock KB   |
 | `cohere.embed-english-v3`                  | Cohere    | Alternative embeddings      |
@@ -551,55 +551,60 @@ Client (Browser)
 
 ### LLM Model Standards
 
-**Mandatory OpenAI model: `gpt-5-mini`** — This is the only permitted OpenAI model in this codebase.
+**Mandatory OpenAI model: `gpt-5.4`** — This is the only permitted primary OpenAI model in this codebase.
 
-- **Never** use `gpt-4o`, `gpt-4o-mini`, `gpt-4.1`, `gpt-4.1-mini`, or any other variant.
-- All new code that calls the OpenAI Chat Completions API **must** use `model: "gpt-5-mini"`.
+- **Never** use `gpt-4o`, `gpt-4o-mini`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-5.2`, `gpt-5.2-mini`, `gpt-5.2-nano`, or any Claude Opus model unless the user explicitly requires an exception.
+- All new code that calls the OpenAI API **must** use the Responses API with `model: "gpt-5.4"` and `reasoning: { effort: "high" }`.
 - This applies everywhere: services, workers, kb-builder, scripts, tests.
 - Do not make model name configurable via env var unless a specific override is explicitly approved.
 
 ```typescript
 // ✅ Correct — always use this
-await openai.chat.completions.create({ model: "gpt-5-mini", ... });
+await openai.responses.create({
+  model: "gpt-5.4",
+  reasoning: { effort: "high" },
+  input: "...",
+});
 
 // ❌ Forbidden — any other OpenAI chat model
 await openai.chat.completions.create({ model: "gpt-4o-mini", ... });
 ```
 
-> **Why `gpt-5-mini`?** It is OpenAI's current cost-efficient model ($0.25/M input, $2.00/M output), successor to o4-mini, with 400K context window and strong instruction-following — ideal for the AI Journey platform's use cases.
+> **Why `gpt-5.4`?** It is the newest general-purpose OpenAI reasoning model for complex knowledge work and coding, and the current project standard requested for this codebase.
 
-### gpt-5-mini API Constraints
+### gpt-5.4 API Constraints
 
-`gpt-5-mini` is a **reasoning model** with specific API requirements that differ from GPT-4 series:
+`gpt-5.4` is a **reasoning model** and should be used through the Responses API for best performance.
 
 | Parameter               | Requirement                                                 |
 | ----------------------- | ----------------------------------------------------------- |
-| `temperature`           | ❌ NOT supported — omit entirely (only default `1` works)   |
-| `max_tokens`            | ❌ NOT supported — use `max_completion_tokens` instead      |
-| `max_completion_tokens` | ✅ Required — covers BOTH reasoning tokens + visible output |
+| `reasoning.effort`      | ✅ Set to `high` for project-standard requests              |
+| `max_output_tokens`     | ✅ Required to budget both reasoning and visible output     |
+| `temperature` / `top_p` | ❌ Avoid when using non-`none` reasoning effort             |
 
-**Critical: Set `max_completion_tokens` generously.** Reasoning models consume many internal tokens before producing visible output. Minimum recommended values:
+**Critical: Set `max_output_tokens` generously.** OpenAI recommends reserving substantial space for reasoning and outputs when using reasoning models. Start with at least `25000` tokens for complex tasks and lower only after measuring real usage.
 
 | Use Case                                       | Minimum `max_completion_tokens` |
 | ---------------------------------------------- | ------------------------------- |
-| Short JSON responses (lists, analysis)         | 8000                            |
-| Long JSON responses (strategies, full content) | 16000                           |
-| Conversational/chat responses                  | 4000                            |
+| Short JSON responses (lists, analysis)         | 12000                           |
+| Long JSON responses (strategies, full content) | 25000                           |
+| Conversational/chat responses                  | 12000                           |
 
 ```typescript
 // ✅ Correct — reasoning model usage
-await openai.chat.completions.create({
-  model: "gpt-5-mini",
-  messages: [...],
-  max_completion_tokens: 8000,  // generous budget for reasoning + output
+await openai.responses.create({
+  model: "gpt-5.4",
+  reasoning: { effort: "high" },
+  input: [...],
+  max_output_tokens: 25000,
 });
 
-// ❌ Wrong — will produce empty content (all tokens consumed by internal reasoning)
-await openai.chat.completions.create({
-  model: "gpt-5-mini",
-  messages: [...],
-  temperature: 0.7,       // NOT supported
-  max_completion_tokens: 800,  // too low — model can't output anything
+// ❌ Wrong — older model and too little room for reasoning
+await openai.responses.create({
+  model: "gpt-5.2",
+  reasoning: { effort: "high" },
+  input: [...],
+  max_output_tokens: 800,
 });
 ```
 

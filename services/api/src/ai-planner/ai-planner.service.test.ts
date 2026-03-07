@@ -3,11 +3,13 @@ import type { AppConfigService } from '../config/config.service';
 import { AiPlannerService } from './ai-planner.service';
 
 // Mock openai (xAI Grok uses OpenAI-compatible SDK)
-const mockCreate = vi.fn();
+const mockChatCreate = vi.fn();
+const mockResponsesCreate = vi.fn();
 
 vi.mock('openai', () => ({
   default: class OpenAI {
-    chat = { completions: { create: mockCreate } };
+    chat = { completions: { create: mockChatCreate } };
+    responses = { create: mockResponsesCreate };
   },
 }));
 
@@ -22,6 +24,7 @@ describe('AiPlannerService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.GROK_API_KEY = 'test-key';
+    process.env.OPENAI_API_KEY = 'test-openai-key';
     service = new AiPlannerService(mockConfig);
   });
 
@@ -36,7 +39,7 @@ describe('AiPlannerService', () => {
         { id: 6, question: 'Do you already use AI tools?' },
       ];
 
-      mockCreate.mockResolvedValueOnce({
+      mockChatCreate.mockResolvedValueOnce({
         choices: [{ message: { content: JSON.stringify(mockQuestions) } }],
       });
 
@@ -53,7 +56,7 @@ describe('AiPlannerService', () => {
         question: `Follow-up question ${i + 1}?`,
       }));
 
-      mockCreate.mockResolvedValueOnce({
+      mockChatCreate.mockResolvedValueOnce({
         choices: [{ message: { content: JSON.stringify(mockQuestions) } }],
       });
 
@@ -67,7 +70,7 @@ describe('AiPlannerService', () => {
       expect(result).toHaveLength(6);
 
       // Verify previous answers were passed to Grok in the system message
-      const callArgs = mockCreate.mock.calls[0]?.[0];
+      const callArgs = mockChatCreate.mock.calls[0]?.[0];
       const systemMsg = callArgs.messages.find((m: any) => m.role === 'system');
       expect(systemMsg.content).toContain('Is this internal?');
       expect(systemMsg.content).toContain('YES');
@@ -75,7 +78,7 @@ describe('AiPlannerService', () => {
     });
 
     it('should throw on empty response', async () => {
-      mockCreate.mockResolvedValueOnce({
+      mockChatCreate.mockResolvedValueOnce({
         choices: [{ message: { content: '' } }],
       });
 
@@ -85,7 +88,7 @@ describe('AiPlannerService', () => {
     });
 
     it('should throw if response is not 6 questions', async () => {
-      mockCreate.mockResolvedValueOnce({
+      mockChatCreate.mockResolvedValueOnce({
         choices: [
           {
             message: {
@@ -102,9 +105,7 @@ describe('AiPlannerService', () => {
   });
 
   describe('generateStrategy', () => {
-    it('should generate strategy via gpt-5.2 with high reasoning', async () => {
-      process.env.OPENAI_API_KEY = 'test-openai-key';
-
+    it('should generate strategy via gpt-5.4 with high reasoning', async () => {
       const mockStrategy = {
         title: 'AI-Powered Customer Support',
         summary: 'Use ChatGPT to build a customer support chatbot.',
@@ -132,8 +133,8 @@ describe('AiPlannerService', () => {
         ],
       };
 
-      mockCreate.mockResolvedValueOnce({
-        choices: [{ message: { content: JSON.stringify(mockStrategy) } }],
+      mockResponsesCreate.mockResolvedValueOnce({
+        output_text: JSON.stringify(mockStrategy),
       });
 
       const result = await service.generateStrategy('Build a customer support chatbot', [
@@ -150,12 +151,12 @@ describe('AiPlannerService', () => {
       expect(result.startingState).toBe('You have a list of common customer questions.');
       expect(result.endResult).toBe('A complete FAQ document.');
 
-      // Verify gpt-5.2 was called with high reasoning
-      expect(mockCreate).toHaveBeenCalledTimes(1);
-      const call = mockCreate.mock.calls[0]?.[0];
-      expect(call.model).toBe('gpt-5.2');
-      expect(call.reasoning_effort).toBe('high');
-      expect(call.max_completion_tokens).toBe(16000);
+      // Verify gpt-5.4 was called with high reasoning through the Responses API
+      expect(mockResponsesCreate).toHaveBeenCalledTimes(1);
+      const call = mockResponsesCreate.mock.calls[0]?.[0];
+      expect(call.model).toBe('gpt-5.4');
+      expect(call.reasoning).toEqual({ effort: 'high' });
+      expect(call.max_output_tokens).toBe(30000);
     });
 
     it('should fail loudly when OPENAI_API_KEY is missing', async () => {
@@ -166,7 +167,7 @@ describe('AiPlannerService', () => {
       ).rejects.toThrow('OPENAI_API_KEY environment variable is not set');
 
       // Should not have called the LLM at all
-      expect(mockCreate).not.toHaveBeenCalled();
+      expect(mockResponsesCreate).not.toHaveBeenCalled();
     });
   });
 });
