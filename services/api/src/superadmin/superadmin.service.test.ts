@@ -2,10 +2,12 @@ import { PLAN_LIMITS } from '@aijourney/shared';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AgentRunsRepository } from '../agent-runs/agent-runs.repository';
+import { InvitationsService } from '../invitations/invitations.service';
 import { JourneysRepository } from '../journeys/journeys.repository';
 import { MemoryRepository } from '../memory/memory.repository';
 import { RunsRepository } from '../runs/runs.repository';
 import { TenantsRepository } from '../tenants/tenants.repository';
+import { TenantsService } from '../tenants/tenants.service';
 import { UsersService } from '../users/users.service';
 import { SuperAdminService } from './superadmin.service';
 
@@ -34,7 +36,9 @@ function makeTenant(id: string, plan: string, llmUsed: number) {
 describe('SuperAdminService', () => {
   let service: SuperAdminService;
   let tenantsRepo: Record<string, ReturnType<typeof vi.fn>>;
+  let tenantsService: Record<string, ReturnType<typeof vi.fn>>;
   let usersService: Record<string, ReturnType<typeof vi.fn>>;
+  let invitationsService: Record<string, ReturnType<typeof vi.fn>>;
   let journeysRepo: Record<string, ReturnType<typeof vi.fn>>;
   let runsRepo: Record<string, ReturnType<typeof vi.fn>>;
   let agentRunsRepo: Record<string, ReturnType<typeof vi.fn>>;
@@ -46,15 +50,23 @@ describe('SuperAdminService', () => {
       getById: vi.fn().mockResolvedValue(undefined),
       updatePlan: vi.fn().mockResolvedValue(undefined),
     };
+    tenantsService = {
+      create: vi.fn().mockResolvedValue(makeTenant('t-created', 'free', 0)),
+    };
     usersService = {
       countAll: vi.fn().mockResolvedValue(0),
       countByTenant: vi.fn().mockResolvedValue(0),
       listByTenant: vi.fn().mockResolvedValue([]),
       listAll: vi.fn().mockResolvedValue([]),
+      getByEmail: vi.fn().mockResolvedValue(undefined),
       getById: vi
         .fn()
         .mockResolvedValue({ id: 'u1', email: 'someone@example.com', globalRole: 'superadmin' }),
       update: vi.fn().mockResolvedValue({}),
+    };
+    invitationsService = {
+      findPendingForEmail: vi.fn().mockResolvedValue([]),
+      create: vi.fn().mockResolvedValue({ id: 'inv-1', email: 'owner@example.com' }),
     };
     journeysRepo = {
       listByTenant: vi.fn().mockResolvedValue([]),
@@ -69,7 +81,9 @@ describe('SuperAdminService', () => {
       providers: [
         SuperAdminService,
         { provide: TenantsRepository, useValue: tenantsRepo },
+        { provide: TenantsService, useValue: tenantsService },
         { provide: UsersService, useValue: usersService },
+        { provide: InvitationsService, useValue: invitationsService },
         { provide: JourneysRepository, useValue: journeysRepo },
         { provide: RunsRepository, useValue: runsRepo },
         { provide: AgentRunsRepository, useValue: agentRunsRepo },
@@ -106,6 +120,50 @@ describe('SuperAdminService', () => {
       expect(result.totalTenants).toBe(0);
       expect(result.totalUsers).toBe(0);
       expect(result.totalLlmCalls).toBe(0);
+    });
+  });
+
+  describe('createTenantWithOwner', () => {
+    it('should create the tenant and invite the owner email', async () => {
+      const result = await service.createTenantWithOwner(
+        {
+          name: 'Example Org',
+          slug: 'example-org',
+          ownerEmail: 'owner@example.com',
+          plan: 'pro',
+        },
+        'super-1',
+      );
+
+      expect(tenantsService.create).toHaveBeenCalledWith({
+        name: 'Example Org',
+        slug: 'example-org',
+        plan: 'pro',
+      });
+      expect(invitationsService.create).toHaveBeenCalledWith('t-created', 'super-1', {
+        email: 'owner@example.com',
+        orgRole: 'owner',
+      });
+      expect(result).toEqual({
+        tenant: expect.objectContaining({ id: 't-created' }),
+        ownerInvitation: expect.objectContaining({ id: 'inv-1' }),
+      });
+    });
+
+    it('should reject existing owner emails', async () => {
+      usersService.getByEmail.mockResolvedValue({ id: 'u1', email: 'owner@example.com' });
+
+      await expect(
+        service.createTenantWithOwner(
+          {
+            name: 'Example Org',
+            slug: 'example-org',
+            ownerEmail: 'owner@example.com',
+            plan: 'free',
+          },
+          'super-1',
+        ),
+      ).rejects.toThrow('User owner@example.com already exists');
     });
   });
 

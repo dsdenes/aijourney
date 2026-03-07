@@ -13,6 +13,10 @@ export const createTenantSchema = z.object({
   plan: z.enum(TENANT_PLANS).default('free'),
 });
 
+export const createSuperadminTenantSchema = createTenantSchema.extend({
+  ownerEmail: z.string().email(),
+});
+
 export const updateTenantSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   settings: z
@@ -24,4 +28,5 @@ export const updateTenantSchema = z.object({
 });
 
 export type CreateTenantInput = z.infer<typeof createTenantSchema>;
+export type CreateSuperadminTenantInput = z.infer<typeof createSuperadminTenantSchema>;
 export type UpdateTenantInput = z.infer<typeof updateTenantSchema>;

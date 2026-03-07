@@ -1,11 +1,13 @@
-import type { TenantPlan } from '@aijourney/shared';
+import type { CreateSuperadminTenantInput, TenantPlan } from '@aijourney/shared';
 import { PLAN_LIMITS } from '@aijourney/shared';
-import { ForbiddenException, Inject, Injectable, Logger } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Inject, Injectable, Logger } from '@nestjs/common';
 import { AgentRunsRepository } from '../agent-runs/agent-runs.repository';
+import { InvitationsService } from '../invitations/invitations.service';
 import { JourneysRepository } from '../journeys/journeys.repository';
 import { MemoryRepository } from '../memory/memory.repository';
 import { RunsRepository } from '../runs/runs.repository';
 import { TenantsRepository } from '../tenants/tenants.repository';
+import { TenantsService } from '../tenants/tenants.service';
 import { UsersService } from '../users/users.service';
 
 export interface PlatformStats {
@@ -39,12 +41,47 @@ export class SuperAdminService {
 
   constructor(
     @Inject(TenantsRepository) private readonly tenantsRepo: TenantsRepository,
+    @Inject(TenantsService) private readonly tenantsService: TenantsService,
     @Inject(UsersService) private readonly usersService: UsersService,
+    @Inject(InvitationsService) private readonly invitationsService: InvitationsService,
     @Inject(JourneysRepository) private readonly journeysRepo: JourneysRepository,
     @Inject(RunsRepository) private readonly runsRepo: RunsRepository,
     @Inject(AgentRunsRepository) private readonly agentRunsRepo: AgentRunsRepository,
     @Inject(MemoryRepository) private readonly memoryRepo: MemoryRepository,
   ) {}
+
+  async createTenantWithOwner(input: CreateSuperadminTenantInput, invitedBy: string) {
+    const ownerEmail = input.ownerEmail.trim().toLowerCase();
+    const existingUser = await this.usersService.getByEmail(ownerEmail);
+    if (existingUser) {
+      throw new ConflictException(`User ${ownerEmail} already exists`);
+    }
+
+    const pendingInvitations = await this.invitationsService.findPendingForEmail(ownerEmail);
+    if (pendingInvitations.length > 0) {
+      throw new ConflictException(`Pending invitation already exists for ${ownerEmail}`);
+    }
+
+    const tenant = await this.tenantsService.create({
+      name: input.name,
+      slug: input.slug,
+      plan: input.plan,
+    });
+
+    const ownerInvitation = await this.invitationsService.create(tenant.id, invitedBy, {
+      email: ownerEmail,
+      orgRole: 'owner',
+    });
+
+    this.logger.log(
+      `Super-admin created tenant ${tenant.id} with owner invitation for ${ownerEmail}`,
+    );
+
+    return {
+      tenant,
+      ownerInvitation,
+    };
+  }
 
   async getPlatformStats(): Promise<PlatformStats> {
     const tenants = await this.tenantsRepo.listAll();
@@ -139,6 +176,7 @@ export class SuperAdminService {
       orgRole: u.orgRole ?? 'member',
       tenantId: u.tenantId ?? '',
       tenantName: tenantMap.get(u.tenantId) ?? '',
+      onboardingComplete: u.onboardingComplete ?? false,
       lastLoginAt: u.lastLoginAt,
     }));
   }

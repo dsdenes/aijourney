@@ -54,6 +54,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     const email = (payload['email'] || 'dev@localhost') as string;
 
     // Look up the actual roles and tenant from MongoDB (not from JWT claim)
+    let userId = (payload['sub'] || 'dev-user') as string;
     let role = 'employee';
     let globalRole = 'user';
     let tenantId = '';
@@ -61,6 +62,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     try {
       const dbUser = await this.usersService.getByEmail(email);
       if (dbUser) {
+        userId = dbUser.id;
         role = dbUser.role;
         globalRole = dbUser.globalRole ?? 'user';
         tenantId = dbUser.tenantId ?? '';
@@ -72,7 +74,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     }
 
     return {
-      userId: (payload['sub'] || 'dev-user') as string,
+      userId,
       email,
       role,
       globalRole,

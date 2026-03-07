@@ -1,8 +1,11 @@
+import { type CreateSuperadminTenantInput, createSuperadminTenantSchema } from '@aijourney/shared';
 import { Body, Controller, Get, Inject, Param, Post, Put, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RolesGuard } from '../auth/roles.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { GlobalRoles } from '../common/decorators/global-roles.decorator';
+import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { SuperAdminService } from './superadmin.service';
 
 @ApiTags('superadmin')
@@ -28,6 +31,19 @@ export class SuperAdminController {
   async listTenants() {
     const tenants = await this.superAdminService.listAllTenants();
     return { data: tenants };
+  }
+
+  @Post('tenants')
+  @ApiOperation({ summary: 'Create a tenant and invite an owner email' })
+  async createTenant(
+    @CurrentUser() user: { userId: string },
+    @Body(new ZodValidationPipe(createSuperadminTenantSchema)) body: unknown,
+  ) {
+    const result = await this.superAdminService.createTenantWithOwner(
+      body as CreateSuperadminTenantInput,
+      user.userId,
+    );
+    return { data: result };
   }
 
   @Get('tenants/:tenantId')

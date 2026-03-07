@@ -15,6 +15,7 @@ describe('SuperAdminController', () => {
         totalLlmCalls: 5000,
         tenantBreakdown: { free: 3, pro: 1, enterprise: 1 },
       }),
+      createTenantWithOwner: vi.fn().mockResolvedValue({ tenant: { id: 't1' } }),
       listAllTenants: vi.fn().mockResolvedValue([]),
       listAllUsers: vi.fn().mockResolvedValue([]),
       getTenantDashboard: vi.fn().mockResolvedValue(null),
@@ -51,6 +52,22 @@ describe('SuperAdminController', () => {
       service.listAllTenants.mockResolvedValue([{ id: 't1' }]);
       const result = await controller.listTenants();
       expect(result).toEqual({ data: [{ id: 't1' }] });
+    });
+  });
+
+  describe('createTenant', () => {
+    it('should create a tenant with an invited owner', async () => {
+      const body = {
+        name: 'Example Org',
+        slug: 'example-org',
+        ownerEmail: 'owner@example.com',
+        plan: 'pro' as const,
+      };
+
+      const result = await controller.createTenant({ userId: 'u1' }, body);
+
+      expect(result).toEqual({ data: { tenant: { id: 't1' } } });
+      expect(service.createTenantWithOwner).toHaveBeenCalledWith(body, 'u1');
     });
   });
 

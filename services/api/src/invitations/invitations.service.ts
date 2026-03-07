@@ -10,6 +10,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomBytes } from 'crypto';
+import { EmailService } from '../common/email/email.service';
+import { TenantsService } from '../tenants/tenants.service';
 import { InvitationsRepository } from './invitations.repository';
 
 const INVITE_EXPIRY_DAYS = 7;
@@ -21,6 +23,10 @@ export class InvitationsService {
   constructor(
     @Inject(InvitationsRepository)
     private readonly repo: InvitationsRepository,
+    @Inject(TenantsService)
+    private readonly tenantsService: TenantsService,
+    @Inject(EmailService)
+    private readonly emailService: EmailService,
   ) {}
 
   /**
@@ -59,7 +65,18 @@ export class InvitationsService {
       `Invitation created for ${email} to tenant ${tenantId} (role: ${invitation.orgRole})`,
     );
 
-    // TODO: Send invitation email via Resend/SES
+    try {
+      const tenant = await this.tenantsService.getById(tenantId);
+      await this.emailService.sendInvitationEmail({
+        email,
+        tenantName: tenant.name,
+        orgRole: invitation.orgRole,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown email delivery error';
+      this.logger.error(`Failed to send invitation email to ${email}: ${message}`);
+    }
+
     return created;
   }
 

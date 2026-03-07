@@ -1,6 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { z } from 'zod';
 
+const booleanishSchema = z.preprocess((value) => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
+  }
+  return false;
+}, z.boolean());
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().default(3000),
@@ -16,6 +24,13 @@ const envSchema = z.object({
   STRIPE_PRO_PRICE_ID: z.string().default(''),
   STRIPE_ENTERPRISE_PRICE_ID: z.string().default(''),
   STRIPE_LLM_PACK_PRICE_ID: z.string().default(''),
+  SMTP_HOST: z.string().default('smtp.tem.scaleway.com'),
+  SMTP_PORT: z.coerce.number().default(587),
+  SMTP_SECURE: booleanishSchema.default(false),
+  SMTP_USER: z.string().default(''),
+  SMTP_PASS: z.string().default(''),
+  SMTP_FROM_EMAIL: z.string().default(''),
+  SMTP_FROM_NAME: z.string().default('AI Journey'),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;

@@ -6,12 +6,16 @@ import {
 } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { EmailService } from '../common/email/email.service';
+import { TenantsService } from '../tenants/tenants.service';
 import { InvitationsRepository } from './invitations.repository';
 import { InvitationsService } from './invitations.service';
 
 describe('InvitationsService', () => {
   let service: InvitationsService;
   let repo: Record<string, ReturnType<typeof vi.fn>>;
+  let tenantsService: Record<string, ReturnType<typeof vi.fn>>;
+  let emailService: Record<string, ReturnType<typeof vi.fn>>;
 
   beforeEach(async () => {
     repo = {
@@ -25,9 +29,20 @@ describe('InvitationsService', () => {
       countPendingByTenant: vi.fn().mockResolvedValue(0),
       getByEmailAndTenant: vi.fn().mockResolvedValue(undefined),
     };
+    tenantsService = {
+      getById: vi.fn().mockResolvedValue({ id: 't1', name: 'Tenant One' }),
+    };
+    emailService = {
+      sendInvitationEmail: vi.fn().mockResolvedValue(true),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [InvitationsService, { provide: InvitationsRepository, useValue: repo }],
+      providers: [
+        InvitationsService,
+        { provide: InvitationsRepository, useValue: repo },
+        { provide: TenantsService, useValue: tenantsService },
+        { provide: EmailService, useValue: emailService },
+      ],
     }).compile();
 
     service = module.get<InvitationsService>(InvitationsService);
@@ -49,6 +64,11 @@ describe('InvitationsService', () => {
       expect(result.id).toBeTruthy();
       expect(result.expiresAt).toBeTruthy();
       expect(repo.create).toHaveBeenCalledOnce();
+      expect(emailService.sendInvitationEmail).toHaveBeenCalledWith({
+        email: 'test@example.com',
+        tenantName: 'Tenant One',
+        orgRole: 'admin',
+      });
     });
 
     it('should default orgRole to member', async () => {

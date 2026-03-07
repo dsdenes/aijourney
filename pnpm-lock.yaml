@@ -151,6 +151,9 @@ importers:
       mongodb:
         specifier: ^7.1.0
         version: 7.1.0
+      nodemailer:
+        specifier: ^8.0.1
+        version: 8.0.1
       openai:
         specifier: ^4.73.0
         version: 4.104.0(ws@8.19.0)(zod@3.25.76)
@@ -197,6 +200,9 @@ importers:
       '@types/multer':
         specifier: ^2.0.0
         version: 2.0.0
+      '@types/nodemailer':
+        specifier: ^7.0.11
+        version: 7.0.11
       '@types/passport-jwt':
         specifier: ^4.0.0
         version: 4.0.1
@@ -2980,6 +2986,12 @@ packages:
     resolution:
       {
         integrity: sha512-DpzbrH7wIcBaJibpKo9nnSQL0MTRdnWttGyE5haGwK86xgMOkFLp7vEyfQPGLOJh5wNYiJ3V9PmUMDhV9u8kkQ==,
+      }
+
+  '@types/nodemailer@7.0.11':
+    resolution:
+      {
+        integrity: sha512-E+U4RzR2dKrx+u3N4DlsmLaDC6mMZOM/TPROxA0UAPiTgI0y4CEFBmZE+coGWTjakDriRsXG368lNk1u9Q0a2g==,
       }
 
   '@types/passport-jwt@4.0.1':
@@ -5925,6 +5937,13 @@ packages:
       {
         integrity: sha512-nmh3lCkYZ3grZvqcCH+fjmQ7X+H0OeZgP40OierEaAptX4XofMh5kwNbWh7lBduUzCcV/8kZ+NDLCwm2iorIlA==,
       }
+
+  nodemailer@8.0.1:
+    resolution:
+      {
+        integrity: sha512-5kcldIXmaEjZcHR6F28IKGSgpmZHaF1IXLWFTG+Xh3S+Cce4MiakLtWY+PlBU69fLbRa8HlaGIrC/QolUpHkhg==,
+      }
+    engines: { node: '>=6.0.0' }
 
   nth-check@2.1.1:
     resolution:
@@ -9271,6 +9290,10 @@ snapshots:
     dependencies:
       undici-types: 7.18.2
 
+  '@types/nodemailer@7.0.11':
+    dependencies:
+      '@types/node': 25.3.3
+
   '@types/passport-jwt@4.0.1':
     dependencies:
       '@types/jsonwebtoken': 9.0.10
@@ -11134,6 +11157,8 @@ snapshots:
     optional: true
 
   node-releases@2.0.27: {}
+
+  nodemailer@8.0.1: {}
 
   nth-check@2.1.1:
     dependencies:

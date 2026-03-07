@@ -23,7 +23,9 @@ export {
   createRunRequestSchema,
 } from './schemas/run-request.schema.js';
 export {
+  type CreateSuperadminTenantInput,
   type CreateTenantInput,
+  createSuperadminTenantSchema,
   createTenantSchema,
   type UpdateTenantInput,
   updateTenantSchema,

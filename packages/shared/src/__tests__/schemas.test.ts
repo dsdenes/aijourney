@@ -5,6 +5,7 @@ import {
   createInvitationSchema,
   createJourneySchema,
   createRunRequestSchema,
+  createSuperadminTenantSchema,
   createTenantSchema,
   createUserSchema,
   updateJourneySchema,
@@ -561,6 +562,26 @@ describe('updateTenantSchema', () => {
   it('should reject name over 200 chars', () => {
     const result = updateTenantSchema.safeParse({
       name: 'x'.repeat(201),
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('createSuperadminTenantSchema', () => {
+  it('should require a valid owner email', () => {
+    const result = createSuperadminTenantSchema.safeParse({
+      name: 'Managed Org',
+      slug: 'managed-org',
+      ownerEmail: 'owner@example.com',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should reject an invalid owner email', () => {
+    const result = createSuperadminTenantSchema.safeParse({
+      name: 'Managed Org',
+      slug: 'managed-org',
+      ownerEmail: 'not-an-email',
     });
     expect(result.success).toBe(false);
   });

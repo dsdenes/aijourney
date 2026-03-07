@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AgentRunsModule } from '../agent-runs/agent-runs.module';
 import { AuthModule } from '../auth/auth.module';
+import { InvitationsModule } from '../invitations/invitations.module';
 import { JourneysModule } from '../journeys/journeys.module';
 import { MemoryModule } from '../memory/memory.module';
 import { RunsModule } from '../runs/runs.module';
@@ -18,6 +19,7 @@ import { SuperAdminService } from './superadmin.service';
     AgentRunsModule,
     MemoryModule,
     AuthModule,
+    InvitationsModule,
   ],
   controllers: [SuperAdminController],
   providers: [SuperAdminService],

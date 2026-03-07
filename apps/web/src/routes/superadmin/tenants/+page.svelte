@@ -1,52 +1,182 @@
 <script lang="ts">
-  import { auth } from '$lib/stores/auth.svelte';
+  import { api } from '$lib/api';
 
-  const API_BASE = import.meta.env.VITE_API_URL || '/api';
+  interface TenantRow {
+    id: string;
+    name: string;
+    slug: string;
+    plan: string;
+    userCount: number;
+    llmCallsUsed: number;
+    llmCallsLimit: number;
+    createdAt: string;
+  }
 
-  let tenants = $state<Array<Record<string, unknown>>>([]);
+  let tenants = $state<TenantRow[]>([]);
   let loading = $state(true);
   let error = $state('');
+  let successMessage = $state('');
+  let creating = $state(false);
+  let tenantName = $state('');
+  let tenantSlug = $state('');
+  let ownerEmail = $state('');
+  let tenantPlan = $state('free');
+  let slugEdited = $state(false);
 
   async function loadTenants() {
+    loading = true;
+    error = '';
     try {
-      const res = await fetch(`${API_BASE}/superadmin/tenants`, {
-        headers: { Authorization: `Bearer ${auth.user?.token}` },
-      });
-      if (res.ok) {
-        const { data } = await res.json();
-        tenants = data || [];
-      } else {
-        error = 'Failed to load tenants';
-      }
-    } catch {
-      error = 'Failed to connect to server';
+      const res = await api.get<TenantRow[]>('/superadmin/tenants');
+      tenants = res.data || [];
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Failed to load tenants';
     } finally {
       loading = false;
     }
   }
 
+  function slugify(value: string) {
+    return value
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 50);
+  }
+
+  function onTenantNameInput(value: string) {
+    tenantName = value;
+    if (!slugEdited) {
+      tenantSlug = slugify(value);
+    }
+  }
+
   $effect(() => {
-    if (auth.user?.token) loadTenants();
+    loadTenants();
   });
 
   async function changePlan(tenantId: string, plan: string) {
     try {
-      await fetch(`${API_BASE}/superadmin/tenants/${tenantId}/plan`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${auth.user?.token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ plan }),
-      });
+      await api.put(`/superadmin/tenants/${tenantId}/plan`, { plan });
+      successMessage = 'Tenant plan updated';
       await loadTenants();
-    } catch {
-      error = 'Failed to update plan';
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Failed to update plan';
+    }
+  }
+
+  async function createTenant() {
+    creating = true;
+    error = '';
+    successMessage = '';
+
+    try {
+      const result = await api.post<{ tenant: { name: string }; ownerInvitation: { email: string } }>(
+        '/superadmin/tenants',
+        {
+          name: tenantName,
+          slug: tenantSlug,
+          ownerEmail,
+          plan: tenantPlan,
+        },
+      );
+
+      successMessage = `Created ${result.data?.tenant.name || 'tenant'} and invited ${result.data?.ownerInvitation.email || ownerEmail}`;
+      tenantName = '';
+      tenantSlug = '';
+      ownerEmail = '';
+      tenantPlan = 'free';
+      slugEdited = false;
+      await loadTenants();
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Failed to create tenant';
+    } finally {
+      creating = false;
     }
   }
 </script>
 
 <div class="space-y-6">
+  <div class="rounded-lg border border-border bg-surface p-6">
+    <h2 class="text-lg font-semibold text-text">Create Tenant</h2>
+    <p class="mt-1 text-sm text-text-muted">Create a tenant and invite a not-yet-registered owner email.</p>
+
+    {#if successMessage}
+      <div class="mt-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">{successMessage}</div>
+    {/if}
+
+    {#if error}
+      <div class="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">{error}</div>
+    {/if}
+
+    <form
+      class="mt-4 grid gap-4 md:grid-cols-2"
+      onsubmit={(event) => {
+        event.preventDefault();
+        createTenant();
+      }}
+    >
+      <label class="block text-sm text-text">
+        <span class="mb-1 block text-text-muted">Tenant name</span>
+        <input
+          value={tenantName}
+          oninput={(event) => onTenantNameInput((event.currentTarget as HTMLInputElement).value)}
+          class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text"
+          placeholder="Example Organization"
+          required
+        />
+      </label>
+
+      <label class="block text-sm text-text">
+        <span class="mb-1 block text-text-muted">Owner email</span>
+        <input
+          bind:value={ownerEmail}
+          type="email"
+          class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text"
+          placeholder="owner@example.com"
+          required
+        />
+      </label>
+
+      <label class="block text-sm text-text">
+        <span class="mb-1 block text-text-muted">Slug</span>
+        <input
+          value={tenantSlug}
+          oninput={(event) => {
+            slugEdited = true;
+            tenantSlug = slugify((event.currentTarget as HTMLInputElement).value);
+          }}
+          class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text"
+          placeholder="example-organization"
+          required
+        />
+      </label>
+
+      <label class="block text-sm text-text">
+        <span class="mb-1 block text-text-muted">Plan</span>
+        <select
+          bind:value={tenantPlan}
+          class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text"
+        >
+          <option value="free">Free</option>
+          <option value="pro">Pro</option>
+          <option value="enterprise">Enterprise</option>
+        </select>
+      </label>
+
+      <div class="md:col-span-2">
+        <button
+          type="submit"
+          disabled={creating || !tenantName.trim() || !tenantSlug.trim() || !ownerEmail.trim()}
+          class="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-dark disabled:opacity-50"
+        >
+          {creating ? 'Creating...' : 'Create Tenant'}
+        </button>
+      </div>
+    </form>
+  </div>
+
   <h2 class="text-lg font-semibold text-text">All Tenants</h2>
 
   {#if loading}
@@ -92,13 +222,13 @@
                 / {tenant.llmCallsLimit === -1 ? '∞' : tenant.llmCallsLimit}
               </td>
               <td class="whitespace-nowrap px-6 py-4 text-sm text-text-muted">
-                {new Date(tenant.createdAt as string).toLocaleDateString()}
+                {new Date(tenant.createdAt).toLocaleDateString()}
               </td>
               <td class="whitespace-nowrap px-6 py-4">
                 <select
                   class="rounded border border-border bg-surface px-2 py-1 text-sm text-text"
                   value={tenant.plan}
-                  onchange={(e) => changePlan(tenant.id as string, (e.target as HTMLSelectElement).value)}
+                  onchange={(e) => changePlan(tenant.id, (e.target as HTMLSelectElement).value)}
                 >
                   <option value="free">Free</option>
                   <option value="pro">Pro</option>

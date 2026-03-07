@@ -181,6 +181,13 @@ jobs:
           GROK_API_KEY: ${{ secrets.GROK_API_KEY }}
           PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
           PINECONE_INDEX_NAME: ${{ secrets.PINECONE_INDEX_NAME }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_SECURE: ${{ secrets.SMTP_SECURE }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          SMTP_FROM_EMAIL: ${{ secrets.SMTP_FROM_EMAIL }}
+          SMTP_FROM_NAME: ${{ secrets.SMTP_FROM_NAME }}
         shell: bash
         run: |
           set -euo pipefail
@@ -194,6 +201,13 @@ jobs:
               "GROK_API_KEY=${GROK_API_KEY}" \
               "PINECONE_API_KEY=${PINECONE_API_KEY}" \
               "PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME:-aijourney-kb}" \
+              "SMTP_HOST=${SMTP_HOST:-smtp.tem.scaleway.com}" \
+              "SMTP_PORT=${SMTP_PORT:-587}" \
+              "SMTP_SECURE=${SMTP_SECURE:-false}" \
+              "SMTP_USER=${SMTP_USER}" \
+              "SMTP_PASS=${SMTP_PASS}" \
+              "SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL}" \
+              "SMTP_FROM_NAME=${SMTP_FROM_NAME:-AI Journey}" \
               > "$deploy_path/.env"
 
       - name: Validate Docker Compose configuration
