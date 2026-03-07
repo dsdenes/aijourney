@@ -12,6 +12,7 @@ import {
 import { randomBytes } from 'crypto';
 import { EmailService } from '../common/email/email.service';
 import { TenantsService } from '../tenants/tenants.service';
+import { UsersService } from '../users/users.service';
 import { InvitationsRepository } from './invitations.repository';
 
 const INVITE_EXPIRY_DAYS = 7;
@@ -25,6 +26,8 @@ export class InvitationsService {
     private readonly repo: InvitationsRepository,
     @Inject(TenantsService)
     private readonly tenantsService: TenantsService,
+    @Inject(UsersService)
+    private readonly usersService: UsersService,
     @Inject(EmailService)
     private readonly emailService: EmailService,
   ) {}
@@ -178,6 +181,34 @@ export class InvitationsService {
       acceptedAt: nowISO(),
     });
     return { ...inv, status: 'accepted', acceptedAt: nowISO() };
+  }
+
+  async acceptForUser(invitationId: string, userId: string): Promise<Invitation> {
+    const invitation = await this.getById(invitationId);
+    const user = await this.usersService.getById(userId);
+
+    if (invitation.email.toLowerCase() !== user.email.toLowerCase()) {
+      throw new ForbiddenException('Invitation email does not match the authenticated user');
+    }
+
+    await this.usersService.assignTenantMembership(
+      user.id,
+      invitation.tenantId,
+      invitation.orgRole,
+      {
+        makeActive: !user.tenantId,
+      },
+    );
+
+    return this.accept(invitationId);
+  }
+
+  async getById(invitationId: string): Promise<Invitation> {
+    const invitation = await this.repo.getById(invitationId);
+    if (!invitation) {
+      throw new NotFoundException('Invitation not found');
+    }
+    return invitation;
   }
 
   /**

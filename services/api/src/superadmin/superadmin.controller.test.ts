@@ -22,6 +22,9 @@ describe('SuperAdminController', () => {
       updateTenantPlan: vi.fn().mockResolvedValue(undefined),
       promoteToSuperadmin: vi.fn().mockResolvedValue(undefined),
       demoteFromSuperadmin: vi.fn().mockResolvedValue(undefined),
+      assignUserToTenant: vi
+        .fn()
+        .mockResolvedValue({ tenantId: 't1', tenantName: 'Test', orgRole: 'owner' }),
       switchTenant: vi.fn().mockResolvedValue({ tenantId: 't1', tenantName: 'Test' }),
     };
 
@@ -110,6 +113,15 @@ describe('SuperAdminController', () => {
         data: { message: 'User demoted from superadmin' },
       });
       expect(service.demoteFromSuperadmin).toHaveBeenCalledWith('u1');
+    });
+  });
+
+  describe('assignUserToTenant', () => {
+    it('should assign an existing user to a tenant', async () => {
+      const body = { tenantId: 't1', orgRole: 'owner' as const, makeActive: true };
+      const result = await controller.assignUserToTenant('u1', body);
+      expect(result).toEqual({ data: { tenantId: 't1', tenantName: 'Test', orgRole: 'owner' } });
+      expect(service.assignUserToTenant).toHaveBeenCalledWith('u1', body);
     });
   });
 });

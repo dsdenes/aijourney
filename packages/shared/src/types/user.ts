@@ -19,9 +19,9 @@ export interface User {
   role: Role;
   /** System-wide role: superadmin | user */
   globalRole: GlobalRole;
-  /** Tenant this user belongs to */
+  /** Currently active tenant context for this user */
   tenantId: string;
-  /** Role within the tenant: owner | admin | member */
+  /** Role within the currently active tenant */
   orgRole: OrgRole;
   department?: string;
   jobTitle?: string;

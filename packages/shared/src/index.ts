@@ -38,6 +38,18 @@ export {
   updateUserSchema,
   userPreferencesSchema,
 } from './schemas/user.schema.js';
+export {
+  type AssignUserToTenantInput,
+  assignUserToTenantSchema,
+  type SwitchTenantInput,
+  switchTenantSchema,
+} from './schemas/user-tenant-membership.schema.js';
+export {
+  type AssignUserToTenantInput as AssignUserToTenantMembershipInput,
+  assignUserToTenantSchema as assignUserToTenantMembershipSchema,
+  type SwitchTenantInput as SwitchActiveTenantInput,
+  switchTenantSchema as switchActiveTenantSchema,
+} from './schemas/user-tenant-membership.schema.js';
 export type { AgentRun, AgentRunStatus, AgentType } from './types/agent-run.js';
 export { AGENT_RUN_STATUSES, AGENT_TYPES } from './types/agent-run.js';
 export type {
@@ -110,6 +122,7 @@ export type {
 export { LLM_CALL_PACK_SIZE, PLAN_LIMITS, TENANT_PLANS } from './types/tenant.js';
 // Types
 export type { User, UserPreferences } from './types/user.js';
+export type { UserTenantMembership } from './types/user-tenant-membership.js';
 export type { RateLimiterConfig } from './utils/index.js';
 // Utils
 export {

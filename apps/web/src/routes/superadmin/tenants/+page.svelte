@@ -72,7 +72,12 @@
     successMessage = '';
 
     try {
-      const result = await api.post<{ tenant: { name: string }; ownerInvitation: { email: string } }>(
+      const result = await api.post<{
+        tenant: { name: string };
+        ownerEmail?: string;
+        ownerAction?: 'assigned' | 'invited';
+        ownerInvitation?: { email: string };
+      }>(
         '/superadmin/tenants',
         {
           name: tenantName,
@@ -82,7 +87,9 @@
         },
       );
 
-      successMessage = `Created ${result.data?.tenant.name || 'tenant'} and invited ${result.data?.ownerInvitation.email || ownerEmail}`;
+      const resolvedOwnerEmail = result.data?.ownerEmail || result.data?.ownerInvitation?.email || ownerEmail;
+      const ownerAction = result.data?.ownerAction === 'assigned' ? 'assigned existing owner' : 'invited owner';
+      successMessage = `Created ${result.data?.tenant.name || 'tenant'} and ${ownerAction} ${resolvedOwnerEmail}`;
       tenantName = '';
       tenantSlug = '';
       ownerEmail = '';
@@ -100,7 +107,7 @@
 <div class="space-y-6">
   <div class="rounded-lg border border-border bg-surface p-6">
     <h2 class="text-lg font-semibold text-text">Create Tenant</h2>
-    <p class="mt-1 text-sm text-text-muted">Create a tenant and invite a not-yet-registered owner email.</p>
+    <p class="mt-1 text-sm text-text-muted">Create a tenant and either assign an existing owner or invite a not-yet-registered owner email.</p>
 
     {#if successMessage}
       <div class="mt-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">{successMessage}</div>

@@ -1,4 +1,4 @@
-import { createTenantSchema, updateTenantSchema } from '@aijourney/shared';
+import { createTenantSchema, switchTenantSchema, updateTenantSchema } from '@aijourney/shared';
 import {
   Body,
   Controller,
@@ -13,18 +13,23 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RolesGuard } from '../auth/roles.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { GlobalRoles } from '../common/decorators/global-roles.decorator';
 import { OrgRoles } from '../common/decorators/org-roles.decorator';
 import { TenantId } from '../common/decorators/tenant-id.decorator';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { TenantsService } from './tenants.service';
+import { UsersService } from '../users/users.service';
 
 @ApiTags('tenants')
 @Controller('tenants')
 @ApiBearerAuth()
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 export class TenantsController {
-  constructor(@Inject(TenantsService) private readonly tenantsService: TenantsService) {}
+  constructor(
+    @Inject(TenantsService) private readonly tenantsService: TenantsService,
+    @Inject(UsersService) private readonly usersService: UsersService,
+  ) {}
 
   @Post()
   @ApiOperation({ summary: 'Create a new tenant (superadmin)' })
@@ -47,6 +52,47 @@ export class TenantsController {
     }
     const tenant = await this.tenantsService.getById(tenantId);
     return { data: tenant };
+  }
+
+  @Get('memberships')
+  @ApiOperation({ summary: "List current user's tenant memberships" })
+  async listMemberships(@CurrentUser() user: { userId: string }) {
+    const memberships = await this.usersService.listTenantMemberships(user.userId);
+    const enriched = await Promise.all(
+      memberships.map(async (membership) => {
+        try {
+          const tenant = await this.tenantsService.getById(membership.tenantId);
+          return {
+            tenantId: tenant.id,
+            tenantName: tenant.name,
+            slug: tenant.slug,
+            orgRole: membership.orgRole,
+          };
+        } catch {
+          return null;
+        }
+      }),
+    );
+
+    return { data: enriched.filter((membership) => membership !== null) };
+  }
+
+  @Post('switch')
+  @ApiOperation({ summary: 'Switch current user tenant context' })
+  async switchTenant(
+    @CurrentUser() user: { userId: string },
+    @Body(new ZodValidationPipe(switchTenantSchema)) body: unknown,
+  ) {
+    const input = body as { tenantId: string };
+    const result = await this.usersService.switchActiveTenant(user.userId, input.tenantId);
+    const tenant = await this.tenantsService.getById(result.tenantId);
+    return {
+      data: {
+        tenantId: tenant.id,
+        tenantName: tenant.name,
+        orgRole: result.orgRole,
+      },
+    };
   }
 
   @Get(':id')

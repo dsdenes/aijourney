@@ -52,6 +52,12 @@ export class UsersRepository {
     await this.col.updateOne({ _id: id }, { $set: rest });
   }
 
+  async getByIds(ids: string[]): Promise<User[]> {
+    if (ids.length === 0) return [];
+    const docs = await this.col.find({ _id: { $in: ids } }).toArray();
+    return docs.map((doc) => fromDoc(doc));
+  }
+
   /** List all users (superadmin — cross-tenant). */
   async listAll(limit = 50): Promise<User[]> {
     const docs = await this.col.find({}).limit(limit).toArray();

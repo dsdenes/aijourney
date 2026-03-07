@@ -17,7 +17,9 @@
 
   // Tenant switcher for superadmins
   interface TenantOption { id: string; name: string; slug: string }
+  interface TenantMembershipOption { tenantId: string; tenantName: string; slug: string; orgRole: string }
   let tenantList = $state<TenantOption[]>([]);
+  let tenantMemberships = $state<TenantMembershipOption[]>([]);
   let tenantDropdownOpen = $state(false);
   let tenantInfoLoading = $state(false);
 
@@ -31,6 +33,31 @@
         slug: t.slug as string,
       }));
     } catch { /* ignore */ }
+  }
+
+  async function loadTenantMemberships() {
+    if (isSuperadmin || !auth.user?.token) return;
+    try {
+      const res = await api.get<TenantMembershipOption[]>('/tenants/memberships');
+      tenantMemberships = res.data || [];
+      const currentMembership = tenantMemberships.find(
+        (membership) => membership.tenantId === auth.user?.tenantId,
+      );
+      if (currentMembership && auth.user) {
+        const needsSync =
+          currentMembership.tenantName !== auth.user.tenantName ||
+          currentMembership.orgRole !== auth.user.orgRole;
+        if (needsSync) {
+          auth.setUser({
+            ...auth.user,
+            tenantName: currentMembership.tenantName,
+            orgRole: currentMembership.orgRole,
+          });
+        }
+      }
+    } catch {
+      tenantMemberships = [];
+    }
   }
 
   async function syncCurrentTenant() {
@@ -64,6 +91,8 @@
     }
     if (isSuperadmin && auth.user?.token) {
       loadTenants();
+    } else if (auth.user?.token) {
+      loadTenantMemberships();
     }
   });
 
@@ -71,22 +100,35 @@
     tenantDropdownOpen = false;
     if (!auth.user?.token) return;
     try {
-      const res = await api.post<{ tenantId: string; tenantName: string }>('/superadmin/switch-tenant', {
-        tenantId,
-      });
+      const res = isSuperadmin
+        ? await api.post<{ tenantId: string; tenantName: string; orgRole?: string }>('/superadmin/switch-tenant', {
+            tenantId,
+          })
+        : await api.post<{ tenantId: string; tenantName: string; orgRole: string }>('/tenants/switch', {
+            tenantId,
+          });
       if (res.data && auth.user) {
         const data = res.data;
-        auth.setUser({ ...auth.user, tenantId: data.tenantId, tenantName: data.tenantName });
+        auth.setUser({
+          ...auth.user,
+          tenantId: data.tenantId,
+          tenantName: data.tenantName,
+          orgRole: data.orgRole || auth.user.orgRole,
+        });
       }
     } catch { /* ignore */ }
   }
+
+  const canSwitchTenant = $derived(
+    isSuperadmin ? tenantList.length > 0 : tenantMemberships.length > 1,
+  );
 </script>
 
 <aside class="flex w-64 flex-col border-r border-border bg-surface">
   <!-- Logo -->
   <div class="border-b border-border px-6 py-5">
     <h1 class="text-xl font-bold text-primary">AI Journey</h1>
-    {#if isSuperadmin && tenantList.length > 0}
+    {#if canSwitchTenant}
       <div class="relative mt-3">
         <button
           onclick={() => tenantDropdownOpen = !tenantDropdownOpen}
@@ -100,15 +142,28 @@
         </button>
         {#if tenantDropdownOpen}
           <div class="absolute left-0 top-full z-50 mt-1 w-full max-h-48 overflow-y-auto rounded-md border border-border bg-surface shadow-lg">
-            {#each tenantList as tenant}
-              <button
-                onclick={() => switchTenant(tenant.id)}
-                class="block w-full px-3 py-2 text-left text-xs transition-colors hover:bg-surface-dark
-                  {auth.user?.tenantId === tenant.id ? 'font-bold text-primary' : 'text-text'}"
-              >
-                {tenant.name}
-              </button>
-            {/each}
+            {#if isSuperadmin}
+              {#each tenantList as tenant}
+                <button
+                  onclick={() => switchTenant(tenant.id)}
+                  class="block w-full px-3 py-2 text-left text-xs transition-colors hover:bg-surface-dark
+                    {auth.user?.tenantId === tenant.id ? 'font-bold text-primary' : 'text-text'}"
+                >
+                  {tenant.name}
+                </button>
+              {/each}
+            {:else}
+              {#each tenantMemberships as membership}
+                <button
+                  onclick={() => switchTenant(membership.tenantId)}
+                  class="block w-full px-3 py-2 text-left text-xs transition-colors hover:bg-surface-dark
+                    {auth.user?.tenantId === membership.tenantId ? 'font-bold text-primary' : 'text-text'}"
+                >
+                  <div>{membership.tenantName}</div>
+                  <div class="text-[11px] text-text-muted">{membership.orgRole}</div>
+                </button>
+              {/each}
+            {/if}
           </div>
         {/if}
       </div>

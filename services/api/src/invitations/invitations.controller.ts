@@ -92,12 +92,12 @@ export class InvitationsController {
   @Post('accept/:token')
   @UseGuards(AuthGuard('jwt'))
   @ApiOperation({ summary: 'Accept invitation' })
-  async accept(@Param('token') token: string) {
+  async accept(@Param('token') token: string, @CurrentUser() user: { userId: string }) {
     const { invitation, isValid, reason } = await this.invitationsService.getByToken(token);
     if (!isValid) {
       return { error: { code: 'INVALID_INVITATION', message: reason } };
     }
-    const accepted = await this.invitationsService.accept(invitation.id);
+    const accepted = await this.invitationsService.acceptForUser(invitation.id, user.userId);
     return { data: accepted };
   }
 }

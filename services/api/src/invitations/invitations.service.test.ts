@@ -8,6 +8,7 @@ import { Test, type TestingModule } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EmailService } from '../common/email/email.service';
 import { TenantsService } from '../tenants/tenants.service';
+import { UsersService } from '../users/users.service';
 import { InvitationsRepository } from './invitations.repository';
 import { InvitationsService } from './invitations.service';
 
@@ -16,6 +17,7 @@ describe('InvitationsService', () => {
   let repo: Record<string, ReturnType<typeof vi.fn>>;
   let tenantsService: Record<string, ReturnType<typeof vi.fn>>;
   let emailService: Record<string, ReturnType<typeof vi.fn>>;
+  let usersService: Record<string, ReturnType<typeof vi.fn>>;
 
   beforeEach(async () => {
     repo = {
@@ -35,12 +37,21 @@ describe('InvitationsService', () => {
     emailService = {
       sendInvitationEmail: vi.fn().mockResolvedValue(true),
     };
+    usersService = {
+      getById: vi.fn().mockResolvedValue({
+        id: 'u1',
+        email: 'test@example.com',
+        tenantId: '',
+      }),
+      assignTenantMembership: vi.fn().mockResolvedValue(undefined),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         InvitationsService,
         { provide: InvitationsRepository, useValue: repo },
         { provide: TenantsService, useValue: tenantsService },
+        { provide: UsersService, useValue: usersService },
         { provide: EmailService, useValue: emailService },
       ],
     }).compile();
@@ -232,6 +243,40 @@ describe('InvitationsService', () => {
       });
       await expect(service.accept('inv1')).rejects.toThrow(GoneException);
       expect(repo.updateStatus).toHaveBeenCalledWith('inv1', 'expired');
+    });
+  });
+
+  describe('acceptForUser', () => {
+    it('should assign membership and accept invitation for matching email', async () => {
+      repo.getById.mockResolvedValue({
+        id: 'inv1',
+        email: 'test@example.com',
+        tenantId: 't1',
+        orgRole: 'owner',
+        status: 'pending',
+        expiresAt: new Date(Date.now() + 86400000).toISOString(),
+      });
+
+      const result = await service.acceptForUser('inv1', 'u1');
+
+      expect(usersService.assignTenantMembership).toHaveBeenCalledWith('u1', 't1', 'owner', {
+        makeActive: true,
+      });
+      expect(result.status).toBe('accepted');
+    });
+
+    it('should reject when invitation email does not match user email', async () => {
+      repo.getById.mockResolvedValue({
+        id: 'inv1',
+        email: 'other@example.com',
+        tenantId: 't1',
+        orgRole: 'member',
+        status: 'pending',
+        expiresAt: new Date(Date.now() + 86400000).toISOString(),
+      });
+
+      await expect(service.acceptForUser('inv1', 'u1')).rejects.toThrow(ForbiddenException);
+      expect(usersService.assignTenantMembership).not.toHaveBeenCalled();
     });
   });
 

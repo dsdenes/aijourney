@@ -1,11 +1,16 @@
 import type { CreateUserInput, UpdateUserInput, User } from '@aijourney/shared';
 import { generateId, nowISO } from '@aijourney/shared';
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { UserTenantMembershipsService } from './user-tenant-memberships.service';
 import { UsersRepository } from './users.repository';
 
 @Injectable()
 export class UsersService {
-  constructor(@Inject(UsersRepository) private readonly usersRepo: UsersRepository) {}
+  constructor(
+    @Inject(UsersRepository) private readonly usersRepo: UsersRepository,
+    @Inject(UserTenantMembershipsService)
+    private readonly membershipsService: UserTenantMembershipsService,
+  ) {}
 
   async create(input: CreateUserInput): Promise<User> {
     const now = nowISO();
@@ -25,7 +30,9 @@ export class UsersService {
       updatedAt: now,
       lastLoginAt: now,
     };
-    return this.usersRepo.create(user);
+    const created = await this.usersRepo.create(user);
+    await this.membershipsService.ensureMembership(created.id, created.tenantId, created.orgRole);
+    return created;
   }
 
   async getById(id: string): Promise<User> {
@@ -52,14 +59,85 @@ export class UsersService {
   }
 
   async listByTenant(tenantId: string): Promise<User[]> {
-    return this.usersRepo.listByTenant(tenantId);
+    const [memberships, legacyUsers] = await Promise.all([
+      this.membershipsService.listByTenant(tenantId),
+      this.usersRepo.listByTenant(tenantId),
+    ]);
+
+    const legacyById = new Map(legacyUsers.map((user) => [user.id, user]));
+    const membershipUserIds = Array.from(
+      new Set(memberships.map((membership) => membership.userId)),
+    );
+    const membershipUsers = await this.usersRepo.getByIds(
+      membershipUserIds.filter((userId) => !legacyById.has(userId)),
+    );
+    const combined = new Map<string, User>();
+
+    for (const user of legacyUsers) {
+      combined.set(user.id, user);
+    }
+
+    for (const user of membershipUsers) {
+      combined.set(user.id, user);
+    }
+
+    return Array.from(combined.values());
   }
 
   async countByTenant(tenantId: string): Promise<number> {
-    return this.usersRepo.countByTenant(tenantId);
+    const users = await this.listByTenant(tenantId);
+    return users.length;
   }
 
   async countAll(): Promise<number> {
     return this.usersRepo.countAll();
+  }
+
+  async listTenantMemberships(userId: string) {
+    const user = await this.getById(userId);
+    return this.membershipsService.listByUser(userId, user);
+  }
+
+  async assignTenantMembership(
+    userId: string,
+    tenantId: string,
+    orgRole: 'owner' | 'admin' | 'member',
+    options: { makeActive?: boolean } = {},
+  ) {
+    const user = await this.getById(userId);
+    const membership = await this.membershipsService.ensureMembership(userId, tenantId, orgRole);
+    const shouldActivate = !user.tenantId || options.makeActive;
+
+    if (shouldActivate || user.tenantId === tenantId) {
+      await this.usersRepo.update(userId, {
+        tenantId,
+        orgRole,
+        updatedAt: nowISO(),
+      });
+    }
+
+    return membership;
+  }
+
+  async switchActiveTenant(
+    userId: string,
+    tenantId: string,
+  ): Promise<{ tenantId: string; orgRole: string }> {
+    const user = await this.getById(userId);
+    const membership = await this.membershipsService.getByUserAndTenant(userId, tenantId, user);
+    if (!membership) {
+      throw new ForbiddenException('User is not a member of the requested tenant');
+    }
+
+    await this.usersRepo.update(userId, {
+      tenantId,
+      orgRole: membership.orgRole,
+      updatedAt: nowISO(),
+    });
+
+    return {
+      tenantId,
+      orgRole: membership.orgRole,
+    };
   }
 }

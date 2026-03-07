@@ -24,6 +24,16 @@ describe('AuthService (multi-tenant)', () => {
   beforeEach(async () => {
     usersService = {
       getByEmail: vi.fn().mockResolvedValue(undefined),
+      getById: vi.fn().mockImplementation(async (id) => ({
+        id,
+        email: 'existing@mito.hu',
+        name: 'Existing',
+        role: 'employee',
+        globalRole: 'user',
+        tenantId: 'existing-tenant',
+        orgRole: 'member',
+        onboardingComplete: true,
+      })),
       create: vi.fn().mockImplementation(async (input) => ({
         id: 'new-user-id',
         email: input.email,
@@ -49,6 +59,10 @@ describe('AuthService (multi-tenant)', () => {
 
     tenantsService = {
       create: vi.fn().mockResolvedValue({ id: 'new-tenant-id', slug: 'alice' }),
+      getById: vi.fn().mockImplementation(async (tenantId) => ({
+        id: tenantId,
+        name: tenantId === 'new-tenant-id' ? "Alice's Organization" : 'Existing Tenant',
+      })),
     };
 
     invitationsService = {

@@ -14,10 +14,12 @@ describe('UsersRepository', () => {
       findOne: vi.fn().mockResolvedValue(null),
       updateOne: vi.fn().mockResolvedValue({}),
       find: vi.fn().mockReturnValue({
+        toArray: vi.fn().mockResolvedValue([]),
         limit: vi.fn().mockReturnValue({
           toArray: vi.fn().mockResolvedValue([]),
         }),
       }),
+      countDocuments: vi.fn().mockResolvedValue(0),
     };
     mockDb = {
       collection: vi.fn().mockReturnValue(mockCollection),
@@ -38,6 +40,9 @@ describe('UsersRepository', () => {
         name: 'Test',
         googleId: 'g1',
         role: 'employee' as const,
+        globalRole: 'user' as const,
+        tenantId: 't1',
+        orgRole: 'member' as const,
         onboardingComplete: false,
         preferences: {},
         createdAt: '2025-01-01T00:00:00Z',
@@ -134,6 +139,18 @@ describe('UsersRepository', () => {
       const result = await repo.listAll();
       expect(result).toHaveLength(2);
       expect(mockLimit).toHaveBeenCalledWith(50);
+    });
+  });
+
+  describe('getByIds', () => {
+    it('should query multiple user ids with $in', async () => {
+      const mockToArray = vi.fn().mockResolvedValue([{ _id: 'u1', email: 'a@example.com' }]);
+      mockCollection.find.mockReturnValue({ toArray: mockToArray });
+
+      const result = await repo.getByIds(['u1', 'u2']);
+
+      expect(mockCollection.find).toHaveBeenCalledWith({ _id: { $in: ['u1', 'u2'] } });
+      expect(result).toEqual([{ id: 'u1', email: 'a@example.com' }]);
     });
   });
 });

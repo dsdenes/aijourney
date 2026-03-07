@@ -17,7 +17,7 @@ describe('InvitationsController', () => {
         invitation: { id: 'inv1' },
         isValid: true,
       }),
-      accept: vi.fn().mockResolvedValue({ id: 'inv1', status: 'accepted' }),
+      acceptForUser: vi.fn().mockResolvedValue({ id: 'inv1', status: 'accepted' }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -108,9 +108,9 @@ describe('InvitationsController', () => {
 
   describe('accept', () => {
     it('should accept valid invitation', async () => {
-      const result = await controller.accept('tok123');
+      const result = await controller.accept('tok123', { userId: 'u1' });
       expect(result).toEqual({ data: { id: 'inv1', status: 'accepted' } });
-      expect(service.accept).toHaveBeenCalledWith('inv1');
+      expect(service.acceptForUser).toHaveBeenCalledWith('inv1', 'u1');
     });
 
     it('should return error for invalid invitation', async () => {
@@ -119,14 +119,14 @@ describe('InvitationsController', () => {
         isValid: false,
         reason: 'Invitation has expired',
       });
-      const result = await controller.accept('tok123');
+      const result = await controller.accept('tok123', { userId: 'u1' });
       expect(result).toEqual({
         error: {
           code: 'INVALID_INVITATION',
           message: 'Invitation has expired',
         },
       });
-      expect(service.accept).not.toHaveBeenCalled();
+      expect(service.acceptForUser).not.toHaveBeenCalled();
     });
   });
 });

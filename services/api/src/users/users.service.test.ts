@@ -1,12 +1,14 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { UserTenantMembershipsService } from './user-tenant-memberships.service';
 import { UsersRepository } from './users.repository';
 import { UsersService } from './users.service';
 
 describe('UsersService', () => {
   let service: UsersService;
   let repo: Record<string, ReturnType<typeof vi.fn>>;
+  let membershipsService: Record<string, ReturnType<typeof vi.fn>>;
 
   beforeEach(async () => {
     repo = {
@@ -15,10 +17,23 @@ describe('UsersService', () => {
       getByEmail: vi.fn(),
       update: vi.fn(),
       listAll: vi.fn(),
+      listByTenant: vi.fn().mockResolvedValue([]),
+      countAll: vi.fn().mockResolvedValue(0),
+      getByIds: vi.fn().mockResolvedValue([]),
+    };
+    membershipsService = {
+      ensureMembership: vi.fn().mockResolvedValue({}),
+      listByTenant: vi.fn().mockResolvedValue([]),
+      listByUser: vi.fn().mockResolvedValue([]),
+      getByUserAndTenant: vi.fn().mockResolvedValue(undefined),
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [UsersService, { provide: UsersRepository, useValue: repo }],
+      providers: [
+        UsersService,
+        { provide: UsersRepository, useValue: repo },
+        { provide: UserTenantMembershipsService, useValue: membershipsService },
+      ],
     }).compile();
 
     service = module.get<UsersService>(UsersService);
@@ -33,6 +48,8 @@ describe('UsersService', () => {
         email: 'test@example.com',
         name: 'Test User',
         role: 'employee',
+        tenantId: 't1',
+        orgRole: 'member',
       });
 
       expect(result.id).toBeDefined();
@@ -45,6 +62,7 @@ describe('UsersService', () => {
       expect(result.updatedAt).toBeDefined();
       expect(result.lastLoginAt).toBeDefined();
       expect(repo.create).toHaveBeenCalledOnce();
+      expect(membershipsService.ensureMembership).toHaveBeenCalledWith(result.id, 't1', 'member');
     });
 
     it('should default role to employee when not provided', async () => {
@@ -54,6 +72,7 @@ describe('UsersService', () => {
         googleId: 'g123',
         email: 'test@example.com',
         name: 'Test User',
+        tenantId: 't1',
       });
 
       expect(result.role).toBe('employee');
@@ -119,6 +138,20 @@ describe('UsersService', () => {
 
       const result = await service.listAll();
       expect(result).toHaveLength(2);
+    });
+  });
+
+  describe('assignTenantMembership', () => {
+    it('should activate the assigned tenant when requested', async () => {
+      repo.getById.mockResolvedValue({ id: 'u1', tenantId: 't-old', orgRole: 'member' });
+      membershipsService.ensureMembership.mockResolvedValue({ orgRole: 'owner' });
+
+      await service.assignTenantMembership('u1', 't1', 'owner', { makeActive: true });
+
+      expect(repo.update).toHaveBeenCalledWith(
+        'u1',
+        expect.objectContaining({ tenantId: 't1', orgRole: 'owner' }),
+      );
     });
   });
 });

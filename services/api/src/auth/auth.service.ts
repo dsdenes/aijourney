@@ -157,38 +157,26 @@ export class AuthService {
 
       existing = await this.usersService.update(existing.id, updates);
 
-      // Resolve tenant name
-      let tenantName = '';
-      if (existing.tenantId) {
-        try {
-          const tenant = await this.tenantsService.getById(existing.tenantId);
-          tenantName = tenant.name;
-        } catch {
-          // Tenant may have been deleted
-        }
+      const pendingInvitations = await this.invitationsService.findPendingForEmail(email);
+      for (const invitation of pendingInvitations) {
+        await this.usersService.assignTenantMembership(
+          existing.id,
+          invitation.tenantId,
+          invitation.orgRole,
+        );
+        await this.invitationsService.accept(invitation.id);
       }
 
-      return {
-        userId: existing.id,
-        email: existing.email,
-        name: existing.name,
-        role: existing.role,
-        globalRole: existing.globalRole ?? 'user',
-        tenantId: existing.tenantId ?? '',
-        tenantName,
-        orgRole: existing.orgRole ?? 'member',
-        onboardingComplete: existing.onboardingComplete ?? false,
-      };
+      const refreshedUser = await this.usersService.getById(existing.id);
+      return this.toAuthUserResponse(refreshedUser);
     }
 
     // 2. Check for pending invitation
     const pendingInvitations = await this.invitationsService.findPendingForEmail(email);
 
     if (pendingInvitations.length > 0) {
-      // Accept the oldest pending invitation
       const invitation = pendingInvitations[0]!;
 
-      // Create user with invited tenant and role
       const newUser = await this.usersService.create({
         googleId: googleSub,
         email,
@@ -199,31 +187,23 @@ export class AuthService {
         orgRole: invitation.orgRole,
       });
 
-      // Mark invitation as accepted
-      await this.invitationsService.accept(invitation.id);
+      for (const pendingInvitation of pendingInvitations) {
+        if (pendingInvitation.id === invitation.id) {
+          await this.invitationsService.accept(pendingInvitation.id);
+          continue;
+        }
 
-      // Resolve tenant name
-      let tenantName = '';
-      try {
-        const tenant = await this.tenantsService.getById(invitation.tenantId);
-        tenantName = tenant.name;
-      } catch {
-        // Tenant may have been deleted
+        await this.usersService.assignTenantMembership(
+          newUser.id,
+          pendingInvitation.tenantId,
+          pendingInvitation.orgRole,
+        );
+        await this.invitationsService.accept(pendingInvitation.id);
       }
 
       this.logger.log(`New user ${email} joined tenant ${invitation.tenantId} via invitation`);
 
-      return {
-        userId: newUser.id,
-        email: newUser.email,
-        name: newUser.name,
-        role: newUser.role,
-        globalRole: newUser.globalRole ?? 'user',
-        tenantId: newUser.tenantId ?? '',
-        tenantName,
-        orgRole: newUser.orgRole ?? 'member',
-        onboardingComplete: newUser.onboardingComplete ?? false,
-      };
+      return this.toAuthUserResponse(newUser);
     }
 
     // 3. Self-onboarding: create a new tenant for this user
@@ -250,17 +230,7 @@ export class AuthService {
 
     this.logger.log(`New user ${email} self-onboarded with personal tenant ${tenant.id}`);
 
-    return {
-      userId: newUser.id,
-      email: newUser.email,
-      name: newUser.name,
-      role: newUser.role,
-      globalRole: newUser.globalRole ?? 'user',
-      tenantId: newUser.tenantId ?? '',
-      tenantName: tenant.name,
-      orgRole: newUser.orgRole ?? 'owner',
-      onboardingComplete: newUser.onboardingComplete ?? false,
-    };
+    return this.toAuthUserResponse(newUser, tenant.name);
   }
 
   async validateUser(payload: { sub: string; email: string }) {
@@ -277,5 +247,41 @@ export class AuthService {
     }
     const payload = Buffer.from(parts[1]!, 'base64url').toString('utf-8');
     return JSON.parse(payload);
+  }
+
+  private async toAuthUserResponse(
+    user: {
+      id: string;
+      email: string;
+      name: string;
+      role: string;
+      globalRole?: GlobalRole;
+      tenantId?: string;
+      orgRole?: OrgRole;
+      onboardingComplete?: boolean;
+    },
+    tenantNameOverride?: string,
+  ): Promise<AuthUserResponse> {
+    let tenantName = tenantNameOverride ?? '';
+    if (!tenantName && user.tenantId) {
+      try {
+        const tenant = await this.tenantsService.getById(user.tenantId);
+        tenantName = tenant.name;
+      } catch {
+        tenantName = '';
+      }
+    }
+
+    return {
+      userId: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      globalRole: user.globalRole ?? 'user',
+      tenantId: user.tenantId ?? '',
+      tenantName,
+      orgRole: user.orgRole ?? 'member',
+      onboardingComplete: user.onboardingComplete ?? false,
+    };
   }
 }

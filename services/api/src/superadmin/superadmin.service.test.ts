@@ -58,10 +58,12 @@ describe('SuperAdminService', () => {
       countByTenant: vi.fn().mockResolvedValue(0),
       listByTenant: vi.fn().mockResolvedValue([]),
       listAll: vi.fn().mockResolvedValue([]),
+      listTenantMemberships: vi.fn().mockResolvedValue([]),
       getByEmail: vi.fn().mockResolvedValue(undefined),
       getById: vi
         .fn()
         .mockResolvedValue({ id: 'u1', email: 'someone@example.com', globalRole: 'superadmin' }),
+      assignTenantMembership: vi.fn().mockResolvedValue({ orgRole: 'owner' }),
       update: vi.fn().mockResolvedValue({}),
     };
     invitationsService = {
@@ -146,24 +148,34 @@ describe('SuperAdminService', () => {
       });
       expect(result).toEqual({
         tenant: expect.objectContaining({ id: 't-created' }),
+        ownerEmail: 'owner@example.com',
+        ownerAction: 'invited',
         ownerInvitation: expect.objectContaining({ id: 'inv-1' }),
       });
     });
 
-    it('should reject existing owner emails', async () => {
+    it('should assign an existing user as owner instead of rejecting', async () => {
       usersService.getByEmail.mockResolvedValue({ id: 'u1', email: 'owner@example.com' });
 
-      await expect(
-        service.createTenantWithOwner(
-          {
-            name: 'Example Org',
-            slug: 'example-org',
-            ownerEmail: 'owner@example.com',
-            plan: 'free',
-          },
-          'super-1',
-        ),
-      ).rejects.toThrow('User owner@example.com already exists');
+      const result = await service.createTenantWithOwner(
+        {
+          name: 'Example Org',
+          slug: 'example-org',
+          ownerEmail: 'owner@example.com',
+          plan: 'free',
+        },
+        'super-1',
+      );
+
+      expect(usersService.assignTenantMembership).toHaveBeenCalledWith('u1', 't-created', 'owner', {
+        makeActive: true,
+      });
+      expect(invitationsService.create).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        tenant: expect.objectContaining({ id: 't-created' }),
+        ownerEmail: 'owner@example.com',
+        ownerAction: 'assigned',
+      });
     });
   });
 
@@ -279,6 +291,23 @@ describe('SuperAdminService', () => {
       await expect(service.demoteFromSuperadmin('u1')).rejects.toThrow(
         'Cannot revoke superadmin from the protected account',
       );
+    });
+  });
+
+  describe('assignUserToTenant', () => {
+    it('should assign a user to an existing tenant', async () => {
+      tenantsRepo.getById.mockResolvedValue(makeTenant('t1', 'free', 0));
+
+      const result = await service.assignUserToTenant('u1', {
+        tenantId: 't1',
+        orgRole: 'admin',
+        makeActive: true,
+      });
+
+      expect(usersService.assignTenantMembership).toHaveBeenCalledWith('u1', 't1', 'admin', {
+        makeActive: true,
+      });
+      expect(result).toEqual({ tenantId: 't1', tenantName: 'Tenant t1', orgRole: 'owner' });
     });
   });
 });

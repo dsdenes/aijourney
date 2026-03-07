@@ -53,12 +53,8 @@ export class SuperAdminService {
   async createTenantWithOwner(input: CreateSuperadminTenantInput, invitedBy: string) {
     const ownerEmail = input.ownerEmail.trim().toLowerCase();
     const existingUser = await this.usersService.getByEmail(ownerEmail);
-    if (existingUser) {
-      throw new ConflictException(`User ${ownerEmail} already exists`);
-    }
-
     const pendingInvitations = await this.invitationsService.findPendingForEmail(ownerEmail);
-    if (pendingInvitations.length > 0) {
+    if (!existingUser && pendingInvitations.length > 0) {
       throw new ConflictException(`Pending invitation already exists for ${ownerEmail}`);
     }
 
@@ -67,6 +63,22 @@ export class SuperAdminService {
       slug: input.slug,
       plan: input.plan,
     });
+
+    if (existingUser) {
+      await this.usersService.assignTenantMembership(existingUser.id, tenant.id, 'owner', {
+        makeActive: true,
+      });
+
+      this.logger.log(
+        `Super-admin created tenant ${tenant.id} and assigned ${ownerEmail} as owner`,
+      );
+
+      return {
+        tenant,
+        ownerEmail,
+        ownerAction: 'assigned' as const,
+      };
+    }
 
     const ownerInvitation = await this.invitationsService.create(tenant.id, invitedBy, {
       email: ownerEmail,
@@ -79,6 +91,8 @@ export class SuperAdminService {
 
     return {
       tenant,
+      ownerEmail,
+      ownerAction: 'invited' as const,
       ownerInvitation,
     };
   }
@@ -168,17 +182,27 @@ export class SuperAdminService {
     const tenants = await this.tenantsRepo.listAll();
     const tenantMap = new Map(tenants.map((t) => [t.id, t.name]));
 
-    return allUsers.map((u) => ({
-      id: u.id,
-      email: u.email,
-      name: u.name,
-      globalRole: u.globalRole ?? 'user',
-      orgRole: u.orgRole ?? 'member',
-      tenantId: u.tenantId ?? '',
-      tenantName: tenantMap.get(u.tenantId) ?? '',
-      onboardingComplete: u.onboardingComplete ?? false,
-      lastLoginAt: u.lastLoginAt,
-    }));
+    return Promise.all(
+      allUsers.map(async (u) => {
+        const memberships = await this.usersService.listTenantMemberships(u.id);
+        return {
+          id: u.id,
+          email: u.email,
+          name: u.name,
+          globalRole: u.globalRole ?? 'user',
+          orgRole: u.orgRole ?? 'member',
+          tenantId: u.tenantId ?? '',
+          tenantName: tenantMap.get(u.tenantId) ?? '',
+          onboardingComplete: u.onboardingComplete ?? false,
+          lastLoginAt: u.lastLoginAt,
+          memberships: memberships.map((membership) => ({
+            tenantId: membership.tenantId,
+            tenantName: tenantMap.get(membership.tenantId) ?? membership.tenantId,
+            orgRole: membership.orgRole,
+          })),
+        };
+      }),
+    );
   }
 
   async promoteToSuperadmin(userId: string): Promise<void> {
@@ -203,5 +227,28 @@ export class SuperAdminService {
     if (!tenant) throw new ForbiddenException('Tenant not found');
     await this.usersService.update(userId, { tenantId });
     return { tenantId: tenant.id, tenantName: tenant.name };
+  }
+
+  async assignUserToTenant(
+    userId: string,
+    input: { tenantId: string; orgRole: 'owner' | 'admin' | 'member'; makeActive?: boolean },
+  ) {
+    const tenant = await this.tenantsRepo.getById(input.tenantId);
+    if (!tenant) {
+      throw new ForbiddenException('Tenant not found');
+    }
+
+    const membership = await this.usersService.assignTenantMembership(
+      userId,
+      input.tenantId,
+      input.orgRole,
+      { makeActive: input.makeActive },
+    );
+
+    return {
+      tenantId: tenant.id,
+      tenantName: tenant.name,
+      orgRole: membership.orgRole,
+    };
   }
 }

@@ -1,4 +1,9 @@
-import { type CreateSuperadminTenantInput, createSuperadminTenantSchema } from '@aijourney/shared';
+import {
+  type AssignUserToTenantInput,
+  type CreateSuperadminTenantInput,
+  assignUserToTenantMembershipSchema,
+  createSuperadminTenantSchema,
+} from '@aijourney/shared';
 import { Body, Controller, Get, Inject, Param, Post, Put, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -84,6 +89,19 @@ export class SuperAdminController {
   async demoteUser(@Param('userId') userId: string) {
     await this.superAdminService.demoteFromSuperadmin(userId);
     return { data: { message: 'User demoted from superadmin' } };
+  }
+
+  @Post('users/:userId/tenants')
+  @ApiOperation({ summary: 'Assign an existing user to a tenant with an org role' })
+  async assignUserToTenant(
+    @Param('userId') userId: string,
+    @Body(new ZodValidationPipe(assignUserToTenantMembershipSchema)) body: unknown,
+  ) {
+    const result = await this.superAdminService.assignUserToTenant(
+      userId,
+      body as AssignUserToTenantInput,
+    );
+    return { data: result };
   }
 
   @Get('users')
