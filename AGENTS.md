@@ -57,20 +57,20 @@ If a guide conflicts with default behavior, follow the guide selected via `guide
 
 ### Tech Stack Summary
 
-| Layer                | Technology                                                                                       |
-| -------------------- | ------------------------------------------------------------------------------------------------ |
-| Frontend             | SvelteKit (Svelte 5) + Tailwind CSS v4 + TypeScript                                              |
-| Backend API          | NestJS + TypeScript + OpenTelemetry                                                              |
-| Worker/Orchestration | BullMQ + ElastiCache (Redis)                                                                     |
-| KB Builder           | Node.js pipeline + OpenAI + Bedrock                                                              |
-| Database             | DynamoDB (on-demand)                                                                             |
-| Cache/Queue          | ElastiCache (Redis 7)                                                                            |
-| Auth                 | Amazon Cognito (Google Workspace SSO, mito.hu only)                                              |
-| RAG Storage          | Amazon Bedrock Knowledge Bases                                                                   |
-| Object Storage       | Amazon S3                                                                                        |
-| Compute              | Docker Compose on Scaleway (self-hosted)                                                         |
-| IaC                  | Docker Compose (production: `docker-compose.server.yml`)                                         |
-| CI/CD                | GitHub Actions (self-hosted runner)                                                              |
+| Layer                | Technology                                                                                                                                          |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Frontend             | SvelteKit (Svelte 5) + Tailwind CSS v4 + TypeScript                                                                                                 |
+| Backend API          | NestJS + TypeScript + OpenTelemetry                                                                                                                 |
+| Worker/Orchestration | BullMQ + ElastiCache (Redis)                                                                                                                        |
+| KB Builder           | Node.js pipeline + OpenAI + Bedrock                                                                                                                 |
+| Database             | DynamoDB (on-demand)                                                                                                                                |
+| Cache/Queue          | ElastiCache (Redis 7)                                                                                                                               |
+| Auth                 | Amazon Cognito (Google Workspace SSO, mito.hu only)                                                                                                 |
+| RAG Storage          | Amazon Bedrock Knowledge Bases                                                                                                                      |
+| Object Storage       | Amazon S3                                                                                                                                           |
+| Compute              | Docker Compose on Scaleway (self-hosted)                                                                                                            |
+| IaC                  | Docker Compose (production: `docker-compose.server.yml`)                                                                                            |
+| CI/CD                | GitHub Actions (self-hosted runner)                                                                                                                 |
 | LLM                  | OpenAI API (primary) — **mandatory model: `gpt-5.4` with `reasoning: { effort: "high" }`**; Bedrock models (fallback only when explicitly required) |
 
 ---
@@ -320,14 +320,14 @@ export AWS_PROFILE=mito815
 
 ### Available Bedrock Models (Key Ones)
 
-| Model                                      | Provider  | Use Case                    |
-| ------------------------------------------ | --------- | --------------------------- |
-| `anthropic.claude-sonnet-4-6`              | Anthropic | KB chat generation (option) |
+| Model                                      | Provider  | Use Case                                                               |
+| ------------------------------------------ | --------- | ---------------------------------------------------------------------- |
+| `anthropic.claude-sonnet-4-6`              | Anthropic | KB chat generation (option)                                            |
 | `anthropic.claude-opus-4-6-v1`             | Anthropic | Available only as fallback; do not choose while `gpt-5.4` is available |
-| `anthropic.claude-haiku-4-5-20251001-v1:0` | Anthropic | Fast/cheap tasks            |
-| `amazon.titan-embed-text-v2:0`             | Amazon    | Embeddings for Bedrock KB   |
-| `cohere.embed-english-v3`                  | Cohere    | Alternative embeddings      |
-| `amazon.nova-pro-v1:0`                     | Amazon    | Alternative generation      |
+| `anthropic.claude-haiku-4-5-20251001-v1:0` | Anthropic | Fast/cheap tasks                                                       |
+| `amazon.titan-embed-text-v2:0`             | Amazon    | Embeddings for Bedrock KB                                              |
+| `cohere.embed-english-v3`                  | Cohere    | Alternative embeddings                                                 |
+| `amazon.nova-pro-v1:0`                     | Amazon    | Alternative generation                                                 |
 
 ### AWS Region
 
@@ -576,11 +576,11 @@ await openai.chat.completions.create({ model: "gpt-4o-mini", ... });
 
 `gpt-5.4` is a **reasoning model** and should be used through the Responses API for best performance.
 
-| Parameter               | Requirement                                                 |
-| ----------------------- | ----------------------------------------------------------- |
-| `reasoning.effort`      | ✅ Set to `high` for project-standard requests              |
-| `max_output_tokens`     | ✅ Required to budget both reasoning and visible output     |
-| `temperature` / `top_p` | ❌ Avoid when using non-`none` reasoning effort             |
+| Parameter               | Requirement                                             |
+| ----------------------- | ------------------------------------------------------- |
+| `reasoning.effort`      | ✅ Set to `high` for project-standard requests          |
+| `max_output_tokens`     | ✅ Required to budget both reasoning and visible output |
+| `temperature` / `top_p` | ❌ Avoid when using non-`none` reasoning effort         |
 
 **Critical: Set `max_output_tokens` generously.** OpenAI recommends reserving substantial space for reasoning and outputs when using reasoning models. Start with at least `25000` tokens for complex tasks and lower only after measuring real usage.
 
