@@ -118,13 +118,13 @@ git clone git@github.com:dsdenes/aijourney.git
 
 # GitHub CLI
 gh repo view dsdenes/aijourney
-gh pr list
-gh pr create --base main --title "feat(scope): description"
+gh run list --branch main
 ```
 
 ### GitHub Interaction Policy
 
 - **Always use `gh` CLI** for GitHub operations whenever `gh` supports the action.
+- **Always skip pull requests for routine agent-authored changes and push directly to `main`.**
 - **After finishing a change, publish it to GitHub** rather than leaving it only in the local worktree.
 - **Never deploy directly from a terminal session or by logging into the server for routine releases.** Deployments must flow through the repository's CI/CD pipeline.
 - **Always monitor the CI/CD run until the deploy job finishes successfully** (or fails with a concrete reason that can be reported back).
@@ -246,16 +246,13 @@ docs: update AGENTS.md with terraform IAM notes
 test(shared): add zod schema validation tests
 ```
 
-### Pull Request Process
+### Direct Publish Process
 
-1. Create feature branch from `main`
+1. Update `main` from origin before starting work
 2. Implement + test locally
-3. Push to GitHub as soon as the change is ready for review or merge
-4. Create or update the PR targeting `main` using `gh`
-5. Monitor the GitHub Actions pipeline with `gh` until the relevant checks and deploy workflow complete successfully
-6. Review (at least 1 approval)
-7. Squash merge to `main`
-8. Confirm the post-merge deploy workflow succeeds via GitHub Actions before considering the task fully published
+3. Push the finished commit directly to `main`
+4. Monitor the GitHub Actions pipeline with `gh` until the relevant checks and deploy workflow complete successfully
+5. Confirm the deploy workflow succeeds on `main` before considering the task fully published
 
 ### Git Commands
 
@@ -264,15 +261,11 @@ test(shared): add zod schema validation tests
 git clone git@github.com:dsdenes/aijourney.git
 cd aijourney
 
-# Create feature branch
+# Update main, commit, push, and watch CI
 git checkout main
 git pull origin main
-git checkout -b feat/my-feature
-
-# Push and create PR
-git push -u origin feat/my-feature
-# Then create PR and watch CI via gh:
-gh pr create --base main --title "feat(scope): description"
+git commit -m "type(scope): description"
+git push origin main
 gh run watch
 ```
 
@@ -357,11 +350,8 @@ The existing Terraform state bucket (`815-ai-tools-terraform-tf-state`) may be r
 ### GitHub CLI
 
 ```bash
-# List PRs
-gh pr list
-
-# Create PR
-gh pr create --base main --title "feat(scope): description"
+# List recent main runs
+gh run list --branch main
 
 # View repo
 gh repo view dsdenes/aijourney
@@ -860,8 +850,7 @@ The deploy job always uses the Compose project name `aijourney` so the fallback 
 
 ```bash
 # Publish through GitHub, then monitor the workflow until deploy succeeds.
-gh pr create --base main --title "feat(scope): description"
-gh pr merge --squash --delete-branch
+git push origin main
 gh run watch
 ```
 
@@ -1002,9 +991,8 @@ terraform plan
 ### Deploy a Service Update
 
 ```bash
-# Publish the branch, open or update the PR, and rely on GitHub Actions for deployment.
-git push -u origin feat/my-feature
-gh pr create --base main --title "feat(scope): description"
+# Push directly to main and rely on GitHub Actions for deployment.
+git push origin main
 gh run watch
 ```
 
