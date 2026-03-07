@@ -3,9 +3,8 @@
   import { api } from '$lib/api';
   import { auth } from '$lib/stores/auth.svelte';
 
-  const navItems = [
+  const baseNavItems = [
     { label: 'Dashboard', href: '/', icon: '🏠' },
-    { label: 'AI Chat', href: '/chat', icon: '💬' },
     { label: 'AI Planner', href: '/ai-planner', icon: '🗺️' },
     { label: 'Prompting Practices', href: '/prompting-practices', icon: '📖' },
     { label: 'Optimize My Prompt', href: '/optimize-prompt', icon: '✨' },
@@ -14,6 +13,11 @@
 
   const isOrgAdmin = $derived(auth.user?.orgRole === 'owner' || auth.user?.orgRole === 'admin');
   const isSuperadmin = $derived(auth.user?.globalRole === 'superadmin');
+  const navItems = $derived(
+    isSuperadmin
+      ? [...baseNavItems.slice(0, 1), { label: 'AI Chat', href: '/chat', icon: '💬' }, ...baseNavItems.slice(1)]
+      : baseNavItems,
+  );
 
   // Tenant switcher for superadmins
   interface TenantOption { id: string; name: string; slug: string }

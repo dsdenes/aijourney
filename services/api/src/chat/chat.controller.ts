@@ -1,5 +1,8 @@
-import { Body, Controller, Inject, Post } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Inject, Post, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { RolesGuard } from '../auth/roles.guard';
+import { GlobalRoles } from '../common/decorators/global-roles.decorator';
 import { TenantId } from '../common/decorators/tenant-id.decorator';
 import { MemoryService } from '../memory/memory.service';
 import { ChatService, type ChatMessage } from './chat.service';
@@ -12,6 +15,9 @@ class ChatQueryDto {
 
 @ApiTags('chat')
 @Controller('chat')
+@ApiBearerAuth()
+@UseGuards(AuthGuard('jwt'), RolesGuard)
+@GlobalRoles('superadmin')
 export class ChatController {
   constructor(
     private readonly chatService: ChatService,

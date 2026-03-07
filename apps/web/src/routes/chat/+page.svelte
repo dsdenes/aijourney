@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { goto } from '$app/navigation';
   import { api } from '$lib/api';
   import { auth } from '$lib/stores/auth.svelte';
   import { marked } from 'marked';
@@ -33,6 +34,12 @@
   let error = $state<string | null>(null);
   let messagesEnd: HTMLDivElement;
   let textareaEl: HTMLTextAreaElement;
+
+  $effect(() => {
+    if (!auth.loading && auth.user && auth.user.globalRole !== 'superadmin') {
+      goto('/', { replaceState: true });
+    }
+  });
 
   function getConversationHistory(): { role: 'user' | 'assistant'; content: string }[] {
     return messages.slice(-10).map(m => ({ role: m.role, content: m.content }));

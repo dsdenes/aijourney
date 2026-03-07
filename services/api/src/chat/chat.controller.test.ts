@@ -1,5 +1,7 @@
 import { Test, type TestingModule } from '@nestjs/testing';
+import { Reflector } from '@nestjs/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { GLOBAL_ROLES_KEY } from '../common/decorators/global-roles.decorator';
 import { MemoryService } from '../memory/memory.service';
 import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
@@ -11,6 +13,7 @@ const mockMemoryService = {
 describe('ChatController', () => {
   let controller: ChatController;
   let service: { chat: ReturnType<typeof vi.fn> };
+  const reflector = new Reflector();
 
   beforeEach(async () => {
     service = {
@@ -29,6 +32,15 @@ describe('ChatController', () => {
   });
 
   describe('POST /chat', () => {
+    it('should require superadmin global role', () => {
+      const roles = reflector.getAllAndOverride<string[]>(GLOBAL_ROLES_KEY, [
+        ChatController.prototype.chat,
+        ChatController,
+      ]);
+
+      expect(roles).toEqual(['superadmin']);
+    });
+
     it('should return chat response wrapped in data envelope', async () => {
       service.chat.mockResolvedValue({
         answer: 'AI helps with productivity.',
