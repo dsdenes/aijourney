@@ -12,7 +12,8 @@ export function startPolling(
   let stopped = false;
   let running = false;
 
-  const shouldRun = () => !visibleOnly || typeof document === 'undefined' || document.visibilityState === 'visible';
+  const shouldRun = () =>
+    !visibleOnly || typeof document === 'undefined' || document.visibilityState === 'visible';
 
   const clearScheduledRun = () => {
     if (timeoutId) {
