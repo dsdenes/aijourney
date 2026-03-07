@@ -8,6 +8,12 @@
   const tabs = [
     { label: 'Dashboard', href: '/superadmin', icon: '📊' },
     { label: 'Tenants', href: '/superadmin/tenants', icon: '🏢' },
+    { label: 'Users', href: '/superadmin/users', icon: '👥' },
+    { label: 'Agent Runs', href: '/superadmin/runs', icon: '🤖' },
+    { label: 'Vector DB', href: '/superadmin/vectordb', icon: '🧮' },
+    { label: 'Summarization', href: '/superadmin/summarization', icon: '📝' },
+    { label: 'KB Builder', href: '/superadmin/kb-builder', icon: '🏗️' },
+    { label: 'KB Chat', href: '/superadmin/kb-chat', icon: '💬' },
   ];
 
   function isActive(href: string): boolean {

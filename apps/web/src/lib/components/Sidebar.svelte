@@ -11,9 +11,8 @@
     { label: 'Profile', href: '/profile', icon: '👤' },
   ];
 
-  const isAdmin = $derived(auth.user?.role === 'admin');
-  const isOrgAdmin = $derived(auth.user?.orgRole === 'owner' || auth.user?.orgRole === 'admin');
   const isSuperadmin = $derived(auth.user?.globalRole === 'superadmin');
+  const isOrgAdmin = $derived(auth.user?.orgRole === 'admin' && !isSuperadmin);
 </script>
 
 <aside class="flex w-64 flex-col border-r border-border bg-surface">
@@ -82,7 +81,7 @@
       </a>
     {/if}
 
-    {#if isAdmin || isSuperadmin}
+    {#if isOrgAdmin}
       <div class="my-3 border-t border-border"></div>
       <p class="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-text-muted">Admin</p>
       <a
@@ -98,6 +97,8 @@
     {/if}
 
     {#if isSuperadmin}
+      <div class="my-3 border-t border-border"></div>
+      <p class="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-text-muted">Platform</p>
       <a
         href="/superadmin"
         class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors

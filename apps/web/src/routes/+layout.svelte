@@ -1,5 +1,6 @@
 <script lang="ts">
   import '../app.css';
+  import AppHeader from '$lib/components/AppHeader.svelte';
   import Sidebar from '$lib/components/Sidebar.svelte';
   import { auth } from '$lib/stores/auth.svelte';
   import { page } from '$app/state';
@@ -33,6 +34,7 @@
     <Sidebar />
     <main class="flex-1 overflow-y-auto">
       <div class="mx-auto max-w-6xl p-6">
+        <AppHeader />
         {@render children()}
       </div>
     </main>

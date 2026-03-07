@@ -7,13 +7,7 @@
 
   const mainTabs = [
     { label: 'Overview', href: '/settings', icon: '📊' },
-    { label: 'Agent Runs', href: '/settings/runs', icon: '🤖' },
     { label: 'Users', href: '/settings/users', icon: '👥' },
-    { label: 'Vector DB', href: '/settings/vectordb', icon: '🧮' },
-    { label: 'Summarization', href: '/settings/summarization', icon: '📝' },
-    { label: 'KB Builder', href: '/settings/kb-builder', icon: '🏗️' },
-    { label: 'KB Chat', href: '/settings/kb-chat', icon: '💬' },
-    { label: 'Workers', href: '/settings/workers', icon: '⚙️' },
     { label: 'Memory', href: '/settings/memory', icon: '🧠' },
     { label: 'Article Recs', href: '/settings/article-recs', icon: '📰' },
   ];
@@ -23,12 +17,15 @@
     return page.url.pathname.startsWith(href);
   }
 
-  const hasSettingsAccess = $derived(
-    auth.user?.role === 'admin' || auth.user?.globalRole === 'superadmin'
-  );
+  const hasSettingsAccess = $derived(auth.user?.orgRole === 'admin' && auth.user?.globalRole !== 'superadmin');
 
   // Redirect non-admin users
   $effect(() => {
+    if (auth.user?.globalRole === 'superadmin') {
+      goto('/superadmin', { replaceState: true });
+      return;
+    }
+
     if (auth.user && !hasSettingsAccess) {
       goto('/', { replaceState: true });
     }
@@ -39,7 +36,7 @@
   <div>
     <div class="mb-6">
       <h1 class="text-2xl font-bold text-text">Settings</h1>
-      <p class="mt-1 text-sm text-text-muted">Admin panel — monitors, metrics, and user management</p>
+      <p class="mt-1 text-sm text-text-muted">Tenant admin tools for your active tenant</p>
     </div>
 
     <!-- Main tab navigation -->

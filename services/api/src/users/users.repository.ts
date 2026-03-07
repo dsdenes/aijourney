@@ -52,9 +52,52 @@ export class UsersRepository {
     await this.col.updateOne({ _id: id }, { $set: rest });
   }
 
+  async assignAllUsersToTenant(
+    tenantId: string,
+    options: { adminEmails?: string[] } = {},
+  ): Promise<number> {
+    const now = new Date().toISOString();
+    const adminEmails = new Set((options.adminEmails ?? []).map((email) => email.toLowerCase()));
+    const users = await this.col.find({}).toArray();
+
+    let modified = 0;
+
+    for (const doc of users) {
+      const email = String(doc.email ?? '').toLowerCase();
+      const existingOrgRole = doc.orgRole;
+      const existingLegacyRole = doc.role;
+      const globalRole = doc.globalRole;
+      const shouldBeAdmin =
+        globalRole === 'superadmin' ||
+        existingOrgRole === 'admin' ||
+        existingOrgRole === 'owner' ||
+        existingLegacyRole === 'admin' ||
+        adminEmails.has(email);
+
+      await this.col.updateOne(
+        { _id: doc._id },
+        {
+          $set: {
+            tenantId,
+            orgRole: shouldBeAdmin ? 'admin' : 'member',
+            role: shouldBeAdmin ? 'admin' : 'employee',
+            updatedAt: now,
+          },
+          $unset: {
+            'memberships': '',
+          },
+        },
+      );
+
+      modified += 1;
+    }
+
+    return modified;
+  }
+
   /** List all users (superadmin — cross-tenant). */
-  async listAll(limit = 50): Promise<User[]> {
-    const docs = await this.col.find({}).limit(limit).toArray();
+  async listAll(limit = 500): Promise<User[]> {
+    const docs = await this.col.find({}).sort({ createdAt: -1 }).limit(limit).toArray();
     return docs.map((d) => fromDoc(d));
   }
 

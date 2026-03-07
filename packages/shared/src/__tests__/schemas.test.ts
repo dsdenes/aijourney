@@ -35,14 +35,14 @@ describe('createUserSchema', () => {
       avatarUrl: 'https://example.com/avatar.jpg',
       role: 'admin',
       globalRole: 'superadmin',
-      orgRole: 'owner',
+      orgRole: 'admin',
     });
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.role).toBe('admin');
       expect(result.data.avatarUrl).toBe('https://example.com/avatar.jpg');
       expect(result.data.globalRole).toBe('superadmin');
-      expect(result.data.orgRole).toBe('owner');
+      expect(result.data.orgRole).toBe('admin');
     }
   });
 
@@ -592,12 +592,12 @@ describe('createInvitationSchema', () => {
     }
   });
 
-  it('should accept owner orgRole', () => {
+  it('should reject removed owner orgRole', () => {
     const result = createInvitationSchema.safeParse({
       email: 'owner@example.com',
       orgRole: 'owner',
     });
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
   });
 
   it('should reject invalid email', () => {

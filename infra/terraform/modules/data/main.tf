@@ -25,8 +25,8 @@ locals {
           hash_key = "email"
         },
         {
-          name     = "cognitoSub-index"
-          hash_key = "cognitoSub"
+          name     = "googleId-index"
+          hash_key = "googleId"
         }
       ]
     }

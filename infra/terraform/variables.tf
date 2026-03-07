@@ -31,29 +31,3 @@ variable "allowed_email_domain" {
   type        = string
   default     = "mito.hu"
 }
-
-variable "cognito_callback_urls" {
-  description = "OAuth callback URLs for Cognito"
-  type        = list(string)
-  default     = ["http://localhost:5173/auth/callback"]
-}
-
-variable "cognito_logout_urls" {
-  description = "OAuth logout URLs for Cognito"
-  type        = list(string)
-  default     = ["http://localhost:5173"]
-}
-
-variable "google_client_id" {
-  description = "Google OAuth client ID for Cognito federation"
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
-variable "google_client_secret" {
-  description = "Google OAuth client secret for Cognito federation"
-  type        = string
-  sensitive   = true
-  default     = ""
-}

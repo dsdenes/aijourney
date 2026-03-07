@@ -72,7 +72,7 @@
             <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-text-muted">Email</th>
             <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-text-muted">Role</th>
             <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-text-muted">Last Login</th>
-            {#if auth.user?.orgRole === 'owner'}
+            {#if auth.user?.orgRole === 'admin'}
               <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-text-muted">Actions</th>
             {/if}
           </tr>
@@ -84,8 +84,7 @@
               <td class="whitespace-nowrap px-6 py-4 text-sm text-text-muted">{member.email}</td>
               <td class="whitespace-nowrap px-6 py-4">
                 <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium
-                  {member.orgRole === 'owner' ? 'bg-yellow-100 text-yellow-800' :
-                   member.orgRole === 'admin' ? 'bg-blue-100 text-blue-800' :
+                  {member.orgRole === 'admin' ? 'bg-blue-100 text-blue-800' :
                    'bg-gray-100 text-gray-800'}">
                   {member.orgRole}
                 </span>
@@ -93,7 +92,7 @@
               <td class="whitespace-nowrap px-6 py-4 text-sm text-text-muted">
                 {member.lastLoginAt ? new Date(member.lastLoginAt as string).toLocaleDateString() : 'Never'}
               </td>
-              {#if auth.user?.orgRole === 'owner' && member.id !== auth.user?.userId}
+              {#if auth.user?.orgRole === 'admin' && member.id !== auth.user?.userId}
                 <td class="whitespace-nowrap px-6 py-4 text-sm">
                   <select
                     class="rounded border border-border bg-surface px-2 py-1 text-sm text-text"
@@ -102,7 +101,6 @@
                   >
                     <option value="member">Member</option>
                     <option value="admin">Admin</option>
-                    <option value="owner">Owner</option>
                   </select>
                 </td>
               {/if}

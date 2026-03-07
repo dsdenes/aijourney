@@ -43,10 +43,6 @@
         <p class="mt-1 text-3xl font-bold text-text">{stats.totalUsers}</p>
       </div>
       <div class="rounded-lg border border-border bg-surface p-6">
-        <p class="text-sm text-text-muted">Total LLM Calls</p>
-        <p class="mt-1 text-3xl font-bold text-text">{stats.totalLlmCalls}</p>
-      </div>
-      <div class="rounded-lg border border-border bg-surface p-6">
         <p class="text-sm text-text-muted">Plan Breakdown</p>
         <div class="mt-2 space-y-1 text-sm">
           <div class="flex justify-between">

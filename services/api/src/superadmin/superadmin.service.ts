@@ -1,6 +1,6 @@
 import type { TenantPlan } from '@aijourney/shared';
 import { PLAN_LIMITS } from '@aijourney/shared';
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, Logger } from '@nestjs/common';
 import { AgentRunsRepository } from '../agent-runs/agent-runs.repository';
 import { JourneysRepository } from '../journeys/journeys.repository';
 import { MemoryRepository } from '../memory/memory.repository';
@@ -29,6 +29,20 @@ export interface TenantDetail {
   llmCallsLimit: number;
   createdAt: string;
 }
+
+export interface SuperAdminUserDetail {
+  id: string;
+  email: string;
+  name: string;
+  tenantId: string;
+  tenantName: string;
+  orgRole: string;
+  globalRole: string;
+  onboardingComplete: boolean;
+  lastLoginAt?: string;
+}
+
+const PROTECTED_SUPERADMIN_EMAILS = ['dsdenes@gmail.com'];
 
 @Injectable()
 export class SuperAdminService {
@@ -87,6 +101,23 @@ export class SuperAdminService {
     return details;
   }
 
+  async listAllUsers(): Promise<SuperAdminUserDetail[]> {
+    const [users, tenants] = await Promise.all([this.usersService.listAll(), this.tenantsRepo.listAll(500)]);
+    const tenantNames = new Map(tenants.map((tenant) => [tenant.id, tenant.name]));
+
+    return users.map((user) => ({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      tenantId: user.tenantId,
+      tenantName: tenantNames.get(user.tenantId) ?? 'Unknown tenant',
+      orgRole: user.orgRole,
+      globalRole: user.globalRole,
+      onboardingComplete: user.onboardingComplete,
+      lastLoginAt: user.lastLoginAt,
+    }));
+  }
+
   async getTenantDashboard(tenantId: string) {
     const tenant = await this.tenantsRepo.getById(tenantId);
     if (!tenant) return null;
@@ -129,6 +160,11 @@ export class SuperAdminService {
   }
 
   async demoteFromSuperadmin(userId: string): Promise<void> {
+    const user = await this.usersService.getById(userId);
+    if (PROTECTED_SUPERADMIN_EMAILS.includes(user.email.toLowerCase())) {
+      throw new ForbiddenException('This superadmin account is protected');
+    }
+
     await this.usersService.update(userId, { globalRole: 'user' });
     this.logger.log(`User ${userId} demoted from superadmin`);
   }

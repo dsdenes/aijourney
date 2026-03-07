@@ -13,7 +13,7 @@ describe('UsersController', () => {
       getById: vi.fn(),
       getByEmail: vi.fn(),
       update: vi.fn(),
-      listAll: vi.fn(),
+      listByTenant: vi.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -26,39 +26,58 @@ describe('UsersController', () => {
 
   describe('list', () => {
     it('should return wrapped user list', async () => {
-      service.listAll.mockResolvedValue([
+      service.listByTenant.mockResolvedValue([
         { id: 'u1', name: 'Alice' },
         { id: 'u2', name: 'Bob' },
       ]);
 
-      const result = await controller.list();
+      const result = await controller.list('tenant-1');
       expect(result).toEqual({
         data: [
           { id: 'u1', name: 'Alice' },
           { id: 'u2', name: 'Bob' },
         ],
       });
+      expect(service.listByTenant).toHaveBeenCalledWith('tenant-1');
     });
   });
 
   describe('getOne', () => {
     it('should return wrapped user', async () => {
-      service.getById.mockResolvedValue({ id: 'u1', name: 'Alice' });
+      service.getById.mockResolvedValue({ id: 'u1', name: 'Alice', tenantId: 'tenant-1' });
 
-      const result = await controller.getOne('u1');
-      expect(result).toEqual({ data: { id: 'u1', name: 'Alice' } });
+      const result = await controller.getOne('u1', {
+        userId: 'u1',
+        tenantId: 'tenant-1',
+        globalRole: 'user',
+      });
+      expect(result).toEqual({ data: { id: 'u1', name: 'Alice', tenantId: 'tenant-1' } });
       expect(service.getById).toHaveBeenCalledWith('u1');
     });
   });
 
   describe('update', () => {
     it('should call service.update and return result', async () => {
+      service.getById.mockResolvedValue({
+        id: 'u1',
+        tenantId: 'tenant-1',
+        globalRole: 'user',
+      });
       service.update.mockResolvedValue({
         id: 'u1',
         name: 'Updated Name',
       });
 
-      const result = await controller.update('u1', { name: 'Updated Name' });
+      const result = await controller.update(
+        'u1',
+        {
+          userId: 'u1',
+          tenantId: 'tenant-1',
+          globalRole: 'user',
+          orgRole: 'member',
+        },
+        { name: 'Updated Name' },
+      );
       expect(result).toEqual({
         data: { id: 'u1', name: 'Updated Name' },
       });

@@ -6,35 +6,19 @@
     id: string;
     email: string;
     name: string;
-    role: string;
+    orgRole: string;
     lastLoginAt: string;
     createdAt: string;
   }
 
-  interface RunRequest {
-    id: string;
-    userId: string;
-    purpose: string;
-    status: string;
-    budget: { maxTokens: number; estimatedCostUsd: number };
-    execution?: { tokensUsed?: number; actualCostUsd?: number; durationMs?: number };
-    createdAt: string;
-    updatedAt: string;
-  }
-
   let users = $state<User[]>([]);
-  let runs = $state<RunRequest[]>([]);
   let loading = $state(true);
   let error = $state('');
 
   onMount(async () => {
     try {
-      const [usersRes, runsRes] = await Promise.all([
-        api.get<User[]>('/users'),
-        api.get<RunRequest[]>('/runs/all'),
-      ]);
+      const usersRes = await api.get<User[]>('/users');
       users = usersRes.data || [];
-      runs = runsRes.data || [];
     } catch (err) {
       error = err instanceof Error ? err.message : 'Failed to load data';
     } finally {
@@ -44,39 +28,13 @@
 
   // Derived metrics
   const totalUsers = $derived(users.length);
-  const adminCount = $derived(users.filter(u => u.role === 'admin').length);
-  const totalRuns = $derived(runs.length);
-  const runsByStatus = $derived(() => {
-    const counts: Record<string, number> = {};
-    for (const r of runs) {
-      counts[r.status] = (counts[r.status] || 0) + 1;
-    }
-    return counts;
-  });
-  const runsByPurpose = $derived(() => {
-    const counts: Record<string, number> = {};
-    for (const r of runs) {
-      counts[r.purpose] = (counts[r.purpose] || 0) + 1;
-    }
-    return counts;
-  });
+  const adminCount = $derived(users.filter((user) => user.orgRole === 'admin').length);
   const recentLogins = $derived(
     [...users]
-      .filter(u => u.lastLoginAt)
+      .filter((user) => user.lastLoginAt)
       .sort((a, b) => b.lastLoginAt.localeCompare(a.lastLoginAt))
       .slice(0, 5)
   );
-
-  const statusColors: Record<string, string> = {
-    PENDING: 'bg-yellow-100 text-yellow-700',
-    APPROVED: 'bg-blue-100 text-blue-700',
-    RUNNING: 'bg-cyan-100 text-cyan-700',
-    COMPLETED: 'bg-green-100 text-green-700',
-    FAILED: 'bg-red-100 text-red-700',
-    CANCELLED: 'bg-gray-100 text-gray-700',
-    CANCEL_REQUESTED: 'bg-orange-100 text-orange-700',
-    REJECTED: 'bg-red-100 text-red-700',
-  };
 </script>
 
 {#if loading}
@@ -87,73 +45,20 @@
   <div class="rounded-lg bg-red-900/30 p-4 text-red-200">{error}</div>
 {:else}
   <!-- Top-level metric cards -->
-  <div class="mb-8 grid grid-cols-2 gap-4">
+  <div class="mb-8 grid gap-4 sm:grid-cols-2">
     <div class="rounded-lg bg-surface p-4">
       <p class="text-xs font-semibold uppercase text-text">Total Users</p>
       <p class="mt-1 text-2xl font-bold text-text">{totalUsers}</p>
       <p class="text-xs text-text-muted">{adminCount} admin{adminCount !== 1 ? 's' : ''}</p>
     </div>
     <div class="rounded-lg bg-surface p-4">
-      <p class="text-xs font-semibold uppercase text-text">Total Runs</p>
-      <p class="mt-1 text-2xl font-bold text-text">{totalRuns}</p>
+      <p class="text-xs font-semibold uppercase text-text">Recent Logins</p>
+      <p class="mt-1 text-2xl font-bold text-text">{recentLogins.length}</p>
+      <p class="text-xs text-text-muted">Users active in this tenant recently</p>
     </div>
   </div>
 
-  <div class="grid gap-6 lg:grid-cols-2">
-    <!-- Runs by Status -->
-    <div class="rounded-lg bg-surface p-5">
-      <h2 class="mb-4 text-sm font-semibold uppercase text-text">Runs by Status</h2>
-      {#if Object.keys(runsByStatus()).length === 0}
-        <p class="text-sm text-text-muted">No runs yet</p>
-      {:else}
-        <div class="space-y-2">
-          {#each Object.entries(runsByStatus()).sort((a, b) => b[1] - a[1]) as [status, count]}
-            <div class="flex items-center justify-between">
-              <span class="rounded-full px-2.5 py-0.5 text-xs font-medium {statusColors[status] || 'bg-gray-100 text-gray-700'}">
-                {status}
-              </span>
-              <div class="flex items-center gap-2">
-                <div class="h-2 w-24 overflow-hidden rounded-full bg-surface-dark">
-                  <div
-                    class="h-full rounded-full bg-primary"
-                    style="width: {totalRuns > 0 ? (count / totalRuns) * 100 : 0}%"
-                  ></div>
-                </div>
-                <span class="w-8 text-right text-sm font-medium text-text">{count}</span>
-              </div>
-            </div>
-          {/each}
-        </div>
-      {/if}
-    </div>
-
-    <!-- Runs by Purpose (Agent Type) -->
-    <div class="rounded-lg bg-surface p-5">
-      <h2 class="mb-4 text-sm font-semibold uppercase text-text">Runs by Agent Type</h2>
-      {#if Object.keys(runsByPurpose()).length === 0}
-        <p class="text-sm text-text-muted">No runs yet</p>
-      {:else}
-        <div class="space-y-2">
-          {#each Object.entries(runsByPurpose()).sort((a, b) => b[1] - a[1]) as [purpose, count]}
-            <div class="flex items-center justify-between">
-              <span class="text-sm font-medium text-text">{purpose}</span>
-              <div class="flex items-center gap-2">
-                <div class="h-2 w-24 overflow-hidden rounded-full bg-surface-dark">
-                  <div
-                    class="h-full rounded-full bg-accent"
-                    style="width: {totalRuns > 0 ? (count / totalRuns) * 100 : 0}%"
-                  ></div>
-                </div>
-                <span class="w-8 text-right text-sm font-medium text-text">{count}</span>
-              </div>
-            </div>
-          {/each}
-        </div>
-      {/if}
-    </div>
-
-    <!-- Recent Logins -->
-    <div class="rounded-lg bg-surface p-5 lg:col-span-2">
+  <div class="rounded-lg bg-surface p-5">
       <h2 class="mb-4 text-sm font-semibold uppercase text-text">Recent Logins</h2>
       {#if recentLogins.length === 0}
         <p class="text-sm text-text-muted">No logins recorded yet</p>
@@ -175,8 +80,8 @@
                   <td class="py-2 text-text-muted">{user.email}</td>
                   <td class="py-2">
                     <span class="rounded-full px-2 py-0.5 text-xs font-medium
-                      {user.role === 'admin' ? 'bg-primary/20 text-primary' : 'bg-surface-dark text-text-muted'}">
-                      {user.role}
+                      {user.orgRole === 'admin' ? 'bg-primary/20 text-primary' : 'bg-surface-dark text-text-muted'}">
+                      {user.orgRole}
                     </span>
                   </td>
                   <td class="py-2 text-text-muted">{new Date(user.lastLoginAt).toLocaleString()}</td>
@@ -186,6 +91,5 @@
           </table>
         </div>
       {/if}
-    </div>
   </div>
 {/if}

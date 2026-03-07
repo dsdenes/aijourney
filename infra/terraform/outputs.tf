@@ -27,16 +27,6 @@ output "cloudfront_domain" {
   value       = module.cdn.domain_name
 }
 
-output "cognito_user_pool_id" {
-  description = "Cognito User Pool ID"
-  value       = module.cognito.user_pool_id
-}
-
-output "cognito_client_id" {
-  description = "Cognito App Client ID"
-  value       = module.cognito.client_id
-}
-
 output "log_groups" {
   description = "CloudWatch log group names"
   value       = module.observability.log_group_names

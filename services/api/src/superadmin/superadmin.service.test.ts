@@ -50,6 +50,11 @@ describe('SuperAdminService', () => {
       countAll: vi.fn().mockResolvedValue(0),
       countByTenant: vi.fn().mockResolvedValue(0),
       listByTenant: vi.fn().mockResolvedValue([]),
+      listAll: vi.fn().mockResolvedValue([]),
+      getById: vi.fn().mockResolvedValue({
+        id: 'u1',
+        email: 'u1@example.com',
+      }),
       update: vi.fn().mockResolvedValue({}),
     };
     journeysRepo = {
@@ -140,7 +145,7 @@ describe('SuperAdminService', () => {
           id: 'u1',
           email: 'a@b.com',
           name: 'Alice',
-          orgRole: 'owner',
+          orgRole: 'admin',
           globalRole: 'user',
           lastLoginAt: '2026-01-15',
         },
@@ -156,7 +161,7 @@ describe('SuperAdminService', () => {
       expect(result!.users[0]).toMatchObject({
         id: 'u1',
         email: 'a@b.com',
-        orgRole: 'owner',
+        orgRole: 'admin',
       });
       expect(result!.journeyCount).toBe(2);
       expect(result!.memoryFactCount).toBe(42);
@@ -197,10 +202,17 @@ describe('SuperAdminService', () => {
 
   describe('demoteFromSuperadmin', () => {
     it('should update user globalRole to user', async () => {
+      usersService.getById.mockResolvedValue({ id: 'u1', email: 'other@example.com' });
       await service.demoteFromSuperadmin('u1');
       expect(usersService.update).toHaveBeenCalledWith('u1', {
         globalRole: 'user',
       });
+    });
+
+    it('should keep the protected superadmin account', async () => {
+      usersService.getById.mockResolvedValue({ id: 'u1', email: 'dsdenes@gmail.com' });
+
+      await expect(service.demoteFromSuperadmin('u1')).rejects.toThrow('protected');
     });
   });
 });

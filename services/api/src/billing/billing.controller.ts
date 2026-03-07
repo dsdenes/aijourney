@@ -23,7 +23,7 @@ export class BillingController {
 
   @Post('checkout')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @OrgRoles('owner', 'admin')
+  @OrgRoles('admin')
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Create a Stripe Checkout session for plan upgrade',
@@ -54,7 +54,7 @@ export class BillingController {
 
   @Post('llm-packs')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @OrgRoles('owner', 'admin')
+  @OrgRoles('admin')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Purchase additional LLM call packs' })
   @ApiBody({
@@ -83,7 +83,7 @@ export class BillingController {
 
   @Post('portal')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @OrgRoles('owner', 'admin')
+  @OrgRoles('admin')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a Stripe Customer Portal session' })
   @ApiBody({

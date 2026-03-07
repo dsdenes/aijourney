@@ -1,12 +1,14 @@
 import { Test, type TestingModule } from '@nestjs/testing';
 import type { NextFunction, Response } from 'express';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { TenantsRepository } from '../../tenants/tenants.repository';
 import { UsersRepository } from '../../users/users.repository';
 import { type RequestWithTenant, TenantContextMiddleware } from './tenant-context.middleware';
 
 describe('TenantContextMiddleware', () => {
   let middleware: TenantContextMiddleware;
   let usersRepo: Record<string, ReturnType<typeof vi.fn>>;
+  let tenantsRepo: Record<string, ReturnType<typeof vi.fn>>;
   let mockNext: NextFunction;
   let mockRes: Response;
 
@@ -14,9 +16,16 @@ describe('TenantContextMiddleware', () => {
     usersRepo = {
       getByEmail: vi.fn().mockResolvedValue(undefined),
     };
+    tenantsRepo = {
+      getById: vi.fn().mockResolvedValue(undefined),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [TenantContextMiddleware, { provide: UsersRepository, useValue: usersRepo }],
+      providers: [
+        TenantContextMiddleware,
+        { provide: UsersRepository, useValue: usersRepo },
+        { provide: TenantsRepository, useValue: tenantsRepo },
+      ],
     }).compile();
 
     middleware = module.get<TenantContextMiddleware>(TenantContextMiddleware);
@@ -96,12 +105,35 @@ describe('TenantContextMiddleware', () => {
       id: 'u1',
       email: 'admin@mito.hu',
       tenantId: 't1',
-      orgRole: 'owner',
+      orgRole: 'admin',
       globalRole: 'superadmin',
     });
 
     await middleware.use(req, mockRes, mockNext);
     expect(req.globalRole).toBe('superadmin');
+    expect(mockNext).toHaveBeenCalledOnce();
+  });
+
+  it('should honor tenant override for superadmins when tenant exists', async () => {
+    const req = {
+      user: { userId: 'u1', email: 'admin@mito.hu' },
+      header: vi.fn().mockImplementation((name: string) =>
+        name.toLowerCase() === 'x-tenant-id' ? 't2' : undefined,
+      ),
+    } as unknown as RequestWithTenant;
+
+    usersRepo.getByEmail.mockResolvedValue({
+      id: 'u1',
+      email: 'admin@mito.hu',
+      tenantId: 't1',
+      orgRole: 'admin',
+      globalRole: 'superadmin',
+    });
+    tenantsRepo.getById.mockResolvedValue({ id: 't2' });
+
+    await middleware.use(req, mockRes, mockNext);
+
+    expect(req.tenantId).toBe('t2');
     expect(mockNext).toHaveBeenCalledOnce();
   });
 });

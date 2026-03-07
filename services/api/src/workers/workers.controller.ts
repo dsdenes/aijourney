@@ -14,7 +14,7 @@ import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { WorkersService } from './workers.service';
 
-// TODO: Re-enable auth guards once Cognito is set up
+// TODO: Re-enable auth guards once worker admin access is finalized
 // import { UseGuards } from "@nestjs/common";
 // import { AuthGuard } from "@nestjs/passport";
 // import { ApiBearerAuth } from "@nestjs/swagger";

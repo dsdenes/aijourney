@@ -30,6 +30,13 @@ export class SuperAdminController {
     return { data: tenants };
   }
 
+  @Get('users')
+  @ApiOperation({ summary: 'List all users across all tenants' })
+  async listUsers() {
+    const users = await this.superAdminService.listAllUsers();
+    return { data: users };
+  }
+
   @Get('tenants/:tenantId')
   @ApiOperation({ summary: 'Get detailed dashboard for a specific tenant' })
   async getTenantDashboard(@Param('tenantId') tenantId: string) {
