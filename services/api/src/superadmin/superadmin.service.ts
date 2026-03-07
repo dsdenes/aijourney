@@ -157,7 +157,10 @@ export class SuperAdminService {
     this.logger.log(`User ${userId} demoted from superadmin`);
   }
 
-  async switchTenant(userId: string, tenantId: string): Promise<{ tenantId: string; tenantName: string }> {
+  async switchTenant(
+    userId: string,
+    tenantId: string,
+  ): Promise<{ tenantId: string; tenantName: string }> {
     const tenant = await this.tenantsRepo.getById(tenantId);
     if (!tenant) throw new ForbiddenException('Tenant not found');
     await this.usersService.update(userId, { tenantId });

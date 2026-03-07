@@ -51,7 +51,9 @@ describe('SuperAdminService', () => {
       countByTenant: vi.fn().mockResolvedValue(0),
       listByTenant: vi.fn().mockResolvedValue([]),
       listAll: vi.fn().mockResolvedValue([]),
-      getById: vi.fn().mockResolvedValue({ id: 'u1', email: 'someone@example.com', globalRole: 'superadmin' }),
+      getById: vi
+        .fn()
+        .mockResolvedValue({ id: 'u1', email: 'someone@example.com', globalRole: 'superadmin' }),
       update: vi.fn().mockResolvedValue({}),
     };
     journeysRepo = {
@@ -199,7 +201,11 @@ describe('SuperAdminService', () => {
 
   describe('demoteFromSuperadmin', () => {
     it('should update user globalRole to user', async () => {
-      usersService.getById.mockResolvedValue({ id: 'u1', email: 'someone@example.com', globalRole: 'superadmin' });
+      usersService.getById.mockResolvedValue({
+        id: 'u1',
+        email: 'someone@example.com',
+        globalRole: 'superadmin',
+      });
       await service.demoteFromSuperadmin('u1');
       expect(usersService.update).toHaveBeenCalledWith('u1', {
         globalRole: 'user',
@@ -207,7 +213,11 @@ describe('SuperAdminService', () => {
     });
 
     it('should reject demotion of the protected superadmin', async () => {
-      usersService.getById.mockResolvedValue({ id: 'u1', email: 'dsdenes@gmail.com', globalRole: 'superadmin' });
+      usersService.getById.mockResolvedValue({
+        id: 'u1',
+        email: 'dsdenes@gmail.com',
+        globalRole: 'superadmin',
+      });
       await expect(service.demoteFromSuperadmin('u1')).rejects.toThrow(
         'Cannot revoke superadmin from the protected account',
       );
