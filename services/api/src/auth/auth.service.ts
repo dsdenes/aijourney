@@ -1,5 +1,5 @@
 import type { GlobalRole, OrgRole } from '@aijourney/shared';
-import { nowISO } from '@aijourney/shared';
+import { generateId, nowISO } from '@aijourney/shared';
 import { Inject, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { AppConfigService } from '../config/config.service';
 import { InvitationsService } from '../invitations/invitations.service';
@@ -8,8 +8,6 @@ import { UsersService } from '../users/users.service';
 
 /** Emails that are automatically promoted to superadmin on first login */
 const DEFAULT_SUPERADMINS = ['dsdenes@gmail.com'];
-const DEMO_TENANT_NAME = 'DEMO';
-const DEMO_TENANT_SLUG = 'demo';
 
 interface GoogleTokenResponse {
   id_token: string;
@@ -124,7 +122,7 @@ export class AuthService {
    * Find or create a user upon login.
    * - If user already exists: update lastLoginAt, auto-promote superadmins.
    * - If user is new with a pending invitation: accept invitation and create user in that tenant.
-  * - If user is new with no invitation: place the user into the default DEMO tenant.
+   * - If user is new with no invitation: create a new personal tenant AND user (self-onboarding).
    * - Superadmin list is still honoured for global role promotion.
    */
   private async upsertUser(
@@ -189,16 +187,16 @@ export class AuthService {
     if (pendingInvitations.length > 0) {
       // Accept the oldest pending invitation
       const invitation = pendingInvitations[0]!;
-      const invitedOrgRole = invitation.orgRole === 'member' ? 'member' : ('admin' as OrgRole);
 
       // Create user with invited tenant and role
       const newUser = await this.usersService.create({
         googleId: googleSub,
         email,
         name,
+        role: invitation.orgRole === 'owner' ? 'admin' : 'employee',
         globalRole: isSuperadmin ? 'superadmin' : 'user',
         tenantId: invitation.tenantId,
-        orgRole: invitedOrgRole,
+        orgRole: invitation.orgRole,
       });
 
       // Mark invitation as accepted
@@ -223,15 +221,20 @@ export class AuthService {
         globalRole: newUser.globalRole ?? 'user',
         tenantId: newUser.tenantId ?? '',
         tenantName,
-        orgRole: newUser.orgRole ?? invitedOrgRole,
+        orgRole: newUser.orgRole ?? 'member',
         onboardingComplete: newUser.onboardingComplete ?? false,
       };
     }
 
-    // 3. Self-onboarding: place the user into the default demo tenant
-    const tenant = await this.tenantsService.ensureTenant({
-      name: DEMO_TENANT_NAME,
-      slug: DEMO_TENANT_SLUG,
+    // 3. Self-onboarding: create a new tenant for this user
+    const slug =
+      email
+        .split('@')[0]
+        ?.replace(/[^a-z0-9-]/gi, '-')
+        .toLowerCase() || generateId();
+    const tenant = await this.tenantsService.create({
+      name: `${name}'s Organization`,
+      slug,
       plan: 'free' as const,
     });
 
@@ -239,12 +242,13 @@ export class AuthService {
       googleId: googleSub,
       email,
       name,
+      role: 'admin',
       globalRole: isSuperadmin ? 'superadmin' : 'user',
       tenantId: tenant.id,
-      orgRole: isSuperadmin ? ('admin' as OrgRole) : ('member' as OrgRole),
+      orgRole: 'owner' as OrgRole,
     });
 
-    this.logger.log(`New user ${email} joined default tenant ${tenant.id}`);
+    this.logger.log(`New user ${email} self-onboarded with personal tenant ${tenant.id}`);
 
     return {
       userId: newUser.id,
@@ -254,7 +258,7 @@ export class AuthService {
       globalRole: newUser.globalRole ?? 'user',
       tenantId: newUser.tenantId ?? '',
       tenantName: tenant.name,
-      orgRole: newUser.orgRole ?? 'member',
+      orgRole: newUser.orgRole ?? 'owner',
       onboardingComplete: newUser.onboardingComplete ?? false,
     };
   }

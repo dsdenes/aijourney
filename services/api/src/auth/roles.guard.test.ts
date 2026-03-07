@@ -93,7 +93,7 @@ describe('RolesGuard', () => {
   });
 
   it('should allow superadmin to bypass all checks', () => {
-    mockRoles({ org: ['admin'] });
+    mockRoles({ org: ['owner'] });
     const context = createMockContext({
       userId: 'u1',
       role: 'employee',
@@ -122,7 +122,7 @@ describe('RolesGuard', () => {
   });
 
   it('should check org roles', () => {
-    mockRoles({ org: ['admin'] });
+    mockRoles({ org: ['owner', 'admin'] });
     const context = createMockContext({
       userId: 'u1',
       globalRole: 'user',
@@ -132,7 +132,7 @@ describe('RolesGuard', () => {
   });
 
   it('should deny member from org-admin-only endpoint', () => {
-    mockRoles({ org: ['admin'] });
+    mockRoles({ org: ['owner', 'admin'] });
     const context = createMockContext({
       userId: 'u1',
       globalRole: 'user',

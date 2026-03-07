@@ -51,6 +51,14 @@ describe('TenantsController', () => {
       expect(result).toEqual({ data: { id: 't1', name: 'Mito' } });
       expect(service.getById).toHaveBeenCalledWith('t1');
     });
+
+    it('should return error when no tenantId', async () => {
+      const result = await controller.getCurrent(undefined as unknown as string);
+      expect(result).toEqual({
+        error: { code: 'NO_TENANT', message: 'User has no tenant' },
+      });
+      expect(service.getById).not.toHaveBeenCalled();
+    });
   });
 
   describe('getById', () => {

@@ -18,10 +18,6 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  if (auth.activeTenantId) {
-    headers['X-Tenant-Id'] = auth.activeTenantId;
-  }
-
   const res = await fetch(`${API_BASE}${path}`, {
     method,
     headers,

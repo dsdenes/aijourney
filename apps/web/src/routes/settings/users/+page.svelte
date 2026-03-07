@@ -7,8 +7,7 @@
     id: string;
     email: string;
     name: string;
-    globalRole: string;
-    orgRole: string;
+    role: string;
     department?: string;
     jobTitle?: string;
     onboardingComplete: boolean;
@@ -36,7 +35,7 @@
   onMount(loadUsers);
 
   async function toggleRole(user: User) {
-    const action = user.orgRole === 'admin' ? 'revoke' : 'promote';
+    const action = user.role === 'admin' ? 'revoke' : 'promote';
     actionLoading = user.id;
     try {
       await api.post(`/users/${user.id}/${action}`);
@@ -56,7 +55,7 @@
 
 <div>
   <div class="mb-4 flex items-center justify-between">
-    <h2 class="text-lg font-semibold text-text">Tenant Users</h2>
+    <h2 class="text-lg font-semibold text-text">All Users</h2>
     <span class="text-sm text-text-muted">{users.length} user{users.length !== 1 ? 's' : ''}</span>
   </div>
 
@@ -77,7 +76,7 @@
           <tr class="border-b border-border text-text">
             <th class="px-4 py-3 font-medium">Name</th>
             <th class="px-4 py-3 font-medium">Email</th>
-            <th class="px-4 py-3 font-medium">Tenant Role</th>
+            <th class="px-4 py-3 font-medium">Role</th>
             <th class="px-4 py-3 font-medium">Department</th>
             <th class="px-4 py-3 font-medium">Onboarded</th>
             <th class="px-4 py-3 font-medium">Created</th>
@@ -99,14 +98,9 @@
               <td class="px-4 py-3 text-text-muted">{user.email}</td>
               <td class="px-4 py-3">
                 <span class="rounded-full px-2.5 py-0.5 text-xs font-medium
-                  {user.orgRole === 'admin' ? 'bg-primary/20 text-primary' : 'bg-surface-dark text-text-muted'}">
-                  {user.orgRole}
+                  {user.role === 'admin' ? 'bg-primary/20 text-primary' : 'bg-surface-dark text-text-muted'}">
+                  {user.role}
                 </span>
-                {#if user.globalRole === 'superadmin'}
-                  <span class="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
-                    superuser
-                  </span>
-                {/if}
               </td>
               <td class="px-4 py-3 text-text-muted">{user.department || '—'}</td>
               <td class="px-4 py-3">
@@ -119,26 +113,24 @@
               <td class="px-4 py-3 text-text-muted text-xs">{formatDate(user.createdAt)}</td>
               <td class="px-4 py-3 text-text-muted text-xs">{formatDate(user.lastLoginAt)}</td>
               <td class="px-4 py-3">
-                {#if user.email !== auth.user?.email && user.globalRole !== 'superadmin'}
+                {#if user.email !== auth.user?.email}
                   <button
                     onclick={() => toggleRole(user)}
                     disabled={actionLoading === user.id}
                     class="rounded px-2.5 py-1 text-xs font-medium transition-colors
-                      {user.orgRole === 'admin'
+                      {user.role === 'admin'
                         ? 'bg-red-100 text-red-700 hover:bg-red-200'
                         : 'bg-primary/20 text-primary hover:bg-primary/30'}
                       disabled:opacity-50"
                   >
                     {#if actionLoading === user.id}
                       …
-                    {:else if user.orgRole === 'admin'}
+                    {:else if user.role === 'admin'}
                       Revoke Admin
                     {:else}
                       Make Admin
                     {/if}
                   </button>
-                {:else if user.globalRole === 'superadmin'}
-                  <span class="text-xs text-text-muted italic">Managed in Super Admin</span>
                 {:else}
                   <span class="text-xs text-text-muted italic">You</span>
                 {/if}

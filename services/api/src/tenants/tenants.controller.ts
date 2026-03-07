@@ -42,13 +42,16 @@ export class TenantsController {
   @Get('current')
   @ApiOperation({ summary: "Get current user's tenant" })
   async getCurrent(@TenantId() tenantId: string) {
+    if (!tenantId) {
+      return { error: { code: 'NO_TENANT', message: 'User has no tenant' } };
+    }
     const tenant = await this.tenantsService.getById(tenantId);
     return { data: tenant };
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get tenant by ID' })
-  @OrgRoles('admin')
+  @OrgRoles('owner', 'admin')
   async getById(@Param('id') id: string) {
     const tenant = await this.tenantsService.getById(id);
     return { data: tenant };
@@ -56,7 +59,7 @@ export class TenantsController {
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update tenant' })
-  @OrgRoles('admin')
+  @OrgRoles('owner', 'admin')
   async update(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(updateTenantSchema)) body: unknown,
@@ -69,8 +72,8 @@ export class TenantsController {
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Delete tenant (tenant admin or superadmin)' })
-  @OrgRoles('admin')
+  @ApiOperation({ summary: 'Delete tenant (owner or superadmin)' })
+  @OrgRoles('owner')
   async delete(@Param('id') id: string) {
     await this.tenantsService.delete(id);
     return { data: { deleted: true } };

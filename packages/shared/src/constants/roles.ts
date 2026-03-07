@@ -6,7 +6,7 @@ export type Role = (typeof ROLES)[number];
 export const GLOBAL_ROLES = ['superadmin', 'user'] as const;
 export type GlobalRole = (typeof GLOBAL_ROLES)[number];
 
-export const ORG_ROLES = ['admin', 'member'] as const;
+export const ORG_ROLES = ['owner', 'admin', 'member'] as const;
 export type OrgRole = (typeof ORG_ROLES)[number];
 
 export const JOURNEY_LEVELS = ['L0', 'L1', 'L2', 'L3', 'L4'] as const;

@@ -14,7 +14,7 @@ import { ROLES_KEY } from '../common/decorators/roles.decorator';
  * Two-tier RBAC guard:
  *
  * 1. **@GlobalRoles("superadmin")** — checks `user.globalRole`. Superadmins bypass all org checks.
- * 2. **@OrgRoles("admin")** — checks `user.orgRole` within the tenant context.
+ * 2. **@OrgRoles("owner", "admin")** — checks `user.orgRole` within the tenant context.
  * 3. **@Roles("admin")** (legacy) — checks the old `user.role` field for backward compat.
  *
  * If no role decorators are present on a handler, the guard allows access (authentication-only).

@@ -19,7 +19,9 @@
     return page.url.pathname.startsWith(href);
   }
 
-  const hasAccess = $derived(auth.user?.orgRole === 'admin' && auth.user?.globalRole !== 'superadmin');
+  const hasAccess = $derived(
+    auth.user?.orgRole === 'owner' || auth.user?.orgRole === 'admin' || auth.user?.globalRole === 'superadmin'
+  );
 
   $effect(() => {
     if (auth.user && !hasAccess) {

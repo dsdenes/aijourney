@@ -2,7 +2,7 @@
 # Terraform Configuration — Mito AI Journey MVP
 # =============================================================================
 # Infrastructure as Code for the AI Journey platform.
-# Manages: DynamoDB, S3, CloudFront, Lightsail, ElastiCache, CloudWatch
+# Manages: DynamoDB, S3, CloudFront, Cognito, Lightsail, ElastiCache, CloudWatch
 #
 # NOTE: IAM roles/policies cannot be created by this user (PowerUser minus IAM).
 # IAM resources must be pre-created by an admin and referenced by ARN.

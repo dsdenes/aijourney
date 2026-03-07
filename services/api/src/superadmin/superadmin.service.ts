@@ -30,19 +30,8 @@ export interface TenantDetail {
   createdAt: string;
 }
 
-export interface SuperAdminUserDetail {
-  id: string;
-  email: string;
-  name: string;
-  tenantId: string;
-  tenantName: string;
-  orgRole: string;
-  globalRole: string;
-  onboardingComplete: boolean;
-  lastLoginAt?: string;
-}
-
-const PROTECTED_SUPERADMIN_EMAILS = ['dsdenes@gmail.com'];
+/** Email that is a permanent superadmin — cannot be demoted */
+const PROTECTED_SUPERADMIN = 'dsdenes@gmail.com';
 
 @Injectable()
 export class SuperAdminService {
@@ -101,23 +90,6 @@ export class SuperAdminService {
     return details;
   }
 
-  async listAllUsers(): Promise<SuperAdminUserDetail[]> {
-    const [users, tenants] = await Promise.all([this.usersService.listAll(), this.tenantsRepo.listAll(500)]);
-    const tenantNames = new Map(tenants.map((tenant) => [tenant.id, tenant.name]));
-
-    return users.map((user) => ({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      tenantId: user.tenantId,
-      tenantName: tenantNames.get(user.tenantId) ?? 'Unknown tenant',
-      orgRole: user.orgRole,
-      globalRole: user.globalRole,
-      onboardingComplete: user.onboardingComplete,
-      lastLoginAt: user.lastLoginAt,
-    }));
-  }
-
   async getTenantDashboard(tenantId: string) {
     const tenant = await this.tenantsRepo.getById(tenantId);
     if (!tenant) return null;
@@ -154,6 +126,23 @@ export class SuperAdminService {
     this.logger.log(`Super-admin changed tenant ${tenantId} plan to ${plan}`);
   }
 
+  async listAllUsers() {
+    const allUsers = await this.usersService.listAll();
+    const tenants = await this.tenantsRepo.listAll();
+    const tenantMap = new Map(tenants.map((t) => [t.id, t.name]));
+
+    return allUsers.map((u) => ({
+      id: u.id,
+      email: u.email,
+      name: u.name,
+      globalRole: u.globalRole ?? 'user',
+      orgRole: u.orgRole ?? 'member',
+      tenantId: u.tenantId ?? '',
+      tenantName: tenantMap.get(u.tenantId) ?? '',
+      lastLoginAt: u.lastLoginAt,
+    }));
+  }
+
   async promoteToSuperadmin(userId: string): Promise<void> {
     await this.usersService.update(userId, { globalRole: 'superadmin' });
     this.logger.log(`User ${userId} promoted to superadmin`);
@@ -161,11 +150,17 @@ export class SuperAdminService {
 
   async demoteFromSuperadmin(userId: string): Promise<void> {
     const user = await this.usersService.getById(userId);
-    if (PROTECTED_SUPERADMIN_EMAILS.includes(user.email.toLowerCase())) {
-      throw new ForbiddenException('This superadmin account is protected');
+    if (user.email.toLowerCase() === PROTECTED_SUPERADMIN) {
+      throw new ForbiddenException('Cannot revoke superadmin from the protected account');
     }
-
     await this.usersService.update(userId, { globalRole: 'user' });
     this.logger.log(`User ${userId} demoted from superadmin`);
+  }
+
+  async switchTenant(userId: string, tenantId: string): Promise<{ tenantId: string; tenantName: string }> {
+    const tenant = await this.tenantsRepo.getById(tenantId);
+    if (!tenant) throw new ForbiddenException('Tenant not found');
+    await this.usersService.update(userId, { tenantId });
+    return { tenantId: tenant.id, tenantName: tenant.name };
   }
 }

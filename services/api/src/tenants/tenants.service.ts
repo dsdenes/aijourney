@@ -14,15 +14,6 @@ import { TenantsRepository } from './tenants.repository';
 export class TenantsService {
   constructor(@Inject(TenantsRepository) private readonly repo: TenantsRepository) {}
 
-  async ensureTenant(input: CreateTenantInput): Promise<Tenant> {
-    const existing = await this.repo.getBySlug(input.slug);
-    if (existing) {
-      return existing;
-    }
-
-    return this.create(input);
-  }
-
   async create(input: CreateTenantInput): Promise<Tenant> {
     // Check slug uniqueness
     const existing = await this.repo.getBySlug(input.slug);

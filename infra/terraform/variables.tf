@@ -31,3 +31,5 @@ variable "allowed_email_domain" {
   type        = string
   default     = "mito.hu"
 }
+
+

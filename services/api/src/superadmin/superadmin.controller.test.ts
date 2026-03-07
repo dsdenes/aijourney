@@ -16,10 +16,12 @@ describe('SuperAdminController', () => {
         tenantBreakdown: { free: 3, pro: 1, enterprise: 1 },
       }),
       listAllTenants: vi.fn().mockResolvedValue([]),
+      listAllUsers: vi.fn().mockResolvedValue([]),
       getTenantDashboard: vi.fn().mockResolvedValue(null),
       updateTenantPlan: vi.fn().mockResolvedValue(undefined),
       promoteToSuperadmin: vi.fn().mockResolvedValue(undefined),
       demoteFromSuperadmin: vi.fn().mockResolvedValue(undefined),
+      switchTenant: vi.fn().mockResolvedValue({ tenantId: 't1', tenantName: 'Test' }),
     };
 
     const module: TestingModule = await Test.createTestingModule({

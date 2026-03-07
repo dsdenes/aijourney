@@ -2,6 +2,8 @@
   import { page } from '$app/stores';
   import { auth } from '$lib/stores/auth.svelte';
 
+  const API_BASE = import.meta.env.VITE_API_URL || '/api';
+
   const navItems = [
     { label: 'Dashboard', href: '/', icon: '🏠' },
     { label: 'AI Chat', href: '/chat', icon: '💬' },
@@ -11,8 +13,46 @@
     { label: 'Profile', href: '/profile', icon: '👤' },
   ];
 
+  const isOrgAdmin = $derived(auth.user?.orgRole === 'owner' || auth.user?.orgRole === 'admin');
   const isSuperadmin = $derived(auth.user?.globalRole === 'superadmin');
-  const isOrgAdmin = $derived(auth.user?.orgRole === 'admin' && !isSuperadmin);
+
+  // Tenant switcher for superadmins
+  interface TenantOption { id: string; name: string; slug: string }
+  let tenantList = $state<TenantOption[]>([]);
+  let tenantDropdownOpen = $state(false);
+
+  async function loadTenants() {
+    if (!isSuperadmin || !auth.user?.token) return;
+    try {
+      const res = await fetch(`${API_BASE}/superadmin/tenants`, {
+        headers: { Authorization: `Bearer ${auth.user.token}` },
+      });
+      if (res.ok) {
+        const { data } = await res.json();
+        tenantList = (data || []).map((t: Record<string, unknown>) => ({ id: t.id as string, name: t.name as string, slug: t.slug as string }));
+      }
+    } catch { /* ignore */ }
+  }
+
+  $effect(() => {
+    if (isSuperadmin && auth.user?.token) loadTenants();
+  });
+
+  async function switchTenant(tenantId: string) {
+    tenantDropdownOpen = false;
+    if (!auth.user?.token) return;
+    try {
+      const res = await fetch(`${API_BASE}/superadmin/switch-tenant`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${auth.user.token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId }),
+      });
+      if (res.ok) {
+        const { data } = await res.json();
+        auth.setUser({ ...auth.user, tenantId: data.tenantId, tenantName: data.tenantName });
+      }
+    } catch { /* ignore */ }
+  }
 </script>
 
 <aside class="flex w-64 flex-col border-r border-border bg-surface">
@@ -81,7 +121,7 @@
       </a>
     {/if}
 
-    {#if isOrgAdmin}
+    {#if !isSuperadmin && isOrgAdmin}
       <div class="my-3 border-t border-border"></div>
       <p class="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-text-muted">Admin</p>
       <a
@@ -114,7 +154,33 @@
 
   <!-- User info + logout -->
   <div class="border-t border-border p-4">
-    {#if auth.user?.tenantName}
+    {#if isSuperadmin && tenantList.length > 0}
+      <div class="relative mb-3">
+        <button
+          onclick={() => tenantDropdownOpen = !tenantDropdownOpen}
+          class="flex w-full items-center justify-between gap-2 rounded-md bg-primary/5 px-3 py-1.5 hover:bg-primary/10 transition-colors"
+        >
+          <div class="flex items-center gap-2 overflow-hidden">
+            <span class="text-xs">🏢</span>
+            <span class="truncate text-xs font-medium text-primary">{auth.user?.tenantName || 'No tenant'}</span>
+          </div>
+          <span class="text-xs text-text-muted">{tenantDropdownOpen ? '▲' : '▼'}</span>
+        </button>
+        {#if tenantDropdownOpen}
+          <div class="absolute bottom-full left-0 mb-1 w-full max-h-48 overflow-y-auto rounded-md border border-border bg-surface shadow-lg z-50">
+            {#each tenantList as tenant}
+              <button
+                onclick={() => switchTenant(tenant.id)}
+                class="block w-full px-3 py-2 text-left text-xs transition-colors hover:bg-surface-dark
+                  {auth.user?.tenantId === tenant.id ? 'font-bold text-primary' : 'text-text'}"
+              >
+                {tenant.name}
+              </button>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    {:else if auth.user?.tenantName}
       <div class="mb-3 flex items-center gap-2 rounded-md bg-primary/5 px-3 py-1.5">
         <span class="text-xs">🏢</span>
         <span class="truncate text-xs font-medium text-primary">{auth.user.tenantName}</span>

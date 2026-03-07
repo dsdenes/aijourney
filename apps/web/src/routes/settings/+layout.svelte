@@ -17,15 +17,12 @@
     return page.url.pathname.startsWith(href);
   }
 
-  const hasSettingsAccess = $derived(auth.user?.orgRole === 'admin' && auth.user?.globalRole !== 'superadmin');
+  const hasSettingsAccess = $derived(
+    auth.user?.orgRole === 'owner' || auth.user?.orgRole === 'admin'
+  );
 
   // Redirect non-admin users
   $effect(() => {
-    if (auth.user?.globalRole === 'superadmin') {
-      goto('/superadmin', { replaceState: true });
-      return;
-    }
-
     if (auth.user && !hasSettingsAccess) {
       goto('/', { replaceState: true });
     }
@@ -36,7 +33,7 @@
   <div>
     <div class="mb-6">
       <h1 class="text-2xl font-bold text-text">Settings</h1>
-      <p class="mt-1 text-sm text-text-muted">Tenant admin tools for your active tenant</p>
+      <p class="mt-1 text-sm text-text-muted">Admin panel — monitors, metrics, and user management</p>
     </div>
 
     <!-- Main tab navigation -->

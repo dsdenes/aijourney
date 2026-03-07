@@ -21,7 +21,7 @@ export interface User {
   globalRole: GlobalRole;
   /** Tenant this user belongs to */
   tenantId: string;
-  /** Role within the tenant: admin | member */
+  /** Role within the tenant: owner | admin | member */
   orgRole: OrgRole;
   department?: string;
   jobTitle?: string;

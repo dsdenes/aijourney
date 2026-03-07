@@ -1,5 +1,5 @@
 <script lang="ts">
-  import KbChatPage from '../../settings/kb-chat/+page.svelte';
+  import WorkerDetail from '$lib/components/WorkerDetail.svelte';
 </script>
 
-<KbChatPage />
+<WorkerDetail slug="kb-chat" />

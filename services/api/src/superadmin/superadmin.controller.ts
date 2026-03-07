@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, Post, Put, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RolesGuard } from '../auth/roles.guard';
@@ -28,13 +28,6 @@ export class SuperAdminController {
   async listTenants() {
     const tenants = await this.superAdminService.listAllTenants();
     return { data: tenants };
-  }
-
-  @Get('users')
-  @ApiOperation({ summary: 'List all users across all tenants' })
-  async listUsers() {
-    const users = await this.superAdminService.listAllUsers();
-    return { data: users };
   }
 
   @Get('tenants/:tenantId')
@@ -75,5 +68,26 @@ export class SuperAdminController {
   async demoteUser(@Param('userId') userId: string) {
     await this.superAdminService.demoteFromSuperadmin(userId);
     return { data: { message: 'User demoted from superadmin' } };
+  }
+
+  @Get('users')
+  @ApiOperation({ summary: 'List all users across all tenants' })
+  async listUsers() {
+    const users = await this.superAdminService.listAllUsers();
+    return { data: users };
+  }
+
+  @Post('switch-tenant')
+  @ApiOperation({ summary: 'Switch the superadmin to a different tenant context' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { tenantId: { type: 'string' } },
+      required: ['tenantId'],
+    },
+  })
+  async switchTenant(@Req() req: { user: { userId: string } }, @Body() body: { tenantId: string }) {
+    const result = await this.superAdminService.switchTenant(req.user.userId, body.tenantId);
+    return { data: result };
   }
 }

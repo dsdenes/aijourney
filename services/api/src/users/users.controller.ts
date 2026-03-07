@@ -1,21 +1,9 @@
 import { updateUserSchema } from '@aijourney/shared';
-import {
-  Body,
-  Controller,
-  ForbiddenException,
-  Get,
-  Inject,
-  Param,
-  Patch,
-  Post,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RolesGuard } from '../auth/roles.guard';
-import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { OrgRoles } from '../common/decorators/org-roles.decorator';
-import { TenantId } from '../common/decorators/tenant-id.decorator';
+import { Roles } from '../common/decorators/roles.decorator';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { UsersService } from './users.service';
 
@@ -27,35 +15,18 @@ export class UsersController {
 
   @Get()
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @OrgRoles('admin')
-  @ApiOperation({ summary: 'List users in the current tenant' })
-  async list(@TenantId() tenantId: string) {
-    const users = await this.usersService.listByTenant(tenantId);
+  @Roles('admin')
+  @ApiOperation({ summary: 'List all users (admin)' })
+  async list() {
+    const users = await this.usersService.listAll();
     return { data: users };
   }
 
   @Get(':id')
   @UseGuards(AuthGuard('jwt'))
   @ApiOperation({ summary: 'Get user by ID' })
-  async getOne(
-    @Param('id') id: string,
-    @CurrentUser()
-    currentUser: {
-      userId: string;
-      tenantId: string;
-      globalRole: string;
-    },
-  ) {
+  async getOne(@Param('id') id: string) {
     const user = await this.usersService.getById(id);
-
-    if (
-      currentUser.userId !== id &&
-      currentUser.globalRole !== 'superadmin' &&
-      currentUser.tenantId !== user.tenantId
-    ) {
-      throw new ForbiddenException('Insufficient permissions');
-    }
-
     return { data: user };
   }
 
@@ -64,87 +35,29 @@ export class UsersController {
   @ApiOperation({ summary: 'Update user profile' })
   async update(
     @Param('id') id: string,
-    @CurrentUser()
-    currentUser: {
-      userId: string;
-      tenantId: string;
-      globalRole: string;
-      orgRole: string;
-    },
     @Body(new ZodValidationPipe(updateUserSchema)) body: unknown,
   ) {
-    const targetUser = await this.usersService.getById(id);
-    const updates = body as Record<string, unknown>;
-    const isSelf = currentUser.userId === id;
-    const isSuperadmin = currentUser.globalRole === 'superadmin';
-    const isTenantAdmin = currentUser.orgRole === 'admin' && currentUser.tenantId === targetUser.tenantId;
-
-    if (!isSelf && !isSuperadmin && !isTenantAdmin) {
-      throw new ForbiddenException('Insufficient permissions');
-    }
-
-    if (isSelf && !isSuperadmin) {
-      for (const forbiddenField of ['tenantId', 'orgRole', 'globalRole', 'role']) {
-        delete updates[forbiddenField];
-      }
-    }
-
-    if (isTenantAdmin && !isSuperadmin) {
-      if (targetUser.globalRole === 'superadmin') {
-        throw new ForbiddenException('Superadmins can only be managed in the super admin panel');
-      }
-
-      delete updates['tenantId'];
-      delete updates['globalRole'];
-    }
-
-    const user = await this.usersService.update(id, updates);
+    const user = await this.usersService.update(id, body as Record<string, unknown>);
     return { data: user };
   }
 
   @Post(':id/promote')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @OrgRoles('admin')
-  @ApiOperation({ summary: 'Promote user to tenant admin' })
+  @Roles('admin')
+  @ApiOperation({ summary: 'Promote user to admin (admin only)' })
   @ApiBody({ schema: { type: 'object', properties: {} } })
-  async promote(
-    @Param('id') id: string,
-    @TenantId() tenantId: string,
-    @CurrentUser() currentUser: { userId: string },
-  ) {
-    if (currentUser.userId === id) {
-      throw new ForbiddenException('You already manage this tenant');
-    }
-
-    const targetUser = await this.usersService.getById(id);
-    if (targetUser.tenantId !== tenantId || targetUser.globalRole === 'superadmin') {
-      throw new ForbiddenException('User is outside your tenant scope');
-    }
-
-    const user = await this.usersService.update(id, { orgRole: 'admin' as const });
+  async promote(@Param('id') id: string) {
+    const user = await this.usersService.update(id, { role: 'admin' as const });
     return { data: user };
   }
 
   @Post(':id/revoke')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @OrgRoles('admin')
-  @ApiOperation({ summary: 'Revoke tenant admin rights' })
+  @Roles('admin')
+  @ApiOperation({ summary: 'Revoke admin rights (admin only)' })
   @ApiBody({ schema: { type: 'object', properties: {} } })
-  async revoke(
-    @Param('id') id: string,
-    @TenantId() tenantId: string,
-    @CurrentUser() currentUser: { userId: string },
-  ) {
-    if (currentUser.userId === id) {
-      throw new ForbiddenException('You cannot revoke your own tenant admin role here');
-    }
-
-    const targetUser = await this.usersService.getById(id);
-    if (targetUser.tenantId !== tenantId || targetUser.globalRole === 'superadmin') {
-      throw new ForbiddenException('User is outside your tenant scope');
-    }
-
-    const user = await this.usersService.update(id, { orgRole: 'member' as const });
+  async revoke(@Param('id') id: string) {
+    const user = await this.usersService.update(id, { role: 'employee' as const });
     return { data: user };
   }
 }

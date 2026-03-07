@@ -49,7 +49,6 @@ describe('AuthService (multi-tenant)', () => {
 
     tenantsService = {
       create: vi.fn().mockResolvedValue({ id: 'new-tenant-id', slug: 'alice' }),
-      ensureTenant: vi.fn().mockResolvedValue({ id: 'demo-tenant-id', name: 'DEMO', slug: 'demo' }),
     };
 
     invitationsService = {
@@ -223,7 +222,7 @@ describe('AuthService (multi-tenant)', () => {
       expect(invitationsService.accept).toHaveBeenCalledWith('inv1');
     });
 
-    it('should map legacy invitation owner role to tenant admin', async () => {
+    it('should make invited owner role map to admin role', async () => {
       mockGoogleTokenExchange('boss@corp.com', 'Boss');
       invitationsService.findPendingForEmail.mockResolvedValue([
         {
@@ -239,33 +238,35 @@ describe('AuthService (multi-tenant)', () => {
       await service.exchangeCodeForTokens('code', 'http://redirect');
       expect(usersService.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          orgRole: 'admin',
+          role: 'admin', // owner orgRole → admin role
+          orgRole: 'owner',
         }),
       );
     });
   });
 
   describe('upsertUser - self-onboarding', () => {
-    it('should join the demo tenant and create a member user', async () => {
+    it('should create a new personal tenant and user as owner', async () => {
       mockGoogleTokenExchange('alice@newcorp.com', 'Alice');
 
       const result = await service.exchangeCodeForTokens('code', 'http://redirect');
-      expect(tenantsService.ensureTenant).toHaveBeenCalledWith(
+      expect(tenantsService.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          name: 'DEMO',
-          slug: 'demo',
+          name: "Alice's Organization",
+          slug: expect.any(String),
           plan: 'free',
         }),
       );
       expect(usersService.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          tenantId: 'demo-tenant-id',
-          orgRole: 'member',
+          tenantId: 'new-tenant-id',
+          orgRole: 'owner',
+          role: 'admin',
           globalRole: 'user',
         }),
       );
-      expect(result.user.tenantId).toBe('demo-tenant-id');
-      expect(result.user.orgRole).toBe('member');
+      expect(result.user.tenantId).toBe('new-tenant-id');
+      expect(result.user.orgRole).toBe('owner');
     });
 
     it('should auto-promote superadmin on self-onboarding', async () => {

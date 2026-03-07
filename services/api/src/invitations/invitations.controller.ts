@@ -20,14 +20,14 @@ export class InvitationsController {
 
   @Post()
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @OrgRoles('admin')
+  @OrgRoles('owner', 'admin')
   @ApiOperation({ summary: 'Create an invitation' })
   async create(
     @TenantId() tenantId: string,
     @CurrentUser() user: { userId: string },
     @Body(new ZodValidationPipe(createInvitationSchema)) body: unknown,
   ) {
-    const input = body as { email: string; orgRole?: 'admin' | 'member' };
+    const input = body as { email: string; orgRole?: 'owner' | 'admin' | 'member' };
     const invitation = await this.invitationsService.create(tenantId, user.userId, {
       email: input.email,
       orgRole: input.orgRole ?? 'member',
@@ -37,7 +37,7 @@ export class InvitationsController {
 
   @Post('bulk')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @OrgRoles('admin')
+  @OrgRoles('owner', 'admin')
   @ApiOperation({ summary: 'Bulk invite multiple emails' })
   async bulkInvite(
     @TenantId() tenantId: string,
@@ -47,7 +47,7 @@ export class InvitationsController {
   ) {
     const input = body as {
       emails: string[];
-      orgRole?: 'admin' | 'member';
+      orgRole?: 'owner' | 'admin' | 'member';
     };
     const result = await this.invitationsService.bulkInvite(
       tenantId,
@@ -60,7 +60,7 @@ export class InvitationsController {
 
   @Get()
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @OrgRoles('admin')
+  @OrgRoles('owner', 'admin')
   @ApiOperation({ summary: 'List tenant invitations' })
   async list(@TenantId() tenantId: string) {
     const invitations = await this.invitationsService.listByTenant(tenantId);
@@ -69,7 +69,7 @@ export class InvitationsController {
 
   @Delete(':id')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @OrgRoles('admin')
+  @OrgRoles('owner', 'admin')
   @ApiOperation({ summary: 'Revoke invitation' })
   async revoke(@Param('id') id: string, @TenantId() tenantId: string) {
     await this.invitationsService.revoke(id, tenantId);

@@ -6,7 +6,7 @@
     id: string;
     email: string;
     name: string;
-    orgRole: string;
+    role: string;
     lastLoginAt: string;
     createdAt: string;
   }
@@ -28,10 +28,10 @@
 
   // Derived metrics
   const totalUsers = $derived(users.length);
-  const adminCount = $derived(users.filter((user) => user.orgRole === 'admin').length);
+  const adminCount = $derived(users.filter(u => u.role === 'admin').length);
   const recentLogins = $derived(
     [...users]
-      .filter((user) => user.lastLoginAt)
+      .filter(u => u.lastLoginAt)
       .sort((a, b) => b.lastLoginAt.localeCompare(a.lastLoginAt))
       .slice(0, 5)
   );
@@ -45,21 +45,17 @@
   <div class="rounded-lg bg-red-900/30 p-4 text-red-200">{error}</div>
 {:else}
   <!-- Top-level metric cards -->
-  <div class="mb-8 grid gap-4 sm:grid-cols-2">
-    <div class="rounded-lg bg-surface p-4">
+  <div class="mb-8">
+    <div class="rounded-lg bg-surface p-4 max-w-xs">
       <p class="text-xs font-semibold uppercase text-text">Total Users</p>
       <p class="mt-1 text-2xl font-bold text-text">{totalUsers}</p>
       <p class="text-xs text-text-muted">{adminCount} admin{adminCount !== 1 ? 's' : ''}</p>
     </div>
-    <div class="rounded-lg bg-surface p-4">
-      <p class="text-xs font-semibold uppercase text-text">Recent Logins</p>
-      <p class="mt-1 text-2xl font-bold text-text">{recentLogins.length}</p>
-      <p class="text-xs text-text-muted">Users active in this tenant recently</p>
-    </div>
   </div>
 
+  <!-- Recent Logins -->
   <div class="rounded-lg bg-surface p-5">
-      <h2 class="mb-4 text-sm font-semibold uppercase text-text">Recent Logins</h2>
+    <h2 class="mb-4 text-sm font-semibold uppercase text-text">Recent Logins</h2>
       {#if recentLogins.length === 0}
         <p class="text-sm text-text-muted">No logins recorded yet</p>
       {:else}
@@ -80,8 +76,8 @@
                   <td class="py-2 text-text-muted">{user.email}</td>
                   <td class="py-2">
                     <span class="rounded-full px-2 py-0.5 text-xs font-medium
-                      {user.orgRole === 'admin' ? 'bg-primary/20 text-primary' : 'bg-surface-dark text-text-muted'}">
-                      {user.orgRole}
+                      {user.role === 'admin' ? 'bg-primary/20 text-primary' : 'bg-surface-dark text-text-muted'}">
+                      {user.role}
                     </span>
                   </td>
                   <td class="py-2 text-text-muted">{new Date(user.lastLoginAt).toLocaleString()}</td>

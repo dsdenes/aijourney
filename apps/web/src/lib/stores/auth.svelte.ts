@@ -1,10 +1,7 @@
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
-const AUTH_USER_STORAGE_KEY = 'auth_user';
-const ACTIVE_TENANT_ID_STORAGE_KEY = 'auth_active_tenant_id';
-const ACTIVE_TENANT_NAME_STORAGE_KEY = 'auth_active_tenant_name';
 
-export interface AuthUser {
+interface AuthUser {
   userId: string;
   email: string;
   name: string;
@@ -20,67 +17,15 @@ export interface AuthUser {
 function createAuth() {
   let user = $state<AuthUser | null>(null);
   let loading = $state(true);
-  let activeTenantId = $state('');
-  let activeTenantName = $state('');
-
-  function persistUser(nextUser: AuthUser | null) {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    if (nextUser) {
-      localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(nextUser));
-      return;
-    }
-
-    localStorage.removeItem(AUTH_USER_STORAGE_KEY);
-  }
-
-  function persistActiveTenant(nextTenantId: string, nextTenantName: string) {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    if (nextTenantId) {
-      localStorage.setItem(ACTIVE_TENANT_ID_STORAGE_KEY, nextTenantId);
-      localStorage.setItem(ACTIVE_TENANT_NAME_STORAGE_KEY, nextTenantName);
-      return;
-    }
-
-    localStorage.removeItem(ACTIVE_TENANT_ID_STORAGE_KEY);
-    localStorage.removeItem(ACTIVE_TENANT_NAME_STORAGE_KEY);
-  }
-
-  function syncActiveTenant(nextUser: AuthUser | null) {
-    if (!nextUser) {
-      activeTenantId = '';
-      activeTenantName = '';
-      persistActiveTenant('', '');
-      return;
-    }
-
-    const nextTenantId =
-      nextUser.globalRole === 'superadmin' && activeTenantId ? activeTenantId : nextUser.tenantId;
-    const nextTenantName =
-      nextUser.globalRole === 'superadmin' && activeTenantName ? activeTenantName : nextUser.tenantName;
-
-    activeTenantId = nextTenantId;
-    activeTenantName = nextTenantName;
-    persistActiveTenant(nextTenantId, nextTenantName);
-  }
 
   // Try to restore from localStorage
   if (typeof window !== 'undefined') {
-    activeTenantId = localStorage.getItem(ACTIVE_TENANT_ID_STORAGE_KEY) ?? '';
-    activeTenantName = localStorage.getItem(ACTIVE_TENANT_NAME_STORAGE_KEY) ?? '';
-
-    const stored = localStorage.getItem(AUTH_USER_STORAGE_KEY);
+    const stored = localStorage.getItem('auth_user');
     if (stored) {
       try {
         user = JSON.parse(stored);
-        syncActiveTenant(user);
       } catch {
-        localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+        localStorage.removeItem('auth_user');
       }
     }
     loading = false;
@@ -92,12 +37,6 @@ function createAuth() {
     },
     get loading() {
       return loading;
-    },
-    get activeTenantId() {
-      return activeTenantId;
-    },
-    get activeTenantName() {
-      return activeTenantName;
     },
 
     login() {
@@ -140,31 +79,18 @@ function createAuth() {
       };
 
       user = authUser;
-      persistUser(authUser);
-      syncActiveTenant(authUser);
+      localStorage.setItem('auth_user', JSON.stringify(authUser));
     },
 
     logout() {
       user = null;
-      persistUser(null);
-      syncActiveTenant(null);
+      localStorage.removeItem('auth_user');
       // Google OAuth doesn't have a logout endpoint — just clear local state
     },
 
     setUser(newUser: AuthUser) {
       user = newUser;
-      persistUser(newUser);
-      syncActiveTenant(newUser);
-    },
-
-    setActiveTenant(tenantId: string, tenantName: string) {
-      if (!user) {
-        return;
-      }
-
-      activeTenantId = tenantId || user.tenantId;
-      activeTenantName = tenantName || user.tenantName;
-      persistActiveTenant(activeTenantId, activeTenantName);
+      localStorage.setItem('auth_user', JSON.stringify(newUser));
     },
   };
 }

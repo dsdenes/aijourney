@@ -220,6 +220,55 @@ jobs:
           cd "$deploy_path"
           docker compose -p "$COMPOSE_PROJECT_NAME" -f docker-compose.server.yml up -d --force-recreate --remove-orphans
 
+      - name: Run database migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          deploy_path="${{ steps.resolve-deploy-path.outputs.deploy_path }}"
+          cd "$deploy_path"
+          # Wait for MongoDB to be healthy
+          for attempt in {1..12}; do
+            if docker compose -p "$COMPOSE_PROJECT_NAME" -f docker-compose.server.yml exec -T mongodb mongosh --eval "db.runCommand('ping').ok" --quiet 2>/dev/null; then
+              break
+            fi
+            echo "Waiting for MongoDB... attempt $attempt/12"
+            sleep 5
+          done
+          # Run demo tenant migration + index seeding
+          docker compose -p "$COMPOSE_PROJECT_NAME" -f docker-compose.server.yml exec -T api node -e "
+            const { MongoClient } = require('mongodb');
+            (async () => {
+              const client = new MongoClient('mongodb://mongodb:27017');
+              await client.connect();
+              const db = client.db('aijourney');
+              const tenantsCol = db.collection('tenants');
+              const usersCol = db.collection('users');
+              const DEMO_SLUG = 'demo';
+              let demo = await tenantsCol.findOne({ slug: DEMO_SLUG });
+              if (!demo) {
+                const now = new Date().toISOString();
+                const id = Date.now().toString(36) + Array.from({length:16}, () => Math.floor(Math.random()*36).toString(36)).join('');
+                demo = { _id: id, id, name: 'Demo', slug: DEMO_SLUG, plan: 'free', settings: {}, quotas: { maxUsers: 3, maxLlmCallsPerMonth: 100, additionalLlmCalls: 0 }, usage: { currentPeriodStart: now, llmCallsUsed: 0, lastResetAt: now }, createdAt: now, updatedAt: now };
+                await tenantsCol.insertOne(demo);
+                console.log('Created Demo tenant:', id);
+              } else { console.log('Demo tenant exists:', demo.id || demo._id); }
+              const demoId = demo.id || demo._id;
+              const users = await usersCol.find({}).toArray();
+              for (const u of users) {
+                const updates = {};
+                if (!u.tenantId || u.tenantId !== demoId) updates.tenantId = demoId;
+                if (!u.orgRole) updates.orgRole = (u.email||'').toLowerCase() === 'dsdenes@gmail.com' ? 'owner' : 'member';
+                if ((u.email||'').toLowerCase() === 'dsdenes@gmail.com' && u.globalRole !== 'superadmin') updates.globalRole = 'superadmin';
+                if (Object.keys(updates).length > 0) {
+                  await usersCol.updateOne({ _id: u._id }, { \$set: updates });
+                  console.log('Updated', u.email, JSON.stringify(updates));
+                }
+              }
+              console.log('Migration complete');
+              await client.close();
+            })().catch(e => { console.error(e); process.exit(1); });
+          "
+
       - name: Verify deployment
         shell: bash
         run: |

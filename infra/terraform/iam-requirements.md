@@ -42,7 +42,7 @@
 
 # - CloudWatch Logs write
 
-# - Google OAuth configuration read
+# - Cognito user pool read
 
 ## 3. ECS Task Role (Worker)
 
