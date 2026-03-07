@@ -5,7 +5,7 @@ import { handleSummarizationJob } from './summarization.worker.js';
 
 // Mock OpenAI
 vi.mock('openai', () => {
-  const mockCreate = vi.fn().mockResolvedValue({
+  const mockChatCreate = vi.fn().mockResolvedValue({
     choices: [
       {
         message: {
@@ -16,9 +16,16 @@ vi.mock('openai', () => {
     ],
     usage: { total_tokens: 500 },
   });
+  const mockResponsesCreate = vi.fn().mockResolvedValue({
+    output_text:
+      '{"steps":[{"title":"Step 1","description":"Learn basics","task":"Do X","expectedOutput":"Y","estimatedMinutes":30,"tags":["tools"],"toolsRequired":["chatgpt"]}]}',
+    usage: { total_tokens: 500 },
+  });
+
   return {
     default: class {
-      chat = { completions: { create: mockCreate } };
+      chat = { completions: { create: mockChatCreate } };
+      responses = { create: mockResponsesCreate };
     },
   };
 });

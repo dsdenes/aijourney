@@ -362,8 +362,8 @@ export class ArticleRecsService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-  * Step 2: For each job title, query RAG to find 10 relevant articles.
-  * Uses gpt-5.4 with high reasoning to formulate the RAG query based on the job title.
+   * Step 2: For each job title, query RAG to find 10 relevant articles.
+   * Uses gpt-5.4 with high reasoning to formulate the RAG query based on the job title.
    */
   private async fetchCandidatesForJobTitles(
     jobTitles: string[],
@@ -502,7 +502,7 @@ export class ArticleRecsService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-  * Step 3: For a specific user, use gpt-5.4 + long-term memory to select
+   * Step 3: For a specific user, use gpt-5.4 + long-term memory to select
    * exactly 1 article from the candidates list.
    */
   private async selectArticleForUser(
