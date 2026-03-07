@@ -186,15 +186,15 @@ jobs:
           set -euo pipefail
           deploy_path="${{ steps.resolve-deploy-path.outputs.deploy_path }}"
 
-          cat > "$deploy_path/.env" <<ENVEOF
-OPENAI_API_KEY=${OPENAI_API_KEY}
-GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-GEMINI_API_KEY=${GEMINI_API_KEY}
-GROK_API_KEY=${GROK_API_KEY}
-PINECONE_API_KEY=${PINECONE_API_KEY}
-PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME:-aijourney-kb}
-ENVEOF
+            printf '%s\n' \
+              "OPENAI_API_KEY=${OPENAI_API_KEY}" \
+              "GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}" \
+              "GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}" \
+              "GEMINI_API_KEY=${GEMINI_API_KEY}" \
+              "GROK_API_KEY=${GROK_API_KEY}" \
+              "PINECONE_API_KEY=${PINECONE_API_KEY}" \
+              "PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME:-aijourney-kb}" \
+              > "$deploy_path/.env"
 
       - name: Validate Docker Compose configuration
         shell: bash
