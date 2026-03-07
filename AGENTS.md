@@ -122,6 +122,14 @@ gh pr list
 gh pr create --base main --title "feat(scope): description"
 ```
 
+### GitHub Interaction Policy
+
+- **Always use `gh` CLI** for GitHub operations whenever `gh` supports the action.
+- **After finishing a change, publish it to GitHub** rather than leaving it only in the local worktree.
+- **Never deploy directly from a terminal session or by logging into the server for routine releases.** Deployments must flow through the repository's CI/CD pipeline.
+- **Always monitor the CI/CD run until the deploy job finishes successfully** (or fails with a concrete reason that can be reported back).
+- If `gh` does not support a required Git transport action (for example `git push`), use the minimal Git command needed and return to `gh` for PR, workflow, and status operations.
+
 **Collaborators**: `dsdenes` (owner)
 
 ### Node.js / Package Managers
@@ -242,11 +250,12 @@ test(shared): add zod schema validation tests
 
 1. Create feature branch from `main`
 2. Implement + test locally
-3. Push to GitHub, create PR targeting `main`
-4. CI pipeline runs (lint → test → build via GitHub Actions)
-5. Review (at least 1 approval)
-6. Squash merge to `main`
-7. Auto-deploy to Scaleway server via self-hosted runner
+3. Push to GitHub as soon as the change is ready for review or merge
+4. Create or update the PR targeting `main` using `gh`
+5. Monitor the GitHub Actions pipeline with `gh` until the relevant checks and deploy workflow complete successfully
+6. Review (at least 1 approval)
+7. Squash merge to `main`
+8. Confirm the post-merge deploy workflow succeeds via GitHub Actions before considering the task fully published
 
 ### Git Commands
 
@@ -262,8 +271,9 @@ git checkout -b feat/my-feature
 
 # Push and create PR
 git push -u origin feat/my-feature
-# Then create PR via GitHub UI or:
+# Then create PR and watch CI via gh:
 gh pr create --base main --title "feat(scope): description"
+gh run watch
 ```
 
 ---
@@ -846,12 +856,13 @@ Primary path is `/opt/aijourney` when the runner can write there.
 Fallback path is `/home/gha/aijourney-deploy` when `/opt/aijourney` is not writable.
 The deploy job always uses the Compose project name `aijourney` so the fallback path replaces the live stack instead of starting a second copy.
 
-### Deployment Commands (Manual)
+### Deployment Commands
 
 ```bash
-# On the Scaleway server (primary path if writable):
-cd /opt/aijourney
-docker compose -p aijourney -f docker-compose.server.yml up -d --build
+# Publish through GitHub, then monitor the workflow until deploy succeeds.
+gh pr create --base main --title "feat(scope): description"
+gh pr merge --squash --delete-branch
+gh run watch
 ```
 
 ---
@@ -991,16 +1002,10 @@ terraform plan
 ### Deploy a Service Update
 
 ```bash
-# Option 1: Push to main → automatic deploy via GitHub Actions
-
-# Option 2: Manual deploy on server
-ssh root@51.15.108.144
-cd /opt/aijourney
-git pull
-docker compose -f docker-compose.server.yml up -d --build
-
-# Option 3: Rebuild specific service only
-docker compose -f docker-compose.server.yml up -d --build api
+# Publish the branch, open or update the PR, and rely on GitHub Actions for deployment.
+git push -u origin feat/my-feature
+gh pr create --base main --title "feat(scope): description"
+gh run watch
 ```
 
 ### Query DynamoDB Locally
