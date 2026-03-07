@@ -39,8 +39,10 @@ describe('RequestIdInterceptor', () => {
     await firstValueFrom(interceptor.intercept(context, mockHandler));
 
     expect(request.headers['x-request-id']).toBeDefined();
+    expect(request.headers['x-flow-id']).toBe(request.headers['x-request-id']);
     expect(request.headers['x-request-id'].length).toBeGreaterThan(10);
     expect(setHeader).toHaveBeenCalledWith('x-request-id', request.headers['x-request-id']);
+    expect(setHeader).toHaveBeenCalledWith('x-flow-id', request.headers['x-request-id']);
   });
 
   it('should preserve existing x-request-id header', async () => {
@@ -49,6 +51,7 @@ describe('RequestIdInterceptor', () => {
     await firstValueFrom(interceptor.intercept(context, mockHandler));
 
     expect(request.headers['x-request-id']).toBe('my-custom-id');
+    expect(request.headers['x-flow-id']).toBe('my-custom-id');
     expect(setHeader).toHaveBeenCalledWith('x-request-id', 'my-custom-id');
   });
 
@@ -57,8 +60,9 @@ describe('RequestIdInterceptor', () => {
 
     await firstValueFrom(interceptor.intercept(context, mockHandler));
 
-    expect(setHeader).toHaveBeenCalledTimes(1);
+    expect(setHeader).toHaveBeenCalledTimes(2);
     expect(setHeader.mock.calls[0][0]).toBe('x-request-id');
+    expect(setHeader.mock.calls[1][0]).toBe('x-flow-id');
   });
 
   it('should call next.handle()', async () => {

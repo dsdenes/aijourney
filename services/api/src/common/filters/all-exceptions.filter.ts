@@ -20,6 +20,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = 'Internal server error';
     let code = 'INTERNAL_ERROR';
+    const requestId =
+      (request.headers['x-request-id'] as string | undefined) ||
+      (request.headers['x-flow-id'] as string | undefined) ||
+      'unknown';
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
@@ -33,7 +37,17 @@ export class AllExceptionsFilter implements ExceptionFilter {
       }
     } else if (exception instanceof Error) {
       message = exception.message;
-      this.logger.error(`Unhandled exception: ${exception.message}`, exception.stack);
+      this.logger.error(
+        `Unhandled exception ${request.method} ${request.url} (${requestId}): ${exception.message}`,
+        exception.stack,
+      );
+    }
+
+    if (status >= HttpStatus.INTERNAL_SERVER_ERROR && exception instanceof HttpException) {
+      this.logger.error(
+        `HTTP exception ${request.method} ${request.url} (${requestId})`,
+        JSON.stringify(exception.getResponse()),
+      );
     }
 
     response.status(status).json({
@@ -43,6 +57,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         statusCode: status,
         timestamp: new Date().toISOString(),
         path: request.url,
+        requestId,
       },
     });
   }

@@ -5,18 +5,21 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { Injectable, Logger } from '@nestjs/common';
+import { AppConfigService } from '../config/config.service';
 
 @Injectable()
 export class CompanyDocumentStorageService {
   private readonly logger = new Logger(CompanyDocumentStorageService.name);
   private s3: S3Client | null = null;
 
+  constructor(private readonly configService: AppConfigService) {}
+
   private getClient(): S3Client {
     if (!this.s3) {
-      const accessKeyId = process.env.SCW_ACCESS_KEY;
-      const secretAccessKey = process.env.SCW_SECRET_KEY;
-      const region = process.env.SCW_REGION || 'fr-par';
-      const endpoint = process.env.SCW_ENDPOINT || `https://s3.${region}.scw.cloud`;
+      const accessKeyId = this.configService.config.SCW_ACCESS_KEY;
+      const secretAccessKey = this.configService.config.SCW_SECRET_KEY;
+      const region = this.configService.config.SCW_REGION;
+      const endpoint = this.configService.config.SCW_ENDPOINT || `https://s3.${region}.scw.cloud`;
 
       if (!accessKeyId || !secretAccessKey) {
         throw new Error('SCW_ACCESS_KEY and SCW_SECRET_KEY must be set for document storage');
@@ -33,7 +36,7 @@ export class CompanyDocumentStorageService {
   }
 
   private get bucket(): string {
-    return process.env.SCW_BUCKET_NAME || 'aijourney-company-docs';
+    return this.configService.config.SCW_BUCKET_NAME;
   }
 
   /**

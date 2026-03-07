@@ -3,18 +3,30 @@ import * as path from 'path';
 
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 import 'reflect-metadata';
+import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { RequestIdInterceptor } from './common/interceptors/request-id.interceptor';
+import { AppConfigService } from './config/config.service';
 
 async function bootstrap() {
+  const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
+  const configService = app.get(AppConfigService);
+  const { APP_URL, API_URL, PORT } = configService.config;
+  const apiBaseUrl = API_URL.endsWith('/api') ? API_URL : `${API_URL.replace(/\/$/, '')}/api`;
+
+  app.enableShutdownHooks();
+
+  if (configService.isProduction) {
+    app.getHttpAdapter().getInstance().set('trust proxy', 1);
+  }
 
   app.setGlobalPrefix('api');
   app.enableCors({
-    origin: process.env.APP_URL || 'http://localhost:5173',
+    origin: APP_URL,
     credentials: true,
   });
 
@@ -24,16 +36,17 @@ async function bootstrap() {
   const swaggerConfig = new DocumentBuilder()
     .setTitle('AI Journey API')
     .setDescription('AI Journey Platform — Backend API')
-    .setVersion('0.1.0')
+    .setVersion(configService.version)
     .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/docs', app, document);
+  SwaggerModule.setup('api/docs', app, document, {
+    jsonDocumentUrl: 'openapi.json',
+  });
 
-  const port = process.env.PORT || 3000;
-  await app.listen(port);
-  console.log(`🚀 API running on http://localhost:${port}`);
-  console.log(`📚 Swagger docs at http://localhost:${port}/api/docs`);
+  await app.listen(PORT, '0.0.0.0');
+  logger.log(`API running on ${API_URL}`);
+  logger.log(`Swagger docs available at ${apiBaseUrl}/docs`);
 }
 
 bootstrap();

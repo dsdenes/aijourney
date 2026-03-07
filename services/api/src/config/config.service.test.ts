@@ -61,4 +61,26 @@ describe('AppConfigService', () => {
 
     process.env = originalEnv;
   });
+
+  it('should require auth and llm config in production', () => {
+    const originalEnv = { ...process.env };
+    process.env.NODE_ENV = 'production';
+    delete process.env.GOOGLE_CLIENT_ID;
+    delete process.env.GOOGLE_CLIENT_SECRET;
+    delete process.env.OPENAI_API_KEY;
+
+    expect(() => new AppConfigService()).toThrow(/must be set in production/);
+
+    process.env = originalEnv;
+  });
+
+  it('should expose version metadata', () => {
+    const originalEnv = { ...process.env };
+    process.env.APP_VERSION = '1.2.3';
+
+    const configService = new AppConfigService();
+    expect(configService.version).toBe('1.2.3');
+
+    process.env = originalEnv;
+  });
 });

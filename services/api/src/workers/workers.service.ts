@@ -269,7 +269,7 @@ export class WorkersService implements OnModuleInit, OnModuleDestroy {
 
   async getKbBuilderStatus(): Promise<Record<string, unknown>> {
     try {
-      const res = await fetch(`${this.kbUrl}/status`);
+      const res = await fetch(`${this.kbUrl}/status`, { signal: AbortSignal.timeout(2_000) });
       return (await res.json()) as Record<string, unknown>;
     } catch {
       return {
@@ -286,6 +286,7 @@ export class WorkersService implements OnModuleInit, OnModuleDestroy {
       const res = await fetch(`${this.kbUrl}/ingest`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(5_000),
       });
       return (await res.json()) as Record<string, unknown>;
     } catch {
@@ -297,7 +298,7 @@ export class WorkersService implements OnModuleInit, OnModuleDestroy {
 
   async getKbBuilderHealth(): Promise<Record<string, unknown>> {
     try {
-      const res = await fetch(`${this.kbUrl}/health`);
+      const res = await fetch(`${this.kbUrl}/health`, { signal: AbortSignal.timeout(2_000) });
       return (await res.json()) as Record<string, unknown>;
     } catch {
       return {
@@ -308,12 +309,20 @@ export class WorkersService implements OnModuleInit, OnModuleDestroy {
 
   async getKbBuilderProgress(): Promise<Record<string, unknown>> {
     try {
-      const res = await fetch(`${this.kbUrl}/progress`);
+      const res = await fetch(`${this.kbUrl}/progress`, { signal: AbortSignal.timeout(2_000) });
       return (await res.json()) as Record<string, unknown>;
     } catch {
       return {
         data: { status: 'idle', total: 0, completed: 0, failed: 0 },
       };
+    }
+  }
+
+  async pingRedis(): Promise<boolean> {
+    try {
+      return (await this.redis.ping()) === 'PONG';
+    } catch {
+      return false;
     }
   }
 

@@ -26,7 +26,6 @@ jobs:
       - run: pnpm --filter @aijourney/shared build
       - run: pnpm format:check
       - run: pnpm lint
-        continue-on-error: true
 
   test-shared:
     runs-on: ubuntu-latest
@@ -296,7 +295,7 @@ jobs:
           echo "=== Health Check ==="
 
           for attempt in {1..12}; do
-            if curl -fsS http://localhost:3000/api/health; then
+            if curl -fsS http://localhost:3000/api/health/ready; then
               echo ""
               echo "Commit $GITHUB_SHA deployed successfully"
               exit 0

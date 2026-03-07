@@ -7,6 +7,7 @@ import type {
 import { generateId, nowISO } from '@aijourney/shared';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import Redis from 'ioredis';
+import { AppConfigService } from '../config/config.service';
 import { TenantsRepository } from '../tenants/tenants.repository';
 import { CompanyContextRepository } from './company-context.repository';
 import { CompanyContextExtractionService } from './company-context-extraction.service';
@@ -38,9 +39,11 @@ export class CompanyContextService {
     private readonly storage: CompanyDocumentStorageService,
     @Inject(CompanyContextExtractionService)
     private readonly extraction: CompanyContextExtractionService,
+    @Inject(AppConfigService)
+    private readonly configService: AppConfigService,
   ) {
     try {
-      const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+      const redisUrl = this.configService.config.REDIS_URL;
       this.redis = new Redis(redisUrl, { maxRetriesPerRequest: 1, lazyConnect: true });
       this.redis.connect().catch(() => {
         this.logger.warn('Redis not available — caching disabled');
