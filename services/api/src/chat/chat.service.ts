@@ -359,7 +359,6 @@ ${chunk.text}`;
 
     let context: string;
     let sources: { title: string; url: string; relevance: string }[];
-    let embeddingTokens = 0;
 
     technicalSteps.push(
       'RAG provider: Pinecone (searchRecords with integrated multilingual-e5-large)',
@@ -373,7 +372,7 @@ ${chunk.text}`;
     const ragElapsed = Date.now() - ragStart;
     context = ragResult.context;
     sources = ragResult.sources;
-    embeddingTokens = ragResult.embeddingTokens;
+    const embeddingTokens = ragResult.embeddingTokens;
 
     technicalSteps.push(
       `Pinecone searchRecords completed in ${ragResult.searchTimeMs ?? ragElapsed}ms (total RAG call: ${ragElapsed}ms)`,

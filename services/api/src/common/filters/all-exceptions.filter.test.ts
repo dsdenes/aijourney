@@ -6,7 +6,11 @@ function createMockHost(overrides: Partial<{ url: string }> = {}) {
   const json = vi.fn();
   const status = vi.fn().mockReturnValue({ json });
   const response = { status };
-  const request = { url: overrides.url ?? '/test' };
+  const request = {
+    headers: {},
+    method: 'GET',
+    url: overrides.url ?? '/test',
+  };
 
   return {
     host: {
@@ -122,5 +126,15 @@ describe('AllExceptionsFilter', () => {
 
     const response = json.mock.calls[0][0];
     expect(response.error.path).toBe('/api/journeys/123');
+  });
+
+  it('should default request id when headers are missing', () => {
+    const { host, json, request } = createMockHost();
+    delete (request as { headers?: Record<string, string> }).headers;
+
+    filter.catch(new Error('test'), host);
+
+    const response = json.mock.calls[0][0];
+    expect(response.error.requestId).toBe('unknown');
   });
 });

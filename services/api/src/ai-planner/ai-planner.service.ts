@@ -153,7 +153,9 @@ Respond in this exact JSON format (no markdown, no code fences):
       return questions;
     } catch (err) {
       this.logger.error(`Failed to parse questions response: ${content}`);
-      throw new Error(`Failed to parse specification questions: ${(err as Error).message}`);
+      throw new Error(`Failed to parse specification questions: ${(err as Error).message}`, {
+        cause: err,
+      });
     }
   }
 

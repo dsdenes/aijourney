@@ -98,7 +98,9 @@ Respond with a JSON object: { "facts": [{ "category": "...", "fact": "..." }, ..
         }));
     } catch (err) {
       this.logger.error(`Failed to parse extraction response: ${content.slice(0, 200)}`);
-      throw new Error(`Failed to parse extraction response: ${(err as Error).message}`);
+      throw new Error(`Failed to parse extraction response: ${(err as Error).message}`, {
+        cause: err,
+      });
     }
   }
 
