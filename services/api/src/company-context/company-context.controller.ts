@@ -12,7 +12,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { TenantId } from '../common/decorators/tenant-id.decorator';
-import type { CompanyContextService } from './company-context.service';
+import { CompanyContextService } from './company-context.service';
 
 @ApiTags('company-context')
 @Controller('company-context')
