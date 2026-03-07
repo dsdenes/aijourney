@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api } from '$lib/api';
+  import { startPolling } from '$lib/utils/polling';
   import { onMount } from 'svelte';
 
   interface VectorDbStats {
@@ -30,7 +31,7 @@
   let ingestMessage = $state('');
   let recreating = $state(false);
   let recreateMessage = $state('');
-  let refreshInterval: ReturnType<typeof setInterval> | null = null;
+  let stopRefresh: ReturnType<typeof startPolling> | null = null;
 
   async function loadStats() {
     try {
@@ -79,6 +80,7 @@
     totalEligible > 0 ? (totalIngested / totalEligible) * 100 : 0
   );
   const allDone = $derived(pendingIngestion === 0 && pendingSummarization === 0);
+  const shouldPoll = $derived(ingesting || pendingSummarization > 0 || pendingIngestion > 0);
 
   // Auto-clear "ingesting" spinner when no more pending articles
   $effect(() => {
@@ -120,9 +122,25 @@
 
   onMount(() => {
     loadStats();
-    refreshInterval = setInterval(loadStats, 5000);
     return () => {
-      if (refreshInterval) clearInterval(refreshInterval);
+      stopRefresh?.();
+    };
+  });
+
+  $effect(() => {
+    stopRefresh?.();
+    stopRefresh = null;
+
+    if (shouldPoll) {
+      stopRefresh = startPolling(loadStats, {
+        intervalMs: 15000,
+        runImmediately: false,
+      });
+    }
+
+    return () => {
+      stopRefresh?.();
+      stopRefresh = null;
     };
   });
 </script>

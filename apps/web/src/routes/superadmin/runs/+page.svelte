@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api } from '$lib/api';
+  import { startPolling } from '$lib/utils/polling';
   import { onMount } from 'svelte';
 
   interface AgentRun {
@@ -28,7 +29,7 @@
   let filterAgent = $state('all');
   let filterStatus = $state('all');
   let autoRefresh = $state(true);
-  let refreshInterval: ReturnType<typeof setInterval> | null = null;
+  let stopRefresh: ReturnType<typeof startPolling> | null = null;
 
   /**
    * Estimate cost in USD based on model and token counts.
@@ -112,11 +113,25 @@
 
   onMount(() => {
     loadData();
-    refreshInterval = setInterval(() => {
-      if (autoRefresh) loadData();
-    }, 5000);
     return () => {
-      if (refreshInterval) clearInterval(refreshInterval);
+      stopRefresh?.();
+    };
+  });
+
+  $effect(() => {
+    stopRefresh?.();
+    stopRefresh = null;
+
+    if (autoRefresh) {
+      stopRefresh = startPolling(loadData, {
+        intervalMs: 15000,
+        runImmediately: false,
+      });
+    }
+
+    return () => {
+      stopRefresh?.();
+      stopRefresh = null;
     };
   });
 

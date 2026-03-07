@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api } from '$lib/api';
+  import { startPolling } from '$lib/utils/polling';
   import { onMount } from 'svelte';
 
   interface MemoryExtraction {
@@ -32,7 +33,7 @@
   let loading = $state(true);
   let error = $state('');
   let autoRefresh = $state(true);
-  let refreshInterval: ReturnType<typeof setInterval>;
+  let stopRefresh: ReturnType<typeof startPolling> | null = null;
 
   async function loadStats() {
     try {
@@ -47,10 +48,26 @@
 
   onMount(() => {
     loadStats();
-    refreshInterval = setInterval(() => {
-      if (autoRefresh) loadStats();
-    }, 5000);
-    return () => clearInterval(refreshInterval);
+    return () => {
+      stopRefresh?.();
+    };
+  });
+
+  $effect(() => {
+    stopRefresh?.();
+    stopRefresh = null;
+
+    if (autoRefresh) {
+      stopRefresh = startPolling(loadStats, {
+        intervalMs: 15000,
+        runImmediately: false,
+      });
+    }
+
+    return () => {
+      stopRefresh?.();
+      stopRefresh = null;
+    };
   });
 
   function formatDate(iso: string): string {

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api } from '$lib/api';
+  import { startPolling } from '$lib/utils/polling';
   import { onMount } from 'svelte';
 
   // ── Types ──
@@ -105,9 +106,10 @@
   let loading = $state(true);
   let crawling = $state(false);
   let pipelining = $state(false);
-  let refreshInterval: ReturnType<typeof setInterval> | undefined;
+  let stopRefresh: ReturnType<typeof startPolling> | null = null;
   let triggerResult = $state<string | null>(null);
   let pipelineTriggerResult = $state<string | null>(null);
+  let pipelineRefreshTimeout: ReturnType<typeof setTimeout> | null = null;
 
   // SSE
   let eventSource: EventSource | null = null;
@@ -140,6 +142,14 @@
   // ── SSE Log Streaming ──
 
   const API_BASE = import.meta.env.VITE_API_URL || '/api';
+
+  function schedulePipelineProgressRefresh() {
+    if (pipelineRefreshTimeout) return;
+    pipelineRefreshTimeout = setTimeout(() => {
+      pipelineRefreshTimeout = null;
+      void loadPipelineProgress();
+    }, 3000);
+  }
 
   function connectSSE() {
     if (eventSource) return; // already connected
@@ -180,7 +190,7 @@
           loadPipelineProgress();
         }
         if (entry.level === 'info' && (entry.message.includes('Quality filter') || entry.message.includes('Summariz') || entry.message.includes('Ingestion'))) {
-          loadPipelineProgress();
+          schedulePipelineProgressRefresh();
         }
       } catch {
         // ignore malformed events
@@ -192,7 +202,7 @@
       disconnectSSE();
       // Try to reconnect after 3 seconds
       setTimeout(() => {
-        if (crawling) connectSSE();
+        if (crawling || pipelining) connectSSE();
       }, 3000);
     };
   }
@@ -202,6 +212,10 @@
       eventSource.close();
       eventSource = null;
       sseConnected = false;
+    }
+    if (pipelineRefreshTimeout) {
+      clearTimeout(pipelineRefreshTimeout);
+      pipelineRefreshTimeout = null;
     }
   }
 
@@ -282,20 +296,32 @@
   onMount(() => {
     loadAll();
     return () => {
-      if (refreshInterval) clearInterval(refreshInterval);
+      stopRefresh?.();
       disconnectSSE();
     };
   });
 
   // Poll progress while crawling or pipelining (backup for SSE / to update counters)
   $effect(() => {
-    if (refreshInterval) clearInterval(refreshInterval);
-    if (crawling || pipelining) {
-      refreshInterval = setInterval(() => {
-        loadProgress();
-        if (pipelining) loadPipelineProgress();
-      }, 3000);
+    stopRefresh?.();
+    stopRefresh = null;
+
+    if ((crawling || pipelining) && !sseConnected) {
+      stopRefresh = startPolling(async () => {
+        await loadProgress();
+        if (pipelining) {
+          await loadPipelineProgress();
+        }
+      }, {
+        intervalMs: 10000,
+        runImmediately: false,
+      });
     }
+
+    return () => {
+      stopRefresh?.();
+      stopRefresh = null;
+    };
   });
 
   async function triggerCrawl() {

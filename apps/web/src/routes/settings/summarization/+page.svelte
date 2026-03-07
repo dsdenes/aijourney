@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api } from '$lib/api';
+  import { startPolling } from '$lib/utils/polling';
 
   interface ArticleDetail {
     id: string;
@@ -36,6 +37,7 @@
   let filterStatus = $state<'all' | 'summarized' | 'pending'>('all');
   let summarizing = $state(false);
   let summarizeMessage = $state('');
+  let stopRefresh: ReturnType<typeof startPolling> | null = null;
 
   const filteredArticles = $derived(() => {
     if (!stats) return [];
@@ -51,6 +53,7 @@
     }
     return result;
   });
+  const shouldPoll = $derived(summarizing || (stats?.totalToSummarize ?? 0) > 0);
 
   async function loadStats() {
     loading = true;
@@ -92,12 +95,28 @@
     return new Date(iso).toLocaleString();
   }
 
-  // Auto-refresh every 10s
-  let interval: ReturnType<typeof setInterval>;
   onMount(() => {
     loadStats();
-    interval = setInterval(loadStats, 10000);
-    return () => clearInterval(interval);
+    return () => {
+      stopRefresh?.();
+    };
+  });
+
+  $effect(() => {
+    stopRefresh?.();
+    stopRefresh = null;
+
+    if (shouldPoll) {
+      stopRefresh = startPolling(loadStats, {
+        intervalMs: 15000,
+        runImmediately: false,
+      });
+    }
+
+    return () => {
+      stopRefresh?.();
+      stopRefresh = null;
+    };
   });
 </script>
 

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { auth } from '$lib/stores/auth.svelte';
+  import { startPolling } from '$lib/utils/polling';
 
   const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
@@ -40,6 +41,9 @@
   let dragOver = $state(false);
 
   const hasTextChanges = $derived(freeText !== savedFreeText);
+  const hasPendingDocuments = $derived(
+    documents.some((document) => document.extractionStatus === 'pending' || document.extractionStatus === 'processing'),
+  );
 
   // ─── API Helpers ───────────────────────────────────────────────
 
@@ -56,8 +60,10 @@
 
   // ─── Load Data ─────────────────────────────────────────────────
 
-  async function loadState() {
-    loading = true;
+  async function loadState(showSpinner = true) {
+    if (showSpinner) {
+      loading = true;
+    }
     error = '';
     try {
       const res = await fetch(`${API_BASE}/company-context`, { headers: headers() });
@@ -71,7 +77,9 @@
     } catch (err) {
       error = err instanceof Error ? err.message : 'Failed to load';
     } finally {
-      loading = false;
+      if (showSpinner) {
+        loading = false;
+      }
     }
   }
 
@@ -135,8 +143,6 @@
       }
       documents = [json.data, ...documents];
       flash('Document uploaded — extraction in progress');
-      // Poll for extraction completion
-      pollDocument(json.data.id);
     } catch (err) {
       error = err instanceof Error ? err.message : 'Upload failed';
     } finally {
@@ -200,37 +206,9 @@
         d.id === docId ? { ...d, extractionStatus: 'processing' as const, extractedFacts: [] } : d
       );
       flash('Re-extraction started');
-      pollDocument(docId);
     } catch (err) {
       error = err instanceof Error ? err.message : 'Re-extraction failed';
     }
-  }
-
-  // ─── Polling ──────────────────────────────────────────────────
-
-  function pollDocument(docId: string) {
-    let attempts = 0;
-    const interval = setInterval(async () => {
-      attempts++;
-      if (attempts > 30) {
-        clearInterval(interval);
-        return;
-      }
-      try {
-        const res = await fetch(`${API_BASE}/company-context`, { headers: headers() });
-        if (!res.ok) return;
-        const json = await res.json();
-        if (json.data?.documents) {
-          const updated = json.data.documents.find((d: CompanyDocument) => d.id === docId);
-          if (updated && (updated.extractionStatus === 'completed' || updated.extractionStatus === 'failed')) {
-            documents = json.data.documents;
-            clearInterval(interval);
-          }
-        }
-      } catch {
-        // ignore polling errors
-      }
-    }, 3000);
   }
 
   // ─── Helpers ──────────────────────────────────────────────────
@@ -283,6 +261,17 @@
     if (auth.user?.token) {
       loadState();
     }
+  });
+
+  $effect(() => {
+    if (!auth.user?.token || !hasPendingDocuments) {
+      return;
+    }
+
+    return startPolling(() => loadState(false), {
+      intervalMs: 5000,
+      runImmediately: false,
+    });
   });
 </script>
 
