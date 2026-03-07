@@ -44,9 +44,7 @@ function createAuth() {
         const redirectUri = encodeURIComponent(window.location.origin + '/auth/callback');
         window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&response_type=code&scope=openid+email+profile&redirect_uri=${redirectUri}&access_type=offline&prompt=consent`;
       } else {
-        console.error(
-          'Google OAuth is not configured. Set VITE_GOOGLE_CLIENT_ID in build environment.',
-        );
+        console.error('Google OAuth is not configured. Set GOOGLE_CLIENT_ID or VITE_GOOGLE_CLIENT_ID in the build environment.');
       }
     },
 
