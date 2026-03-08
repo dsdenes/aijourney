@@ -177,6 +177,10 @@ jobs:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          STRIPE_PRO_PRICE_ID: ${{ secrets.STRIPE_PRO_PRICE_ID }}
+          STRIPE_ENTERPRISE_PRICE_ID: ${{ secrets.STRIPE_ENTERPRISE_PRICE_ID }}
+          STRIPE_LLM_PACK_PRICE_ID: ${{ secrets.STRIPE_LLM_PACK_PRICE_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GROK_API_KEY: ${{ secrets.GROK_API_KEY }}
           PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
@@ -198,6 +202,10 @@ jobs:
               "GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}" \
               "GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}" \
               "STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}" \
+              "STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}" \
+              "STRIPE_PRO_PRICE_ID=${STRIPE_PRO_PRICE_ID}" \
+              "STRIPE_ENTERPRISE_PRICE_ID=${STRIPE_ENTERPRISE_PRICE_ID}" \
+              "STRIPE_LLM_PACK_PRICE_ID=${STRIPE_LLM_PACK_PRICE_ID}" \
               "GEMINI_API_KEY=${GEMINI_API_KEY}" \
               "GROK_API_KEY=${GROK_API_KEY}" \
               "PINECONE_API_KEY=${PINECONE_API_KEY}" \
