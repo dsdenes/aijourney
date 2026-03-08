@@ -77,6 +77,15 @@ describe('BillingService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
+    it('should reject enterprise checkout because it is negotiation-only', async () => {
+      configService.config.STRIPE_SECRET_KEY = 'sk_test_123';
+      tenantsRepo.getById.mockResolvedValue(makeTenant());
+
+      await expect(
+        service.createCheckoutSession('t1', 'enterprise', 'http://ok', 'http://cancel'),
+      ).rejects.toThrow('Enterprise plan is available by negotiation only. Contact support to upgrade.');
+    });
+
     it('should throw BadRequestException for free plan (no price)', async () => {
       configService.config.STRIPE_SECRET_KEY = 'sk_test_123';
       tenantsRepo.getById.mockResolvedValue(makeTenant());

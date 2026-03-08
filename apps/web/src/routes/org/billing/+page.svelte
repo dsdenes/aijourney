@@ -39,6 +39,11 @@
   });
 
   async function openCheckout(plan: string) {
+    if (plan === 'enterprise') {
+      error = 'Enterprise is available by negotiation only. Contact us to discuss pricing and rollout.';
+      return;
+    }
+
     try {
       const res = await fetch(`${API_BASE}/billing/checkout`, {
         method: 'POST',
@@ -196,12 +201,10 @@
           <div class="rounded-lg border-2 border-purple-200 p-4">
             <h3 class="font-semibold text-text">Enterprise</h3>
             <p class="mt-1 text-sm text-text-muted">Unlimited users, 50,000 LLM calls/mo, Priority support</p>
-            <button
-              onclick={() => openCheckout('enterprise')}
-              class="mt-3 w-full rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-purple-700"
-            >
-              Upgrade to Enterprise
-            </button>
+            <div class="mt-3 rounded-lg bg-purple-50 px-4 py-3 text-sm text-purple-900">
+              Enterprise is available by negotiation only.
+            </div>
+            <p class="mt-2 text-xs text-text-muted">Contact us to discuss pricing, onboarding, and support requirements.</p>
           </div>
         </div>
       </div>

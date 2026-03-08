@@ -38,6 +38,12 @@ export class BillingService {
     const tenant = await this.tenantsRepo.getById(tenantId);
     if (!tenant) throw new BadRequestException('Tenant not found');
 
+    if (plan === 'enterprise') {
+      throw new BadRequestException(
+        'Enterprise plan is available by negotiation only. Contact support to upgrade.',
+      );
+    }
+
     const priceId = this.getPriceIdForPlan(plan);
     if (!priceId) {
       throw new BadRequestException(`No Stripe price configured for plan: ${plan}`);
