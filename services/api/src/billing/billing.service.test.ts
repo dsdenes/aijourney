@@ -83,7 +83,9 @@ describe('BillingService', () => {
 
       await expect(
         service.createCheckoutSession('t1', 'enterprise', 'http://ok', 'http://cancel'),
-      ).rejects.toThrow('Enterprise plan is available by negotiation only. Contact support to upgrade.');
+      ).rejects.toThrow(
+        'Enterprise plan is available by negotiation only. Contact support to upgrade.',
+      );
     });
 
     it('should throw BadRequestException for free plan (no price)', async () => {
